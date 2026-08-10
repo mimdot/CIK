@@ -261,6 +261,12 @@ _started_scheduler = False
 @app.on_event("startup")
 def _start_scheduler() -> None:
     global _started_scheduler
+    # Disable in every process except one (e.g. `CIK_SCHEDULER_ENABLED=0` on
+    # extra uvicorn workers) so the weekly-digest cron is never registered
+    # more than once per deployment. Disabled under tests too (CIK_TESTING=1).
+    if (os.environ.get("CIK_SCHEDULER_ENABLED", "1").lower() in
+            ("0", "false", "no")):
+        return
     if _started_scheduler or os.environ.get("CIK_TESTING", "") == "1":
         return
     _started_scheduler = True

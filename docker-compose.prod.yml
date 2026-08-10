@@ -1,16 +1,73 @@
-# Production overrides (Sprint 05, B1). Extends docker-compose.yml.
-# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Production overrides (Sprint 05, B1; hardened Sprint 10, A2).
+# Extends docker-compose.yml. Usage:
+#   docker compose --profile redis --profile postgres \
+#     -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 services:
+  postgres:
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    volumes:
+      - cik-pgdata:/var/lib/postgresql/data
+
+  redis:
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
   api:
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     environment:
       CIK_SECRET_KEY: ${CIK_SECRET_KEY:?CIK_SECRET_KEY must be set in production}
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS must list the production dashboard origin}
+      API_WORKERS: ${API_WORKERS:-1}
+      CIK_SCHEDULER_ENABLED: ${CIK_SCHEDULER_ENABLED:-1}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-20}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      INVITES_REQUIRED: ${INVITES_REQUIRED:-1}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      DASHBOARD_URL: ${DASHBOARD_URL:-}
+      LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OLLAMA_HOST: ${OLLAMA_HOST:-}
+      ASSISTANT_DAILY_LIMIT: ${ASSISTANT_DAILY_LIMIT:-50}
+      LLM_MONTHLY_CAP_USD: ${LLM_MONTHLY_CAP_USD:-}
     expose:
       - "8000"
+    stop_grace_period: 30s
+
+  worker:
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    environment:
+      CIK_JOB_RETRIES: ${CIK_JOB_RETRIES:-2}
+      CIK_JOB_RETRY_DELAY: ${CIK_JOB_RETRY_DELAY:-2}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      DASHBOARD_URL: ${DASHBOARD_URL:-}
+      LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OLLAMA_HOST: ${OLLAMA_HOST:-}
+      ADS_API_TOKEN: ${ADS_API_TOKEN:-}
+      OPENALEX_MAILTO: ${OPENALEX_MAILTO:-}
+    stop_grace_period: 30s
 
   dashboard:
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     build:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set in production}
@@ -18,3 +75,30 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set in production}
     expose:
       - "3000"
+
+  # Automatic TLS via Let's Encrypt (docs/DEPLOYMENT.md, section 2).
+  caddy:
+    image: caddy:2-alpine
+    container_name: cik-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-api.example.com}
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN:-dashboard.example.com}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      dashboard:
+        condition: service_started
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  caddy-data:
+  caddy-config:

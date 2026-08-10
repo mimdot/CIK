@@ -1,0 +1,25 @@
+# Career Intelligence Kit — Caddy reverse proxy (Sprint 10, B1).
+# Terminates TLS (Let's Encrypt, automatic issuance + renewal) and routes:
+#   api.example.com        -> api:8000
+#   dashboard.example.com  -> dashboard:3000
+#
+# Replace the example hosts with your real domains (or set API_DOMAIN /
+# DASHBOARD_DOMAIN in .env). Caddy needs ports 80 (ACME HTTP challenge) and
+# 443 open in the firewall (ufw allow 80,443). The dashboard and API must be
+# served over HTTPS for the Secure auth cookie to work.
+
+{$API_DOMAIN:api.example.com} {
+    encode gzip
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    header X-Content-Type-Options "nosniff"
+    header Referrer-Policy "strict-origin-when-cross-origin"
+    reverse_proxy api:8000
+}
+
+{$DASHBOARD_DOMAIN:dashboard.example.com} {
+    encode gzip
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    header X-Content-Type-Options "nosniff"
+    header Referrer-Policy "strict-origin-when-cross-origin"
+    reverse_proxy dashboard:3000
+}
