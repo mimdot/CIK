@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets and personal data
+vpn.txt
+applicant.yaml
+.env
+.env.*
+
+# Runtime state and artifacts
+.seen_positions.json
+phd_positions_selftest*.csv
+phd_positions_selftest*.html
+phd_positions_selftest*.json
+phd_positions_selftest*_state.json

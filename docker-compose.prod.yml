@@ -1,0 +1,20 @@
+# Production overrides (Sprint 05, B1). Extends docker-compose.yml.
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+services:
+  api:
+    restart: unless-stopped
+    environment:
+      CIK_SECRET_KEY: ${CIK_SECRET_KEY:?CIK_SECRET_KEY must be set in production}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS must list the production dashboard origin}
+    expose:
+      - "8000"
+
+  dashboard:
+    restart: unless-stopped
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set in production}
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set in production}
+    expose:
+      - "3000"

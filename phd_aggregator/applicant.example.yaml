@@ -1,0 +1,16 @@
+# applicant.example.yaml — copy to applicant.yaml (gitignored) and fill in.
+# Used by --write-emails / --extras to draft per-position application emails.
+# Without applicant.yaml the emails carry obvious placeholders.
+
+name: Your Name
+email: you@university.edu
+alt_email: ""                 # optional second address
+phone: ""                     # optional, shown in the signature
+cv_filename: CV.pdf           # the file you attach before sending
+msc: M.Sc. in <subject>, <university> (<years>)
+bsc: B.Sc. in <subject>, <university> (<years>)
+publication: >
+  <Your representative publication, full citation — or delete the sentence
+  that uses it from build_email() if you have none yet.>
+references: >
+  <Referee name (affiliation, email)> — list people who agreed to be named.

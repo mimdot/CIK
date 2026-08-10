@@ -1,0 +1,493 @@
+# fields/engineering.yaml — General Engineering PhD positions
+# =============================================================================
+
+name: engineering
+description: >
+  Engineering disciplines including Electrical, Computer, Mechanical,
+  Civil, Chemical, Aerospace, Materials, Industrial, Biomedical,
+  Environmental, and all major engineering fields.
+
+core_anchors:
+  # Electrical & Computer Engineering
+  - electrical engineering
+  - electrical engineer
+  - electronic engineering
+  - computer engineering
+  - computer engineer
+  - software engineering
+  - embedded systems
+  - systems engineering
+  - signal processing
+  - communication systems
+  - networking
+  - wireless communications
+  - VLSI
+  - digital design
+  - analog design
+  - power systems
+  - electromagnetics
+  - solid state electronics
+  - photonics
+  - control systems
+  - mechatronics
+  - robotics
+  - automation
+  - biomedical engineering
+  - biomedical signal processing
+  - medical imaging
+  - bioelectronics
+  - biomechanics
+
+  # Mechanical Engineering
+  - mechanical engineering
+  - mechanical engineer
+  - mechanical design
+  - thermodynamics
+  - fluid mechanics
+  - heat transfer
+  - computational fluid dynamics
+  - finite element analysis
+  - manufacturing engineering
+  - materials science
+  - computer-aided design
+  - computer-aided manufacturing
+  - robotic devices
+  - trajectory planning
+  - pipeline design
+  - mechanical systems
+  - vibrations
+  - dynamics
+  - acoustics
+  - noise control
+  - kinematics
+  - mechanism design
+
+  # Civil Engineering
+  - civil engineering
+  - civil engineer
+  - structural engineering
+  - structural engineer
+  - geotechnical engineering
+  - geotechnical engineer
+  - geotechnics
+  - transportation engineering
+  - transportation engineer
+  - traffic engineering
+  - municipal engineering
+  - water resources
+  - hydraulic engineering
+  - environmental engineering
+  - environmental engineer
+  - waste management
+  - environmental policy
+  - infrastructure
+  - earthquake engineering
+  - geomatics
+  - surveying
+
+  # Chemical & Process Engineering
+  - chemical engineering
+  - chemical engineer
+  - process engineering
+  - process engineer
+  - chemical process
+  - reaction engineering
+  - heat and mass transfer
+  - fuels
+  - energy
+  - energy engineering
+  - chemical equipment
+  - chemical plants
+  - hazardous waste
+  - waste treatment
+  - energy technology
+  - energy management
+  - renewable energy
+  - energy resources
+  - energy integration
+  - biofuels
+  - process control
+  - process intensification
+  - materials chemistry
+  - petrochemicals
+  - synthesis
+  - polymer
+  - colloids
+  - hydrocarbons
+
+  # Aerospace & Aeronautical Engineering
+  - aerospace engineering
+  - aeronautical engineering
+  - aerospace engineer
+  - aeronautical engineer
+  - aircraft
+  - spacecraft
+  - flight mechanics
+  - propulsion
+  - aerodynamics
+  - structures
+  - propulsion engineering
+  - flight dynamics
+  - aircraft design
+  - spacecraft design
+
+  # Materials Engineering
+  - materials engineering
+  - materials scientist
+  - nanotechnology
+  - nanomaterials
+  - thin films
+  - coatings
+  - polymers
+  - composites
+  - ceramics
+  - metallurgy
+  - biomaterials
+  - semiconductor
+  - solid state materials
+  - advanced materials
+  - functional materials
+  - smart materials
+  - materials characterization
+
+  # Industrial & Systems Engineering
+  - industrial engineering
+  - industrial engineer
+  - manufacturing engineer
+  - operations research
+  - optimization
+  - quality engineering
+  - lean manufacturing
+  - Six Sigma
+  - supply chain
+  - logistics
+  - project management
+  - ergonomics
+  - human factors
+  - reliability engineering
+  - maintenance engineering
+
+  # Environmental & Sustainable Engineering
+  - sustainable engineering
+  - clean energy
+  - climate change
+  - carbon capture
+  - emissions
+  - air pollution
+  - water treatment
+  - wastewater
+  - solid waste
+  - environmental remediation
+  - environmental impact
+  - life cycle assessment
+
+  # Biomedical Engineering
+  - biomedical engineer
+  - medical biotechnology
+  - bioengineering
+  - biosensors
+  - tissue engineering
+  - stem cells
+  - regenerative medicine
+  - drug delivery
+  - physiology
+  - medical devices
+  - healthcare technology
+  - clinical engineering
+
+context_terms:
+  - research
+  - development
+  - design
+  - analysis
+  - simulation
+  - modeling
+  - computational
+  - experimental
+  - theoretical
+  - laboratory
+  - applied
+  - advanced
+  - innovative
+  - novel
+  - industrial
+  - commercial
+  - manufacturing
+  - process
+  - system
+  - network
+  - distributed
+  - scalable
+  - robust
+  - efficient
+  - high-performance
+  - optimization
+  - control
+  - automation
+  - instrumentation
+  - hardware
+  - software
+  - algorithm
+  - data analysis
+  - machine learning
+  - artificial intelligence
+
+negative_terms:
+  - economics
+  - finance
+  - business
+  - commerce
+  - banking
+  - medicine
+  - biology
+  - chemistry
+  - physics
+  - astronomy
+  - geophysics
+  - earth sciences
+  - astrophysics
+  - marketing
+  - management science
+  - quantitative finance
+  - actuarial science
+
+search_terms:
+  - engineering
+  - mechanical engineering
+  - electrical engineering
+  - computer engineering
+  - civil engineering
+  - chemical engineering
+  - aerospace engineering
+  - materials engineering
+  - environmental engineering
+  - biomedical engineering
+  - industrial engineering
+
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+
+threshold: 2.0
+
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: eess.*,physics.flu-dyn,physics.app-ph,cond-mat.mtrl-sci
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 22 = "Engineering". supervisor_topics drive the AUTHOR index
+# query — real researchers ranked by h-index and recent activity.
+supervisor_field: 22
+supervisor_topics:
+  - T13031   # Civil and Structural Engineering Research
+  - T10479   # Structural Behavior of Reinforced Concrete
+  - T12487   # Structural Engineering and Vibration Analysis
+  - T10534   # Structural Health Monitoring Techniques
+  - T10360   # Fluid Dynamics and Turbulent Flows
+  - T10396   # Fatigue and fracture mechanics
+  - T11159   # Manufacturing Process and Optimization
+  - T10783   # Additive Manufacturing and 3D Printing Technologies
+  - T10472   # Semiconductor materials and devices
+  - T10624   # Silicon and Solar Cell Technologies
+  - T10069   # Antenna Design and Analysis
+  - T10791   # Advanced Control Systems Optimization
+  - T10876   # Fault Detection and Control Systems
+  - T10299   # Photonic and Optical Devices
+  - T10338   # Advanced Sensor and Energy Harvesting Materials
+  - T10603   # Smart Grid Energy Management
+  - T11091   # Extraction and Separation Processes
+  - T11801   # Reservoir Engineering and Simulation Methods
+supervisor_senior_signal: last_author
+
+subfields:
+  electrical_computer:
+    label: Electrical & Computer Engineering
+    topics: [T10472, T10624, T10791]
+    keywords:
+      - electrical engineering
+      - computer engineering
+      - signal processing
+      - VLSI
+      - embedded systems
+      - control systems
+      - robotics
+      - mechatronics
+
+  mechanical:
+    label: Mechanical Engineering
+    topics: [T10360, T10396, T11159, T10783]
+    keywords:
+      - mechanical engineering
+      - thermodynamics
+      - fluid mechanics
+      - heat transfer
+      - CAD/CAM
+      - finite element analysis
+      - manufacturing
+      - dynamics
+
+  civil_structural:
+    label: Civil & Structural Engineering
+    topics: [T13031, T10479, T12487, T10534]
+    keywords:
+      - civil engineering
+      - structural engineering
+      - geotechnical
+      - transportation
+      - water resources
+      - environmental
+
+  chemical:
+    label: Chemical Engineering
+    topics: [T11091, T10360]
+    keywords:
+      - chemical engineering
+      - process engineering
+      - reaction engineering
+      - thermodynamics
+      - separation processes
+
+  aerospace:
+    label: Aerospace Engineering
+    keywords:
+      - aerospace engineering
+      - aeronautical engineering
+      - flight mechanics
+      - aerodynamics
+      - propulsion
+      - spacecraft
+
+  materials:
+    label: Materials Engineering
+    topics: [T10472, T10624, T10338]
+    keywords:
+      - materials engineering
+      - materials science
+      - nanomaterials
+      - ceramics
+      - composites
+      - metallurgy
+
+  biomedical:
+    label: Biomedical Engineering
+    keywords:
+      - biomedical engineering
+      - bioengineering
+      - biomechanics
+      - medical imaging
+      - biomaterials
+
+  environmental_sustainable:
+    label: Environmental & Sustainable Engineering
+    keywords:
+      - environmental engineering
+      - sustainability
+      - renewable energy
+      - clean technology
+      - climate engineering
+
+# --- university department sweep-list (source: uni_departments) -----------------
+departments:
+  - country: United Kingdom
+    institution: University of Cambridge — Department of Engineering
+    url: https://www.eng.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Oxford — Department of Engineering Science
+    url: https://www.eng.ox.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: Imperial College London — Faculty of Engineering
+    url: https://www.imperial.ac.uk/engineering
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — D-MAVT (Mechanical and Process Engineering)
+    url: https://mavt.ethz.ch/
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — D-BAUG (Civil, Environmental and Geomatic Engineering)
+    url: https://baug.ethz.ch/
+    field_specific: true
+  - country: Switzerland
+    institution: EPFL — School of Engineering (STI)
+    url: https://www.epfl.ch/schools/sti/
+    field_specific: true
+  - country: Germany
+    institution: Technische Universität München — School of Engineering and Design
+    url: https://www.mw.tum.de/en/
+    field_specific: true
+  - country: Germany
+    institution: RWTH Aachen University
+    url: https://www.rwth-aachen.de/
+    field_specific: true
+  - country: Germany
+    institution: Karlsruhe Institute of Technology — Engineering
+    url: https://www.kit.edu/
+    field_specific: true
+  - country: Germany
+    institution: Technische Universität Berlin
+    url: https://www.tu.berlin/
+    field_specific: true
+  - country: Germany
+    institution: Leibniz Universität Hannover — Faculty of Mechanical Engineering
+    url: https://www.maschinenbau.uni-hannover.de/
+    field_specific: true
+  - country: Netherlands
+    institution: TU Delft — Mechanical, Maritime and Materials Engineering (3mE)
+    url: https://www.tudelft.nl/en/3me
+    field_specific: true
+  - country: Netherlands
+    institution: TU Delft — Civil Engineering and Geosciences
+    url: https://www.tudelft.nl/en/ceg
+    field_specific: true
+  - country: Netherlands
+    institution: Eindhoven University of Technology
+    url: https://www.tue.nl/
+    field_specific: true
+  - country: Sweden
+    institution: Chalmers University of Technology
+    url: https://www.chalmers.se/
+    field_specific: true
+  - country: Sweden
+    institution: KTH Royal Institute of Technology
+    url: https://www.kth.se/en
+    field_specific: true
+  - country: Denmark
+    institution: Technical University of Denmark (DTU)
+    url: https://www.dtu.dk/
+    field_specific: true
+  - country: Japan
+    institution: University of Tokyo — School of Engineering
+    url: https://www.t.u-tokyo.ac.jp/
+    field_specific: true
+  - country: Korea
+    institution: KAIST — College of Engineering
+    url: https://www.kaist.ac.kr/
+    field_specific: true
+  - country: United States
+    institution: MIT — School of Engineering
+    url: https://engineering.mit.edu/
+    field_specific: true
+  - country: United States
+    institution: Stanford University — School of Engineering
+    url: https://engineering.stanford.edu/
+    field_specific: true
+  - country: United States
+    institution: University of California, Berkeley — College of Engineering
+    url: https://engineering.berkeley.edu/
+    field_specific: true
+  - country: United States
+    institution: Georgia Institute of Technology — College of Engineering
+    url: https://coe.gatech.edu/
+    field_specific: true
+  - country: United States
+    institution: University of Illinois Urbana-Champaign — Grainger College of Engineering
+    url: https://grainger.illinois.edu/
+    field_specific: true
+  - country: Canada
+    institution: University of Toronto — Faculty of Applied Science & Engineering
+    url: https://www.engineering.utoronto.ca/
+    field_specific: true

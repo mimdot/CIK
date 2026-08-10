@@ -1,0 +1,86 @@
+# config.yaml — runtime settings for phd_aggregator.py
+# =============================================================================
+# Everything here is OPTIONAL: any key you delete falls back to the built-in
+# default in the CONFIG block of phd_aggregator.py, and CLI flags override
+# everything. Field-specific knowledge (keywords, taxonomy) does NOT live
+# here — that's fields/<profile>.yaml, selected below or with --field.
+# =============================================================================
+
+# --- what to hunt ------------------------------------------------------------
+field_profile: computer_science  # run python phd_aggregator.py --field computer_science
+                                   # or use: astronomy, economics, engineering, chemistry,
+                                   # biology, physics, geology, etc.
+wanted_position_types: [phd]    # any of: phd, postdoc, faculty, staff
+keep_ambiguous: true            # keep posts whose level can't be determined
+countries: ["*"]                # "*" = worldwide, or e.g. [Germany, Japan]
+exclude_expired: true           # drop posts whose deadline has passed
+
+# --- freshness (undated posts must not live forever) --------------------------
+max_age_days: 365               # no future deadline AND older than this -> drop
+keep_undated_within_window: true
+# state_file: .seen_positions.json   # first/last-seen timestamps (gitignored)
+
+# --- seed URLs (hand-picked links the crawlers miss) ---------------------------
+seed_file: seeds.txt
+seed_bypass_gate: true          # hand-picked seeds skip the relevance/type
+                                # gates (still scored, classified and
+                                # deadline/freshness-filtered)
+seed_discover_siblings: true    # also harvest sibling postings on the board
+seed_max_siblings: 8            # per seed domain
+
+# --- network -------------------------------------------------------------------
+# All traffic (requests, curl_cffi, headless browser) goes through this proxy.
+# V2RayN SOCKS inbound with remote DNS; the HTTP-inbound variant is
+# "http://127.0.0.1:10809" if enabled. If V2Ray runs in system-wide TUN mode
+# the port may be closed — the script detects that and continues direct
+# (traffic still exits through the tunnel). Set to null to disable.
+proxy: "socks5h://127.0.0.1:10808"
+proxy_fallback_direct: true
+auto_detect_proxy: true         # if the configured proxy is dead, sweep the
+                                # common local ports (V2RayN/Clash/sing-box...)
+                                # and use the first one that really works
+headed_fallback: true           # last-resort visible browser window (needs a
+                                # desktop; never solves CAPTCHAs)
+request_delay: 2.0              # polite seconds between requests
+robots_obey: true
+
+# --- sources --------------------------------------------------------------------
+# Toggle without editing code. `python phd_aggregator.py --list-sources` shows
+# what exists; stubs stay off.
+sources_enabled:
+  euraxess: true
+  nature_careers: true
+  jobs_ac_uk: true
+  findaphd: true                # Cloudflare — needs a clean proxy exit IP
+  academictransfer: true
+  academicjobsonline: true
+  aas: true                     # Cloudflare — needs a clean proxy exit IP
+  jrecin: true
+  eso: true
+  esa: true
+  linkedin: true                # personal-use guest search; see docstring
+  uni_departments: true
+  seed_urls: true
+
+# --- supervisor finder ------------------------------------------------------------
+supervisor_years_back: 5        # "recent papers" window
+supervisor_min_papers: 2        # authors on fewer matched papers are dropped
+# Literature source for --find-supervisors (auto | openalex | ads | arxiv).
+# auto = ADS for astronomy/physics, OpenAlex for every other major.
+# OpenAlex covers ANY major and needs no token; ADS only indexes astro/physics.
+supervisor_source: auto
+# Author-direct supervisor ranking (OpenAlex): the active field profile ships
+# supervisor_topics + supervisor_field in fields/<profile>.yaml; you may
+# override them here (useful for profiles that lack a curated list).
+# supervisor_topics: [T11742, T10128]
+# supervisor_field: 20
+# supervisor_senior_signal: none    # none | last_author | corresponding
+
+# --- output ----------------------------------------------------------------------
+output_path: phd_positions      # writes .csv / .json / .html
+write_html: true
+
+# --- extra country aliases (EXTEND the built-in map) --------------------------------
+# country_aliases:
+#   Germany: [brd]
+#   South Korea: [daehan minguk]

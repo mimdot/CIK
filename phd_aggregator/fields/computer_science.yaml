@@ -1,0 +1,398 @@
+# fields/computer_science.yaml — Computer Science & Engineering PhD positions
+# =============================================================================
+
+name: computer_science
+description: >
+  Computer Science, Software Engineering, Data Science, Artificial Intelligence,
+  Machine Learning, Robotics, Cybersecurity, Computer Vision,
+  Natural Language Processing, etc.
+
+core_anchors:
+  - computer science
+  - computer engineering
+  - software engineering
+  - data science
+  - artificial intelligence
+  - machine learning
+  - deep learning
+  - neural networks
+  - data mining
+  - data analytics
+  - pattern recognition
+  - robotics
+  - automation
+  - intelligent systems
+  - computer vision
+  - image processing
+  - natural language processing
+  - NLP
+  - natural language understanding
+  - speech recognition
+  - speech synthesis
+  - dialogue systems
+  - conversational AI
+  - chatbots
+  - reinforcement learning
+  - evolutionary computation
+  - swarm intelligence
+  - computing systems
+  - distributed systems
+  - cloud computing
+  - edge computing
+  - internet of things
+  - IoT
+  - cyber-physical systems
+  - interactive systems
+  - human-computer interaction
+  - HCI
+  - cybersecurity
+  - network security
+  - information security
+  - applied cryptography
+  - formal methods
+  - software reliability
+  - requirements engineering
+  - software testing
+  - quality assurance
+  - software architecture
+  - system design
+  - database systems
+  - query processing
+  - query optimization
+  - databases
+  - database management
+  - data warehousing
+  - big data
+  - high-throughput computing
+  - HPC
+  - parallel computing
+  - concurrent systems
+  - real-time systems
+  - embedded systems
+  - low-level programming
+  - compilers
+  - programming languages
+  - type systems
+  - formal verification
+  - code analysis
+  - program analysis
+
+context_terms:
+  - programming
+  - algorithm
+  - research
+  - university
+  - PhD
+  - doctoral
+  - candidate
+  - scholar
+  - study
+  - coursework
+  - teamwork
+  - communication
+  - leadership
+  - innovation
+  - optimization
+  - benchmarking
+  - evaluation
+  - reproducibility
+  - reproducible
+  - scalable
+  - robust
+  - efficient
+  - high-performance
+  - sparse
+  - large-scale
+  - real-world
+  - novel
+  - theoretical
+  - empirical
+  - computational
+  - software
+  - system
+  - architecture
+  - implementation
+
+negative_terms:
+  - petroleum engineering
+  - petroleum
+  - reservoir engineering
+  - drilling engineering
+  - hydraulic fracturing
+  - fracking
+  - oilsands
+  - mining engineering
+  - mineral processing
+  - metallurgy
+  - civil engineering
+  - structural engineering
+  - transportation engineering
+  - architecture
+  - materials science
+  - semiconductor
+  - solid state
+  - electrical power
+  - mechanical components
+  - agronomy
+  - agriculture
+  - farming
+  - chemical manufacturing
+  - pharmaceutical
+  - biotechnology
+  - biology
+  - chemistry
+  - astronomy
+  - astrophysic
+  - astrophysics
+  - cosmology
+  - planetary science
+  - geophysics
+  - physics
+  - particle physics
+  - nuclear physics
+  - plasma physics
+  - quantum physic
+  - condensed matter
+  - accelerator physic
+
+search_terms:
+  - computer science
+  - data science
+  - artificial intelligence
+  - machine learning
+  - software engineering
+  - robotics
+  - cybersecurity
+  - cloud computing
+  - data analytics
+
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+
+threshold: 2.0
+
+# A position must have a computer-science keyword in its TITLE to qualify.
+# Description matches only add score (keeps ML-heavy posts from other fields —
+# astrophysics, bioinformatics, ... — out of a computer-science search).
+require_title_anchor: true
+
+# OpenAlex covers ALL CS subfields with structured affiliations + ORCIDs and
+# needs no API token (ADS only indexes astronomy/physics).
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: cs.*
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 17 = "Computer Science". supervisor_topics drive the AUTHOR
+# index query (topics.id OR-ed + country filter) — real researchers ranked by
+# h-index and recent activity, not keyword-matched papers.
+supervisor_field: 17
+supervisor_topics:
+  - T10181   # Natural Language Processing Techniques
+  - T10320   # Neural Networks and Applications
+  - T10036   # Advanced Neural Network Applications
+  - T10028   # Topic Modeling
+  - T10715   # Distributed and Parallel Computing Systems
+  - T10772   # Distributed systems and fault tolerance
+  - T10101   # Cloud Computing and Resource Management
+  - T10260   # Software Engineering Research
+  - T10430   # Software Engineering Techniques and Practices
+  - T10317   # Advanced Database Systems and Queries
+  - T10734   # Information and Cyber Security
+  - T10400   # Network Security and Intrusion Detection
+  - T12002   # Computability, Logic, AI Algorithms
+  - T10126   # Logic, programming, and type systems
+  - T10531   # Advanced Vision and Imaging
+  - T10201   # Speech Recognition and Synthesis
+  - T10586   # Robotic Path Planning Algorithms
+  - T10273   # IoT and Edge/Fog Computing
+supervisor_senior_signal: last_author
+
+subfields:
+  data_mining:
+    label: Data Mining & Machine Learning
+    topics: [T10320, T10036, T10028]
+    keywords:
+      - data mining
+      - clustering
+      - classification
+      - regression
+      - anomaly detection
+      - association rules
+      - market basket analysis
+      - pattern recognition
+      - neural networks
+
+  computer_vision:
+    label: Computer Vision
+    topics: [T10531, T14339]
+    keywords:
+      - computer vision
+      - image processing
+      - object detection
+      - image recognition
+      - semantic segmentation
+      - face recognition
+      - optical character recognition
+      - video analysis
+      - 3D reconstruction
+      - visual recognition
+
+  nlp:
+    label: Natural Language Processing
+    topics: [T10181, T10028]
+    keywords:
+      - natural language processing
+      - language modeling
+      - chatbot
+      - conversational agent
+      - question answering
+      - machine translation
+      - sentiment analysis
+      - named entity recognition
+      - text summarization
+
+  software_engineering:
+    label: Software Engineering
+    topics: [T10260, T10430]
+    keywords:
+      - software engineering
+      - software development
+      - software architecture
+      - software testing
+      - test automation
+      - continuous integration
+      - agile
+      - DevOps
+
+  systems_and_architecture:
+    label: Systems & Software Architecture
+    topics: [T10715, T10772, T10101, T10273]
+    keywords:
+      - distributed systems
+      - cloud computing
+      - systems architecture
+      - distributed algorithms
+      - fault tolerance
+      - load balancing
+      - microservices
+
+  cybersecurity:
+    label: Cybersecurity
+    topics: [T10734, T10400, T10270]
+    keywords:
+      - cybersecurity
+      - information security
+      - network security
+      - applied cryptography
+      - privacy-preserving
+      - secure systems
+
+  robotics:
+    label: Robotics & AI
+    topics: [T10586, T14339]
+    keywords:
+      - robotics
+      - autonomous systems
+      - motion planning
+      - control systems
+      - computer vision
+      - sensor fusion
+
+  high_performance_computing:
+    label: High-Performance Computing
+    topics: [T10054, T10715]
+    keywords:
+      - HPC
+      - high-performance computing
+      - parallel computing
+      - GPUs
+      - distributed computing
+      - cluster computing
+      - GPU programming
+# --- university department sweep-list (source: uni_departments) -----------------
+departments:
+  - country: United Kingdom
+    institution: University of Cambridge — Department of Computer Science and Technology
+    url: https://www.cst.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Oxford — Department of Computer Science
+    url: https://www.cs.ox.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: Imperial College London — Department of Computing
+    url: https://www.imperial.ac.uk/computing
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — D-INFK
+    url: https://inf.ethz.ch/
+    field_specific: true
+  - country: Switzerland
+    institution: EPFL — School of Computer and Communication Sciences
+    url: https://www.epfl.ch/schools/ic/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Informatics
+    url: https://www.mpi-inf.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Software Systems
+    url: https://www.mpi-sws.org/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Intelligent Systems
+    url: https://www.is.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Technische Universität München — School of Computation
+    url: https://www.in.tum.de/
+    field_specific: true
+  - country: Germany
+    institution: University of Freiburg — Department of Computer Science
+    url: https://www.informatik.uni-freiburg.de/
+    field_specific: true
+  - country: Netherlands
+    institution: University of Amsterdam — Informatics Institute
+    url: https://ivi.uva.nl/
+    field_specific: true
+  - country: Netherlands
+    institution: TU Delft — Electrical Engineering, Mathematics and Computer Science
+    url: https://www.tudelft.nl/en/eemcs
+    field_specific: true
+  - country: Sweden
+    institution: KTH Royal Institute of Technology — School of EECS
+    url: https://www.kth.se/en/eecs
+    field_specific: true
+  - country: Finland
+    institution: Aalto University — Department of Computer Science
+    url: https://www.aalto.fi/en/department-of-computer-science
+    field_specific: true
+  - country: Japan
+    institution: University of Tokyo — Graduate School of Information Science and Technology
+    url: https://www.i.u-tokyo.ac.jp/
+    field_specific: true
+  - country: United States
+    institution: MIT — Department of EECS (CSAIL)
+    url: https://www.eecs.mit.edu/
+    field_specific: true
+  - country: United States
+    institution: Stanford University — Computer Science
+    url: https://cs.stanford.edu/
+    field_specific: true
+  - country: United States
+    institution: University of California, Berkeley — EECS
+    url: https://eecs.berkeley.edu/
+    field_specific: true
+  - country: United States
+    institution: Carnegie Mellon University — School of Computer Science
+    url: https://www.cs.cmu.edu/
+    field_specific: true
+  - country: Canada
+    institution: University of Waterloo — David R. Cheriton School of Computer Science
+    url: https://cs.uwaterloo.ca/
+    field_specific: true

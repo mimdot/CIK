@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+"""Offline tests for core/config.py (migration Step 1).
+
+Cover the extracted configuration subsystem and, crucially, the back-compat
+wiring: phd_aggregator.py must still expose every name it used to define, the
+config.yaml / fields/*.yaml layering must behave identically, and the
+country-alias tables must stay visible to the monolith's geo helpers even
+after apply_config_yaml() rebuilds _ALIAS_LOOKUP at runtime.
+
+Run:  python -m pytest tests/test_config.py -q
+"""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import core.config as _core_config
+import phd_aggregator as P
+
+
+def _no_config(**kwargs) -> argparse.Namespace:
+    base = dict(no_config=True, debug=False, phd_only=False, field=None)
+    base.update(kwargs)
+    return argparse.Namespace(**base)
+
+
+# ---------------------------------------------------------------------------
+# build_config defaults
+# ---------------------------------------------------------------------------
+def test_build_config_defaults_match_constants():
+    # Default build (no flags, no config.yaml) still overlays the repo's
+    # fields/astronomy.yaml taxonomy...
+    cfg = P.build_config(_no_config())
+    prof = P.load_field_profile("astronomy") or {}
+    assert cfg.field_profile == "astronomy"
+    assert cfg.subfield is None
+    assert cfg.core_anchors == prof.get("core_anchors", P.CORE_ANCHORS)
+    # ...while every non-taxonomy knob comes straight from the CONFIG block.
+    assert cfg.output_path == P.OUTPUT_PATH
+    assert cfg.write_html == P.WRITE_HTML
+    assert cfg.proxy == P.PROXY
+    assert cfg.proxy_fallback_direct == P.PROXY_FALLBACK_DIRECT
+    assert cfg.timeout == P.REQUEST_TIMEOUT
+    assert cfg.max_retries == P.MAX_RETRIES
+    assert cfg.delay == P.REQUEST_DELAY
+    assert cfg.robots_obey == P.ROBOTS_OBEY
+    assert cfg.max_desc == P.MAX_DESC_CHARS
+    assert cfg.exclude_expired == P.EXCLUDE_EXPIRED
+    assert cfg.keep_ambiguous == P.KEEP_AMBIGUOUS
+    assert cfg.wanted_types == P.WANTED_POSITION_TYPES
+    assert cfg.sources_enabled == P.SOURCES_ENABLED
+    assert cfg.max_age_days == P.MAX_AGE_DAYS
+
+
+def test_build_config_builtin_defaults_without_profile(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(_core_config, "load_field_profile", lambda name: None)
+    cfg = P.build_config(_no_config())
+    assert cfg.core_anchors == P.CORE_ANCHORS
+    assert cfg.context_terms == P.CONTEXT_TERMS
+    assert cfg.negative_terms == P.NEGATIVE_TERMS
+    assert cfg.search_terms == P.SEARCH_TERMS
+    assert cfg.countries == P.COUNTRIES
+    assert cfg.keep_ambiguous == P.KEEP_AMBIGUOUS
+    assert cfg.sources_enabled == P.SOURCES_ENABLED
+    assert cfg.field_profile == P.FIELD_PROFILE
+    assert cfg.subfield is None
+    assert cfg.weights == P.RELEVANCE_WEIGHTS
+    assert cfg.threshold == P.RELEVANCE_THRESHOLD
+
+
+def test_build_config_compiles_taxonomy():
+    cfg = P.build_config(_no_config())
+    assert cfg._core_rx and cfg._context_rx and cfg._negative_rx
+    first_term, first_rx = cfg._core_rx[0]
+    assert first_term == P.CORE_ANCHORS[0]
+    assert first_rx.search(first_term + " PhD position") is not None
+    ism = [rx for t, rx in cfg._core_rx if t == "ISM"]
+    assert ism and ism[0].search("interstellar medium (ISM)") is not None
+    assert ism[0].search("the mechanism is simple") is None
+
+
+# ---------------------------------------------------------------------------
+# config.yaml + CLI layering (constants < config.yaml < CLI flags)
+# ---------------------------------------------------------------------------
+def test_config_yaml_overlays_defaults(tmp_path, monkeypatch):
+    (tmp_path / "config.yaml").write_text(
+        "output_path: xyz_run\nproxy: \"\"\nrequest_delay: 1.0\n"
+        "keep_ambiguous: false\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cfg = P.build_config(argparse.Namespace(no_config=False))
+    assert cfg.output_path == "xyz_run"
+    assert cfg.proxy is None
+    assert cfg.delay == 1.0
+    assert cfg.keep_ambiguous is False
+
+
+def test_cli_flags_beat_config_yaml(tmp_path, monkeypatch):
+    (tmp_path / "config.yaml").write_text(
+        "output_path: from_yaml\nrequest_delay: 1.0\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    args = argparse.Namespace(no_config=False, output="from_cli")
+    cfg = P.build_config(args)
+    assert cfg.output_path == "from_cli"
+
+
+def test_field_profile_via_build_config(tmp_path, monkeypatch):
+    (tmp_path / "fields").mkdir()
+    (tmp_path / "fields" / "zzz.yaml").write_text(
+        "core_anchors: [quantum dots]\nsearch_terms: [quantum]\n"
+        "weights:\n  core_title: 9.0\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cfg = P.build_config(_no_config(field="zzz"))
+    assert cfg.field_profile == "zzz"
+    assert cfg.core_anchors == ["quantum dots"]
+    assert cfg.weights["core_title"] == 9.0
+    assert cfg.weights["core_desc"] == 2.5  # merged, not replaced
+
+
+def test_no_config_skips_config_yaml(tmp_path, monkeypatch):
+    (tmp_path / "config.yaml").write_text("output_path: yaml_only\n",
+                                          encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cfg = P.build_config(argparse.Namespace(no_config=True))
+    assert cfg.output_path == P.OUTPUT_PATH
+
+
+# ---------------------------------------------------------------------------
+# apply_field_profile semantics
+# ---------------------------------------------------------------------------
+def test_apply_field_profile_replaces_and_merges():
+    cfg = P.build_config(_no_config())
+    P.apply_field_profile(cfg, {
+        "core_anchors": ["marine biology"],
+        "weights": {"core_title": 7.0},
+        "threshold": 1.5,
+    })
+    assert cfg.core_anchors == ["marine biology"]
+    assert cfg.weights["core_title"] == 7.0
+    assert cfg.weights["negative"] == P.RELEVANCE_WEIGHTS["negative"]
+    assert cfg.threshold == 1.5
+
+
+def test_apply_field_profile_ignores_bad_values():
+    cfg = P.build_config(_no_config())
+    before = list(cfg.core_anchors)
+    P.apply_field_profile(cfg, {
+        "core_anchors": "not-a-list",
+        "threshold": "not-a-number",
+    })
+    assert cfg.core_anchors == before
+    assert cfg.threshold == P.RELEVANCE_THRESHOLD
+
+
+# ---------------------------------------------------------------------------
+# country-alias tables stay consistent across the core/monolith boundary
+# ---------------------------------------------------------------------------
+def test_country_aliases_propagate_to_canonical_country():
+    _core_config.reset_country_aliases()
+    try:
+        cfg = P.build_config(_no_config())
+        assert P.canonical_country("brd") is None
+        P.apply_config_yaml(cfg, {"country_aliases": {"Germany": ["brd"]}})
+        assert P.canonical_country("brd") == "Germany"
+    finally:
+        _core_config.reset_country_aliases()
+
+
+def test_country_tables_are_shared_objects():
+    assert P.ISO2_COUNTRY["DE"] == "Germany"
+    assert _core_config._CANON_TO_ISO2["Germany"] == "DE"
+    assert _core_config.ISO2_COUNTRY is P.ISO2_COUNTRY
+    assert _core_config.COUNTRY_ALIASES is P.COUNTRY_ALIASES
+
+
+# ---------------------------------------------------------------------------
+# resolve_field_arg / list_field_profiles / _oa_field_id
+# ---------------------------------------------------------------------------
+def test_resolve_field_arg_subfield_of_nondefault_profile():
+    pname, sub, profile = P.resolve_field_arg("econometrics")
+    assert pname == "economics"
+    assert sub == "econometrics"
+    assert profile is not None
+
+
+def test_resolve_field_arg_default_profile():
+    pname, sub, profile = P.resolve_field_arg("astronomy")
+    assert pname == "astronomy"
+    assert sub is None
+    assert profile is not None
+
+
+def test_resolve_field_arg_unknown_raises():
+    try:
+        P.resolve_field_arg("no_such_field_xyz")
+    except SystemExit as exc:
+        assert "no_such_field_xyz" in str(exc)
+    else:
+        raise AssertionError("expected SystemExit for unknown --field")
+
+
+def test_list_field_profiles_excludes_template():
+    names = P.list_field_profiles()
+    assert "template" not in names
+    assert names == sorted(names)
+    assert {"astronomy", "computer_science"} <= set(names)
+
+
+def test_oa_field_id_normalization():
+    assert P._oa_field_id("https://openalex.org/fields/20") == "20"
+    assert P._oa_field_id("fields/31") == "31"
+    assert P._oa_field_id("16") == "16"
+    assert P._oa_field_id("banana") is None
+    assert P._oa_field_id({"id": "https://openalex.org/fields/17"}) == "17"
+
+
+# ---------------------------------------------------------------------------
+# _script_dir fix: config/fields must still resolve next to the script
+# ---------------------------------------------------------------------------
+def test_script_dir_resolves_to_aggregator_dir():
+    assert os.path.basename(_core_config._script_dir()) == "phd_aggregator"
+
+
+def test_find_config_path_falls_back_to_script_dir(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    path = P._find_config_path("config.yaml")
+    assert path is not None
+    assert path.endswith("phd_aggregator" + os.sep + "config.yaml")
+    assert P.load_field_profile("astronomy") is not None
+
+
+def test_load_yaml_file_missing_returns_none(tmp_path):
+    assert P._load_yaml_file(os.path.join(str(tmp_path), "nope.yaml")) is None
+
+
+# ---------------------------------------------------------------------------
+# back-compat: monolith still exposes the whole config API
+# ---------------------------------------------------------------------------
+def test_backcompat_surface():
+    for name in ("Config", "build_config", "apply_config_yaml",
+                 "apply_field_profile", "load_field_profile",
+                 "list_field_profiles", "resolve_field_arg",
+                 "compile_taxonomy", "_compile_term", "_oa_field_id",
+                 "_find_config_path", "_load_yaml_file", "_CANON_TO_ISO2",
+                 "_HAVE_YAML", "CORE_ANCHORS", "CONTEXT_TERMS",
+                 "NEGATIVE_TERMS", "FIELD_PROFILE", "CONFIG_FILE",
+                 "FIELDS_DIR", "SUBFIELDS", "SOURCES_ENABLED", "SEARCH_TERMS",
+                 "COUNTRY_ALIASES", "ISO2_COUNTRY", "SUPERVISOR_SOURCE"):
+        assert hasattr(P, name), name
+        assert hasattr(_core_config, name), name
+
+
+# ---------------------------------------------------------------------------
+# Config convenience properties
+# ---------------------------------------------------------------------------
+def test_config_path_properties():
+    cfg = P.build_config(_no_config())
+    cfg.output_path = "out/results.csv"
+    assert cfg.stem == os.path.join("out", "results")
+    assert cfg.csv_path == os.path.join("out", "results.csv")
+    assert cfg.json_path == os.path.join("out", "results.json")
+    assert cfg.html_path == os.path.join("out", "results.html")
+    assert cfg.geo_filter_active is False
+    cfg.countries = ["Germany"]
+    assert cfg.geo_filter_active is True

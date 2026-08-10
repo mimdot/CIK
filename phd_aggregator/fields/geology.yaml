@@ -1,0 +1,451 @@
+# fields/geology.yaml — geology & earth sciences (structural geology, tectonics,
+# sedimentology, petrology, geochemistry, paleontology, mineral resources,
+# geohazards, glaciology ... hydrogeology/geophysics live in geophysics_hydro.yaml)
+# =============================================================================
+# Matching rules (see the relevance engine in phd_aggregator.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("geolog" catches geology/geological/geologist);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words.
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#   departments     the uni_departments sweep-list (top geoscience groups)
+# =============================================================================
+name: geology
+description: Geology & earth sciences — structural geology, tectonics and
+  geodynamics, sedimentology and stratigraphy, petrology, geochemistry,
+  mineralogy and ore deposits, paleontology, geomorphology, glaciology and
+  geohazards
+core_anchors:
+- geology
+- geolog
+- geological
+- geologist
+- earth science
+- earth sciences
+- earth system science
+- solid earth
+- structural geology
+- structural geolog
+- tectonics
+- tectonic
+- plate tectonics
+- geodynamics
+- geodynam
+- neotectonics
+- continental deformation
+- rift system
+- subduction
+- orogen
+- fold-and-thrust belt
+- fault mechanics
+- fault zone
+- fracture network
+- sedimentolog
+- stratigraph
+- stratigraphy
+- sequence stratigraphy
+- biostratigraphy
+- magnetostratigraphy
+- chemostratigraphy
+- sedimentary basin
+- basin analysis
+- basin modelling
+- carbonate sedimento
+- clastic sedimento
+- diagenesis
+- provenance
+- sediment transport
+- depositional environment
+- paleontology
+- paleontolog
+- palaeontology
+- fossil
+- taphonomy
+- micropaleontology
+- palynology
+- petrology
+- petrolog
+- igneous petrolog
+- metamorphic petrolog
+- experimental petrolog
+- magma
+- volcanic
+- volcanology
+- volcanolog
+- volcano
+- eruption
+- pyroclastic
+- lava
+- geochemistry
+- geochem
+- isotope geochemistry
+- isotope geochem
+- geochronology
+- geochronolog
+- thermochronolog
+- cosmogenic nuclide
+- mineralogy
+- mineralog
+- mineral physics
+- ore deposit
+- economic geology
+- economic geolog
+- mineral deposit
+- mineral resource
+- ore mineral
+- metalogenesis
+- hydrothermal deposit
+- porphyry
+- geomorphology
+- geomorpholog
+- landform
+- fluvial geomorpholog
+- coastal geomorpholog
+- glacial geomorpholog
+- glacial geology
+- glaciology
+- glaciolog
+- glacier
+- ice sheet
+- ice core
+- permafrost
+- quaternary
+- paleoclimatolog
+- paleoclimate
+- paleoceanograph
+- paleoenvironment
+- paleoecology
+- geohazard
+- natural hazard
+- landslide
+- earthquake geology
+- seismic hazard
+- ground motion
+- liquefaction
+- tsunami geolog
+- hydrogeolog
+- karst
+- aquifer
+- groundwater geology
+- remote sensing geology
+- planetary geolog
+- astrogeology
+- petrograph
+- thin section
+- drill core
+- borehole
+- geotechnical geolog
+- engineering geology
+- engineering geolog
+- petroleum geology
+- petroleum geolog
+- coal geology
+- coal geolog
+context_terms:
+- field work
+- fieldwork
+- field campaign
+- field mapping
+- geological map
+- structural mapping
+- gis
+- remote sensing
+- satellite imagery
+- lidar
+- drone survey
+- photogrammetry
+- geophysical survey
+- seismic reflection
+- seismic imaging
+- resistivity
+- magnetotelluric
+- gravimetry
+- gravity anomaly
+- magnetics
+- geostatistics
+- numerical modelling
+- numerical modeling
+- finite element
+- discrete element
+- thermomechanical
+- geomechanic
+- rock mechanic
+- rock physics
+- core analysis
+- well log
+- logging
+- sampling
+- sieve
+- x-ray diffraction
+- xrd
+- electron microprobe
+- sem
+- isotope ratio
+- radiometric dating
+- luminescence dating
+- radiocarbon
+- u-pb
+- ar-ar
+- modeling
+- simulation
+- statistical
+negative_terms:
+- astronomy
+- astrophysic
+- cosmolog
+- galaxy
+- stellar
+- exoplanet
+- particle physics
+- nuclear physics
+- plasma physics
+- quantum physic
+- condensed matter
+- organic chemistry
+- organometallic
+- catalysis
+- electrochemistry
+- polymer chemistry
+- biochemistry
+- molecular biology
+- cell biology
+- genomic
+- immunolog
+- microbiology
+- neuroscience
+- cancer
+- clinical
+- pharmacology
+- civil engineering
+- structural engineering
+- transportation engineering
+- electrical engineering
+- chemical engineering
+- mechanical engineering
+- aerospace engineering
+- computer science
+- machine learning engineering
+- software engineering
+- economics
+- finance
+- quantitative finance
+- mining engineering
+- petroleum engineering
+- reservoir engineering
+- drilling engineering
+search_terms:
+- geology
+- earth science
+- structural geology
+- tectonics
+- sedimentology
+- geochemistry
+- paleontology
+- volcanology
+- petrology
+- mineralogy
+- geomorphology
+- glaciology
+- hydrogeology
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: physics.geo-ph,astro-ph.EP
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 19 = "Earth and Planetary Sciences". supervisor_topics drive
+# the AUTHOR index query — real researchers ranked by h-index and recent
+# activity.
+supervisor_field: 19
+supervisor_topics:
+  - T10017   # Geology and Paleoclimatology Research
+  - T10001   # Geological and Geochemical Analysis
+  - T11405   # Geophysics and Gravity Measurements
+  - T11757   # Seismic Waves and Analysis
+  - T10271   # Seismic Imaging and Inversion Techniques
+  - T10110   # earthquake and tectonic studies
+  - T10572   # Geophysical and Geoelectrical Methods
+  - T10965   # Geological formations and processes
+  - T13443   # Mineralogy and Gemology Studies
+  - T10398   # Groundwater and Isotope Geochemistry
+  - T12083   # Karst Systems and Hydrogeology
+  - T13067   # Geological Modeling and Analysis
+  - T12424   # Earthquake Detection and Analysis
+  - T10644   # Cryospheric studies and observations
+  - T11333   # Climate change and permafrost
+  - T10955   # Paleontology and Evolutionary Biology
+  - T10109   # Paleontology and Stratigraphy of Fossils
+supervisor_senior_signal: last_author
+
+subfields:
+  structural_tectonics:
+    label: Structural Geology & Tectonics
+    topics: [T10110, T11405, T10017]
+    keywords:
+    - structural geology
+    - tectonics
+    - plate tectonics
+    - geodynamics
+    - fault mechanics
+    - rift system
+    - subduction
+    - orogen
+  sedimentology:
+    label: Sedimentology & Stratigraphy
+    topics: [T10965, T10017, T10109]
+    keywords:
+    - sedimentolog
+    - stratigraph
+    - sequence stratigraphy
+    - sedimentary basin
+    - diagenesis
+    - carbonate
+    - provenance
+  geochemistry:
+    label: Geochemistry & Petrology
+    topics: [T10001, T10398, T13443]
+    keywords:
+    - geochemistry
+    - isotope geochemistry
+    - geochronology
+    - thermochronolog
+    - petrology
+    - magma
+    - volcanic
+    - mineralogy
+  paleontology:
+    label: Paleontology & Paleoclimate
+    topics: [T10955, T10109, T10017]
+    keywords:
+    - paleontology
+    - fossil
+    - paleoclimatolog
+    - paleoceanograph
+    - paleoenvironment
+    - quaternary
+    - ice core
+  hydrogeology:
+    label: Hydrogeology
+    topics: [T10398, T12083]
+    keywords:
+    - hydrogeolog
+    - groundwater
+    - aquifer
+    - karst
+    - recharge
+  geohazards:
+    label: Geohazards & Seismology
+    topics: [T11757, T10271, T12424, T10110]
+    keywords:
+    - earthquake geology
+    - seismic hazard
+    - landslide
+    - geohazard
+    - natural hazard
+    - liquefaction
+  mineral_resources:
+    label: Mineral Resources & Ore Deposits
+    topics: [T13443, T10001]
+    keywords:
+    - ore deposit
+    - economic geology
+    - mineral deposit
+    - mineral resource
+    - hydrothermal deposit
+    - porphyry
+    - metalogenesis
+  glaciology:
+    label: Glaciology & Permafrost
+    topics: [T10644, T11333, T10017]
+    keywords:
+    - glaciology
+    - glacier
+    - ice sheet
+    - ice core
+    - permafrost
+    - glacial geomorpholog
+departments:
+  - country: United Kingdom
+    institution: University of Cambridge — Department of Earth Sciences
+    url: https://www.esc.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Oxford — Department of Earth Sciences
+    url: https://www.earth.ox.ac.uk/
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — Department of Earth Sciences
+    url: https://erdw.ethz.ch/
+    field_specific: true
+  - country: Germany
+    institution: GFZ German Research Centre for Geosciences (Potsdam)
+    url: https://www.gfz-potsdam.de/en/
+    field_specific: true
+  - country: Germany
+    institution: TU Bergakademie Freiberg
+    url: https://tu-freiberg.de/
+    field_specific: true
+  - country: Germany
+    institution: University of Bonn — Institute of Geosciences
+    url: https://www.geologie.uni-bonn.de/
+    field_specific: true
+  - country: Germany
+    institution: Leibniz Institute for Applied Geophysics
+    url: https://www.leibniz-liag.de/
+    field_specific: true
+  - country: Netherlands
+    institution: Utrecht University — Department of Earth Sciences
+    url: https://www.uu.nl/en/organisation/faculty-of-geosciences
+    field_specific: true
+  - country: Norway
+    institution: University of Oslo — Department of Geosciences
+    url: https://www.mn.uio.no/geo/english/
+    field_specific: true
+  - country: Norway
+    institution: University of Bergen — Department of Earth Science
+    url: https://www.uib.no/en/geo
+    field_specific: true
+  - country: Finland
+    institution: University of Helsinki — Geosciences and Geography
+    url: https://www.helsinki.fi/en/faculty-science/faculty/geosciences-and-geography
+    field_specific: true
+  - country: Japan
+    institution: University of Tokyo — Department of Earth and Planetary Science
+    url: https://www.eps.s.u-tokyo.ac.jp/en/
+    field_specific: true
+  - country: Japan
+    institution: JAMSTEC
+    url: https://www.jamstec.go.jp/e/
+    field_specific: true
+  - country: United States
+    institution: MIT — Department of Earth, Atmospheric and Planetary Sciences
+    url: https://eapsweb.mit.edu/
+    field_specific: true
+  - country: United States
+    institution: Stanford University — Doerr School of Sustainability
+    url: https://earth.stanford.edu/
+    field_specific: true
+  - country: United States
+    institution: University of Arizona — Department of Geosciences
+    url: https://www.geo.arizona.edu/
+    field_specific: true
+  - country: United States
+    institution: California Institute of Technology — Division of Geological and Planetary Sciences
+    url: https://www.gps.caltech.edu/
+    field_specific: true
+  - country: Canada
+    institution: University of British Columbia — Department of Earth, Ocean and Atmospheric Sciences
+    url: https://www.eoas.ubc.ca/
+    field_specific: true

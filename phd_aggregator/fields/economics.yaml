@@ -1,0 +1,394 @@
+# fields/economics.yaml — Economics & Finance PhD positions
+# =============================================================================
+
+name: economics
+description: >
+  Economics, Econometrics, Financial Economics, Development Economics,
+  Monetary Economics, Game Theory, Labor Economics, International Economics,
+  Macroeconomics, Microeconomics.
+
+core_anchors:
+  # Core economics
+  - economics
+  - economist
+  - macroeconomics
+  - microeconomics
+  - monetary economics
+  - financial economics
+  - international economics
+  - development economics
+  - labor economics
+  - public economics
+  - political economy
+  - economic history
+  - econometrics
+  - quantitative economics
+  - empirical economics
+  - experimental economics
+  - behavioral economics
+  - game theory
+  - public choice
+
+  # Finance & banking
+  - finance
+  - financial markets
+  - banking
+  - insurance
+  - monetary policy
+  - central banking
+  - fiscal policy
+  - taxation
+  - tax policy
+
+  # Growth, trade & macro
+  - economic growth
+  - economic development
+  - economic integration
+  - trade economics
+  - trade policy
+  - international trade
+  - open economy macro
+  - exchange rates
+  - capital markets
+  - asset pricing
+  - portfolio theory
+  - risk management
+  - valuation
+  - corporate finance
+
+  # Industrial organization & regulation
+  - industrial organization
+  - industrial economics
+  - antitrust
+  - competition policy
+  - regulation
+
+  # Applied economics
+  - health economics
+  - labor markets
+  - human capital
+  - education economics
+  - demography
+  - urban economics
+  - regional economics
+  - environmental economics
+  - natural resource economics
+  - energy economics
+  - climate economics
+  - growth economics
+  - economic fluctuation
+  - business cycle
+  - inflation
+  - unemployment
+  - economic policy
+  - public finance
+  - bureaucracy
+  - institutional economics
+  - welfare economics
+  - social choice
+  - social planner
+  - optimal taxation
+
+context_terms:
+  - microfoundation
+  - quantitative
+  - empirical
+  - empirical methods
+  - panel data
+  - time series
+  - cross sectional
+  - instrumental variables
+  - difference-in-differences
+  - structural estimation
+  - natural experiment
+  - field experiment
+  - laboratory experiment
+  - survey
+  - big data
+  - machine learning
+  - deep learning
+  - computational economics
+  - agent-based model
+  - simulation
+  - econometric
+  - statistical
+  - data analysis
+  - research
+  - policy analysis
+  - monetary
+  - financial
+  - development
+  - policy
+  - regulation
+
+negative_terms:
+  - computer science
+  - computer engineering
+  - software engineering
+  - electrical engineering
+  - mechanical engineering
+  - civil engineering
+  - materials science
+  - petroleum engineering
+  - petroleum
+  - mining
+  - agriculture
+  - farming
+  - biology
+  - chemistry
+  - medicine
+  - medical
+  - neuroscience
+  - astrophysics
+  - astronomy
+
+search_terms:
+  - economics
+  - econometrics
+  - financial economics
+  - development economics
+  - monetary policy
+
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+
+threshold: 2.0
+
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: econ.*,q-fin.*
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# supervisor_field:      OpenAlex field id — 20 = "Economics, Econometrics and
+#                        Finance" (drives topic curation, not the query filter).
+# supervisor_topics:     curated OpenAlex topic ids used to find SUPERVISORS
+#                        directly in the OpenAlex AUTHOR index (topics.id OR-ed
+#                        + a country filter), instead of keyword-matched papers.
+# supervisor_senior_signal: economics/finance order authors alphabetically, so
+#                        a "last author = PI" bonus would be wrong — 'none'.
+supervisor_field: 20
+supervisor_topics:
+  - T11742   # Economic Theory and Policy
+  - T10128   # Global trade and economics
+  - T11770   # Fiscal Policy and Economic Growth
+  - T10007   # Monetary Policy and Economic Impact
+  - T10047   # Financial Markets and Investment Strategies
+  - T10208   # Labor market dynamics and wage inequality
+  - T11059   # Market Dynamics and Volatility
+  - T10067   # Stochastic processes and financial applications
+  - T12137   # Economic theories and models
+  - T10991   # Game Theory and Voting Systems
+  - T10393   # Economic Growth and Productivity
+  - T12394   # Insurance and Financial Risk Management
+  - T10282   # Financial Risk and Volatility Modeling
+  - T11043   # Merger and Competition Analysis
+supervisor_senior_signal: none
+
+subfields:
+  macroeconomics:
+    label: Macroeconomics
+    topics: [T10007, T11770, T10393, T11742, T10047]
+    keywords:
+      - macroeconomics
+      - monetary policy
+      - fiscal policy
+      - business cycle
+      - economic growth
+      - inflation
+      - unemployment
+      - exchange rate
+      - open economy
+      - international finance
+      - financial markets
+
+  microeconomics:
+    label: Microeconomics
+    topics: [T10991, T11742, T11043]
+    keywords:
+      - microeconomics
+      - game theory
+      - mechanism design
+      - industrial organization
+      - market design
+      - auction theory
+      - contract theory
+      - wealth inequality
+      - behavioral economics
+
+  econometrics:
+    label: Econometrics
+    topics: [T11911, T10067, T10282]
+    keywords:
+      - econometrics
+      - econometric methodology
+      - quantitative economics
+      - time series
+      - panel data
+      - structural econometrics
+      - causal inference
+      - microeconometrics
+      - macroeconometrics
+      - machine learning
+
+  development_economics:
+    label: Development Economics
+    topics: [T10393, T10128, T11770]
+    keywords:
+      - development economics
+      - development policy
+      - poverty
+      - inequality
+      - health economics
+      - education
+      - human capital
+      - economic growth
+
+  international_economics:
+    label: International Economics
+    topics: [T10128]
+    keywords:
+      - international economics
+      - trade policy
+      - international trade
+      - exchange rate
+      - open economy macro
+      - foreign direct investment
+      - globalization
+
+  financial_economics:
+    label: Financial Economics
+    topics: [T10047, T10067, T10282, T12394]
+    keywords:
+      - financial economics
+      - asset pricing
+      - corporate finance
+      - banking
+      - monetary economics
+      - risk management
+      - quantitative finance
+
+  labor_economics:
+    label: Labor Economics
+    topics: [T10208]
+    keywords:
+      - labor economics
+      - labor markets
+      - human capital
+      - education economics
+      - demographics
+      - wages
+      - employment policy
+
+  public_economics:
+    label: Public Economics
+    topics: [T11257, T11770, T10991]
+    keywords:
+      - public economics
+      - public finance
+      - tax policy
+      - welfare economics
+      - social choice
+      - optimal taxation
+
+# --- university department sweep-list (source: uni_departments) -----------------
+departments:
+  - country: United Kingdom
+    institution: London School of Economics and Political Science — Department of Economics
+    url: https://www.lse.ac.uk/economics
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Cambridge — Faculty of Economics
+    url: https://www.econ.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Oxford — Department of Economics
+    url: https://www.economics.ox.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Warwick — Department of Economics
+    url: https://warwick.ac.uk/fac/soc/economics/
+    field_specific: true
+  - country: Germany
+    institution: University of Bonn — ECONtribute
+    url: https://www.econtribute.de/
+    field_specific: true
+  - country: Germany
+    institution: University of Mannheim — Economics
+    url: https://www.vwl.uni-mannheim.de/
+    field_specific: true
+  - country: Germany
+    institution: LMU Munich — Department of Economics
+    url: https://www.econ.uni-muenchen.de/
+    field_specific: true
+  - country: Germany
+    institution: Goethe University Frankfurt — House of Finance
+    url: https://www.hof.uni-frankfurt.de/
+    field_specific: true
+  - country: Germany
+    institution: Freie Universität Berlin — School of Business & Economics
+    url: https://www.wiwiss.fu-berlin.de/
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — D-MTEC
+    url: https://mtec.ethz.ch/
+    field_specific: true
+  - country: Switzerland
+    institution: University of Zurich — Department of Economics
+    url: https://www.econ.uzh.ch/
+    field_specific: true
+  - country: France
+    institution: Toulouse School of Economics
+    url: https://www.tse-fr.eu/
+    field_specific: true
+  - country: France
+    institution: Paris School of Economics
+    url: https://www.parisschoolofeconomics.eu/
+    field_specific: true
+  - country: Italy
+    institution: Bocconi University — Department of Economics
+    url: https://www.unibocconi.eu/
+    field_specific: true
+  - country: Netherlands
+    institution: Tinbergen Institute
+    url: https://www.tinbergen.nl/
+    field_specific: true
+  - country: Netherlands
+    institution: Tilburg University — School of Economics and Management
+    url: https://www.tilburguniversity.edu/
+    field_specific: true
+  - country: Sweden
+    institution: Stockholm School of Economics
+    url: https://www.hhs.se/
+    field_specific: true
+  - country: Denmark
+    institution: University of Copenhagen — Department of Economics
+    url: https://www.economics.ku.dk/
+    field_specific: true
+  - country: Japan
+    institution: University of Tokyo — Faculty of Economics
+    url: https://www.e.u-tokyo.ac.jp/
+    field_specific: true
+  - country: United States
+    institution: MIT — Department of Economics
+    url: https://economics.mit.edu/
+    field_specific: true
+  - country: United States
+    institution: Harvard University — Department of Economics
+    url: https://economics.harvard.edu/
+    field_specific: true
+  - country: United States
+    institution: University of Chicago — Booth School of Business
+    url: https://www.chicagobooth.edu/
+    field_specific: true
+  - country: United States
+    institution: Stanford University — Department of Economics
+    url: https://economics.stanford.edu/
+    field_specific: true
+  - country: United States
+    institution: Princeton University — Department of Economics
+    url: https://economics.princeton.edu/
+    field_specific: true

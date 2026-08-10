@@ -1,0 +1,11 @@
+.git
+*.md
+**/__pycache__/
+**/*.pyc
+.env
+phd_data.db
+phd_positions*.csv
+phd_positions*.html
+phd_positions*.json
+dashboard/
+tests/

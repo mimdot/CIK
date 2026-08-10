@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FastAPI API",
+      "runtimeExecutable": "uvicorn",
+      "runtimeArgs": ["api.app:app", "--reload", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "Next.js Dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    }
+  ]
+}

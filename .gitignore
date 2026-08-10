@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+*.pyc
+*.egg-info/
+.pytest_cache/
+.pw_profile/
+.venv/
+venv/
+*.log
+emails/
+phd_positions_*.json
+phd_positions_*.csv
+phd_positions_*.html
+
+# Secrets and personal data
+.env
+.env.*
+!.env.example
+phd_aggregator/vpn.txt
+phd_aggregator/applicant.yaml
+phd_aggregator/*.yaml
+!phd_aggregator/applicant.example.yaml
+!phd_aggregator/config.yaml
+
+# Runtime state
+phd_aggregator/.seen_positions.json
+phd_aggregator/phd_positions_selftest*.csv
+phd_aggregator/phd_positions_selftest*.html
+phd_aggregator/phd_positions_selftest*.json

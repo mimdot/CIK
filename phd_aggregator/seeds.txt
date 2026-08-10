@@ -1,0 +1,21 @@
+# seeds.txt — hand-picked position URLs for the seed_urls source
+# ==============================================================================
+# One URL per line. '#' starts a comment (full-line or trailing). Blank lines
+# are ignored. Each URL is fetched through the proxy + anti-bot chain and
+# parsed via: JSON-LD JobPosting -> OpenGraph/meta tags -> main-text
+# extraction. Seeds bypass the relevance/type gates by default (you picked
+# them on purpose — see seed_bypass_gate in config.yaml) but are still
+# scored, type-classified and deadline/freshness-filtered. For every seed the
+# board's parent listing page is also probed for SIBLING postings, which go
+# through the NORMAL filters.
+# ==============================================================================
+
+# Nature Careers posting (embeds schema.org JSON-LD JobPosting)
+https://www.nature.com/naturecareers/job/12861176/phd-position-in-detector-development-for-the-next-generation-of-cryogenic-dark-matter-axion-exper-/
+
+# EURAXESS job page (no JobPosting JSON-LD — exercises the OpenGraph layer)
+https://euraxess.ec.europa.eu/jobs/452572   # theoretical cosmology, quantum fields
+
+# AcademicJobsOnline posting (plain HTML -> main-text layer; the AJO seed
+# adapter also discovers siblings from the astronomy listing pages)
+https://academicjobsonline.org/ajo/jobs/31848

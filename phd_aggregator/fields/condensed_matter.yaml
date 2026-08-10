@@ -1,0 +1,297 @@
+name: condensed_matter
+
+description: >
+  Condensed matter physics, quantum materials, strongly correlated systems,
+  superconductivity, magnetism, soft condensed matter, electronic structure,
+  nanophysics, and experimental or theoretical condensed matter.
+
+core_anchors:
+  - condensed matter
+  - condensed matter physics
+  - quantum materials
+  - strongly correlated
+  - correlated electrons
+  - many body
+  - many-body physics
+  - superconductivity
+  - superconductor
+  - unconventional superconductivity
+  - high temperature superconductivity
+  - magnetism
+  - antiferromagnet
+  - ferromagnet
+  - ferrimagnet
+  - spintronics
+  - magnon
+  - spin wave
+  - topological insulator
+  - topological semimetal
+  - Weyl semimetal
+  - Dirac semimetal
+  - quantum Hall
+  - fractional quantum Hall
+  - Mott insulator
+  - heavy fermion
+  - Kondo
+  - Hubbard model
+  - Heisenberg model
+  - electronic structure
+  - band structure
+  - density functional theory
+  - DFT
+  - dynamical mean field theory
+  - DMFT
+  - angle resolved photoemission
+  - ARPES
+  - scanning tunneling microscopy
+  - STM
+  - scanning tunneling spectroscopy
+  - STS
+  - neutron scattering
+  - x-ray scattering
+  - synchrotron
+  - Raman spectroscopy
+  - phonon
+  - exciton
+  - charge density wave
+  - spin liquid
+  - moiré materials
+  - van der Waals materials
+
+context_terms:
+  - crystal growth
+  - molecular beam epitaxy
+  - MBE
+  - chemical vapor deposition
+  - CVD
+  - thin films
+  - epitaxy
+  - heterostructure
+  - nanostructure
+  - low dimensional materials
+  - two dimensional materials
+  - graphene
+  - transition metal dichalcogenides
+  - TMD
+  - oxide interfaces
+  - perovskite oxides
+  - electronic transport
+  - quantum transport
+  - Hall effect
+  - magnetoresistance
+  - spin orbit coupling
+  - Berry curvature
+  - Fermi surface
+  - quasiparticle
+  - Monte Carlo
+  - tensor network
+  - exact diagonalization
+  - quantum Monte Carlo
+  - DMRG
+  - Green function
+  - first principles
+  - ab initio
+  - numerical simulation
+  - cryogenics
+  - dilution refrigerator
+  - low temperature
+  - high magnetic field
+  - synchrotron radiation
+  - neutron diffraction
+
+negative_terms:
+  - astrophysics
+  - astronomy
+  - cosmology
+  - planetary science
+  - heliophysics
+  - solar physics
+  - plasma propulsion
+  - fusion reactor
+  - tokamak
+  - inertial confinement fusion
+  - accelerator physics
+  - high energy physics
+  - particle physics
+  - collider physics
+  - neutrino physics
+  - nuclear physics
+  - nuclear engineering
+  - atomic physics
+  - molecular physics
+  - AMO physics
+  - quantum optics
+  - photonics
+  - laser physics
+  - optical communications
+  - biomedical physics
+  - medical imaging
+  - geophysics
+  - atmospheric physics
+  - oceanography
+  - mechanical engineering
+  - civil engineering
+  - petroleum engineering
+
+search_terms:
+  - condensed matter physics
+  - quantum materials
+  - superconductivity
+  - strongly correlated systems
+  - topological materials
+  - spintronics
+  - electronic structure
+  - nanophysics
+  - soft condensed matter
+  - computational condensed matter
+
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+
+threshold: 2.0
+
+supervisor_source: ads
+supervisor_ads_db: physics
+supervisor_arxiv_cat: cond-mat.*
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex fields 31 (Physics) + 25 (Materials Science). ADS stays primary,
+# but these topics enable the author-direct OpenAlex fallback.
+supervisor_field: 31
+supervisor_topics:
+  - T10037   # Physics of Superconductivity and Magnetism
+  - T10083   # Graphene research and applications
+  - T10275   # 2D Materials and Applications
+  - T10079   # Nanoparticles: synthesis and applications
+  - T10107   # Ferroelectric and Piezoelectric Materials
+  - T10022   # Semiconductor Quantum Structures and Devices
+  - T10657   # Topological Materials and Phenomena
+  - T10660   # Conducting polymers and applications
+  - T10132   # Advanced ceramic materials synthesis
+  - T10097   # Luminescence Properties of Advanced Materials
+  - T12039   # Electron and X-Ray Spectroscopy Techniques
+  - T10389   # Polymer crystallization and properties
+  - T11242   # Nuclear Materials and Properties
+
+subfields:
+
+  quantum_materials:
+    label: Quantum Materials
+    keywords:
+      - quantum materials
+      - strongly correlated electrons
+      - Mott insulator
+      - heavy fermion
+      - Kondo lattice
+      - topological insulator
+      - Weyl semimetal
+      - charge density wave
+      - spin liquid
+      - quantum criticality
+
+  superconductivity_magnetism:
+    label: Superconductivity and Magnetism
+    keywords:
+      - unconventional superconductivity
+      - high temperature superconductivity
+      - superconducting vortex
+      - magnetism
+      - antiferromagnetism
+      - spintronics
+      - magnon
+      - spin dynamics
+      - neutron scattering
+      - magnetic ordering
+
+  electronic_structure:
+    label: Electronic Structure and Theory
+    keywords:
+      - density functional theory
+      - DFT
+      - DMFT
+      - band structure
+      - electronic structure
+      - Hubbard model
+      - Green function
+      - quantum Monte Carlo
+      - tensor network
+      - first principles
+
+  low_dimensional_nanomaterials:
+    label: Low-dimensional and Nanomaterials
+    keywords:
+      - graphene
+      - two dimensional materials
+      - van der Waals materials
+      - transition metal dichalcogenides
+      - moiré materials
+      - heterostructures
+      - thin films
+      - molecular beam epitaxy
+      - electronic transport
+      - ARPES
+departments:
+  - country: United Kingdom
+    institution: University of Cambridge — Cavendish Laboratory
+    url: https://www.phy.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Oxford — Department of Physics
+    url: https://www2.physics.ox.ac.uk/
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — D-PHYS (Quantum Materials)
+    url: https://phys.ethz.ch/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Solid State Research (Stuttgart)
+    url: https://www.fkf.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Chemical Physics of Solids (Dresden)
+    url: https://www.cpfs.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for the Structure and Dynamics of Matter
+    url: https://www.mpsd.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Forschungszentrum Jülich — PGI (Peter Grünberg Institute)
+    url: https://www.fz-juelich.de/pgi
+    field_specific: true
+  - country: Germany
+    institution: Helmholtz-Zentrum Berlin für Materialien und Energie
+    url: https://www.helmholtz-berlin.de/
+    field_specific: true
+  - country: Germany
+    institution: Karlsruhe Institute of Technology — Physics
+    url: https://www.physik.kit.edu/
+    field_specific: true
+  - country: France
+    institution: Institut Néel (Grenoble)
+    url: https://neel.cnrs.fr/
+    field_specific: true
+  - country: Netherlands
+    institution: TU Delft — Faculty of Applied Sciences (Kavli)
+    url: https://www.tudelft.nl/en/faculty-of-applied-sciences
+    field_specific: true
+  - country: Netherlands
+    institution: Radboud University — High Field Magnet Laboratory
+    url: https://www.ru.nl/hfml/
+    field_specific: true
+  - country: Japan
+    institution: University of Tokyo — Institute for Solid State Physics
+    url: https://www.issp.u-tokyo.ac.jp/
+    field_specific: true
+  - country: United States
+    institution: Cornell University — LASSP
+    url: https://www.lassp.cornell.edu/
+    field_specific: true
+  - country: United States
+    institution: Stanford University — Applied Physics
+    url: https://appliedphysics.stanford.edu/
+    field_specific: true

@@ -1,0 +1,401 @@
+# fields/chemistry.yaml — chemistry (organic, inorganic, physical, analytical,
+# biochemistry, materials chemistry, catalysis, theoretical chemistry ...)
+# =============================================================================
+# Matching rules (see the relevance engine in phd_aggregator.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("chemistr" catches chemistry/chemistry-related);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words.
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#   departments     the uni_departments sweep-list (top chemistry groups)
+# =============================================================================
+name: chemistry
+description: Chemistry — organic, inorganic, physical, analytical and biochemistry,
+  catalysis, materials chemistry, electrochemistry, and theoretical/computational
+  chemistry
+core_anchors:
+- chemistry
+- chemistr
+- chemist
+- chemical
+- organic chemistry
+- organic synthes
+- total synthesis
+- asymmetric synthes
+- synthetic chemistry
+- organometallic
+- organocatalys
+- biocatalys
+- peptide chemistry
+- peptide synthes
+- carbohydrate chemistry
+- carbohydrate synthes
+- medicinal chemistry
+- drug discovery
+- pharmaceutical chemistry
+- inorganic chemistry
+- coordination chemistry
+- bioinorganic
+- metal-organic framework
+- metal organic framework
+- organocatalysis
+- catalysis
+- catalyst
+- heterogeneous catalys
+- homogeneous catalys
+- photocatalys
+- electrocatalys
+- enzyme catalys
+- zeolite
+- physical chemistry
+- chemical physics
+- quantum chemistry
+- computational chemistry
+- theoretical chemistry
+- molecular simulation
+- photochemistry
+- photophysics
+- electrochemistry
+- spectroelectrochemistr
+- analytical chemistry
+- bioanalytical
+- chemical sensing
+- sensor chemistry
+- chemometrics
+- environmental chemistry
+- atmospheric chemistry
+- green chemistry
+- sustainable chemistry
+- polymer chemistry
+- macromolecular chemistry
+- materials chemistry
+- supramolecular chemistry
+- host-guest chemistry
+- nanochemistry
+- surface chemistry
+- colloid chemistry
+- crystallography chemistry
+- chemical biology
+- bioorthogonal chemistr
+- chemical ecology
+- food chemistry
+- nuclear chemistry
+- radiochemistr
+- flow chemistry
+- click chemistry
+- mechanochemistry
+- sonochemistr
+- microwave chemistry
+- solid-state chemistry
+- solid state chemistry
+- magnetochemistry
+- chemical synthesis
+- synthesis chemistry
+- chemistry of
+context_terms:
+- synthesis
+- synthesi
+- reaction
+- reagent
+- catalyst
+- spectroscopy
+- spectrometr
+- chromatograph
+- crystallograph
+- nmr
+- mass spectrometry
+- x-ray diffraction
+- xrd
+- electron microscopy
+- calorimetr
+- thermodynamics
+- kinetic
+- reaction mechanism
+- ab initio
+- density functional theory
+- dft
+- molecular dynamics
+- docking
+- screening
+- purification
+- separation
+- extraction
+- distillation
+- membrane
+- thin film
+- nanomaterial
+- nanoscale
+- microstructure
+- polymer
+- ligand
+- complex
+- oxidation state
+- redox
+- aqueous
+- solvent
+- electrolyte
+- battery
+- fuel cell
+- photovoltaic
+- solar cell
+- lanthanide
+- transition metal
+- noble metal
+- platinum group
+negative_terms:
+- astronomy
+- astrophysic
+- cosmolog
+- galaxy
+- stellar
+- planetary science
+- particle physics
+- nuclear physics
+- plasma physics
+- atomic physics
+- accelerator physic
+- quantum comput
+- quantum information
+- photonic device
+- semiconductor device
+- spintronic
+- condensed matter
+- solid-state physics
+- biomedical engineering
+- clinical
+- oncology
+- cell biolog
+- genomic
+- immunolog
+- neuroscien
+- microbiolog
+- plant biolog
+- ecology
+- agricultural engineering
+- soil science
+- mechanical engineering
+- civil engineering
+- electrical engineering
+- petroleum engineering
+- reservoir engineering
+- metallurg
+- mining
+- economics
+- finance
+- quantitative finance
+- machine learning
+search_terms:
+- chemistry
+- organic chemistry
+- inorganic chemistry
+- physical chemistry
+- analytical chemistry
+- biochemistry
+- catalysis
+- materials chemistry
+- computational chemistry
+- chemical biology
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: physics.chem-ph,q-bio.*
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 16 = "Chemistry". supervisor_topics drive the AUTHOR index
+# query — real researchers ranked by h-index and recent activity.
+supervisor_field: 16
+supervisor_topics:
+  - T10908   # Analytical Chemistry and Chromatography
+  - T10683   # Mass Spectrometry Techniques and Applications
+  - T10180   # Analytical chemistry methods development
+  - T11746   # Inorganic and Organometallic Chemistry
+  - T10092   # Organometallic Complex Synthesis and Catalysis
+  - T11549   # Synthetic Organic Chemistry Methods
+  - T14459   # Synthesis and Reactions of Organic Compounds
+  - T10548   # Catalytic Cross-Coupling Reactions
+  - T10354   # Catalytic C-H Functionalization Methods
+  - T11281   # Asymmetric Hydrogenation and Catalysis
+  - T11129   # Photochemistry and Electron Transfer Studies
+  - T11440   # Click Chemistry and Applications
+  - T10405   # Advanced Polymer Synthesis and Characterization
+  - T10096   # Metal-Organic Frameworks: Synthesis and Applications
+  - T10353   # Zeolite Catalysis and Synthesis
+  - T12852   # Chemical Thermodynamics and Molecular Structure
+  - T11809   # Advanced NMR Techniques and Applications
+  - T11434   # Electrochemical Analysis and Applications
+supervisor_senior_signal: last_author
+
+subfields:
+  organic:
+    label: Organic & Synthetic Chemistry
+    topics: [T11549, T14459, T11440]
+    keywords:
+    - organic chemistry
+    - total synthesis
+    - asymmetric synthesis
+    - organocatalys
+    - synthetic methodology
+    - peptide chemistry
+    - carbohydrate chemistry
+    - natural product
+  inorganic:
+    label: Inorganic & Coordination Chemistry
+    topics: [T11746, T10092, T10096]
+    keywords:
+    - inorganic chemistry
+    - coordination chemistry
+    - organometallic
+    - bioinorganic
+    - metal-organic framework
+    - lanthanide
+    - transition metal complex
+  physical_chemistry:
+    label: Physical & Theoretical Chemistry
+    topics: [T12852, T11129]
+    keywords:
+    - physical chemistry
+    - chemical physics
+    - quantum chemistry
+    - computational chemistry
+    - theoretical chemistry
+    - molecular simulation
+    - density functional theory
+  analytical:
+    label: Analytical Chemistry
+    topics: [T10908, T10683, T10180, T11809]
+    keywords:
+    - analytical chemistry
+    - chemometrics
+    - chemical sensing
+    - mass spectrometry
+    - chromatography
+    - bioanalytical
+    - spectroscopy
+  catalysis:
+    label: Catalysis
+    topics: [T10548, T10354, T11281, T10353]
+    keywords:
+    - catalysis
+    - photocatalys
+    - electrocatalys
+    - heterogeneous catalys
+    - homogeneous catalys
+    - biocatalys
+    - organocatalys
+  materials_chemistry:
+    label: Materials & Polymer Chemistry
+    topics: [T10405, T10096, T10092]
+    keywords:
+    - materials chemistry
+    - polymer chemistry
+    - supramolecular chemistry
+    - nanochemistry
+    - surface chemistry
+    - solid-state chemistry
+    - battery
+    - fuel cell
+  biochemistry:
+    label: Biochemistry & Chemical Biology
+    keywords:
+    - biochemistry
+    - chemical biology
+    - bioorthogonal chemistr
+    - medicinal chemistry
+    - drug discovery
+    - biocatalys
+  electrochemistry:
+    label: Electrochemistry & Energy
+    topics: [T11434, T11129]
+    keywords:
+    - electrochemistry
+    - electrocatalys
+    - battery
+    - fuel cell
+    - photovoltaic
+    - solar cell
+    - electrolyzer
+departments:
+  - country: United Kingdom
+    institution: University of Cambridge — Department of Chemistry
+    url: https://www.ch.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Oxford — Department of Chemistry
+    url: https://www.chem.ox.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: Imperial College London — Department of Chemistry
+    url: https://www.imperial.ac.uk/chemistry
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — Department of Chemistry and Applied Biosciences
+    url: https://chab.ethz.ch/
+    field_specific: true
+  - country: Switzerland
+    institution: EPFL — Institute of Chemistry
+    url: https://www.epfl.ch/schools/sb/research/chemistry/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Coal Research
+    url: https://www.kofo.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Chemical Energy Conversion
+    url: https://www.cec.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Technische Universität München — Chemistry
+    url: https://www.chem.tum.de/
+    field_specific: true
+  - country: Germany
+    institution: Karlsruhe Institute of Technology — Chemistry
+    url: https://www.chem.kit.edu/
+    field_specific: true
+  - country: Germany
+    institution: Leibniz Institute for Catalysis (LIKAT Rostock)
+    url: https://www.catalysis.de/
+    field_specific: true
+  - country: Netherlands
+    institution: University of Groningen — Stratingh Institute for Chemistry
+    url: https://www.rug.nl/research/stratingh/
+    field_specific: true
+  - country: Netherlands
+    institution: University of Amsterdam — Van 't Hoff Institute
+    url: https://hims.uva.nl/
+    field_specific: true
+  - country: France
+    institution: Sorbonne Université — Institut Parisien de Chimie
+    url: https://www.ipcm.fr/
+    field_specific: true
+  - country: Japan
+    institution: University of Tokyo — Department of Chemistry
+    url: https://www.chem.s.u-tokyo.ac.jp/en/
+    field_specific: true
+  - country: United States
+    institution: MIT — Department of Chemistry
+    url: https://chemistry.mit.edu/
+    field_specific: true
+  - country: United States
+    institution: Stanford University — Chemistry
+    url: https://chemistry.stanford.edu/
+    field_specific: true
+  - country: United States
+    institution: University of California, Berkeley — Chemistry
+    url: https://chemistry.berkeley.edu/
+    field_specific: true
+  - country: United States
+    institution: California Institute of Technology — CCE
+    url: https://www.cce.caltech.edu/
+    field_specific: true

@@ -1,0 +1,414 @@
+# fields/physics.yaml — general physics (particle, nuclear, AMO, plasma,
+# statistical, gravitational, accelerator, quantum information, ...
+# condensed matter lives in fields/condensed_matter.yaml)
+# =============================================================================
+# Matching rules (see the relevance engine in phd_aggregator.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("physic" catches physics/physicist/physical);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words
+#     ("DFT" does not fire inside "snowdrift").
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#   departments     the uni_departments sweep-list (top physics groups)
+# =============================================================================
+name: physics
+description: General physics — particle physics, nuclear physics, atomic/molecular/
+  optical physics, plasma physics, gravitational physics, statistical physics,
+  accelerator physics, quantum information and mathematical physics (condensed
+  matter has its own profile fields/condensed_matter.yaml)
+core_anchors:
+- physics
+- physical
+- physicist
+- particle physics
+- high-energy physics
+- high energy physics
+- quantum field theory
+- quantum field theoretic
+- standard model
+- beyond the standard model
+- supersymmetr
+- string theory
+- quantum gravity
+- loop quantum gravity
+- lattice gauge
+- gauge theor
+- hadron
+- quark
+- lepton
+- neutrino physic
+- baryon
+- meson
+- gluon
+- dark matter
+- dark energy
+- nuclear physics
+- nuclear structure
+- nuclear astrophysic
+- nuclear fission
+- nuclear fusion
+- plasma physics
+- plasma turbulence
+- magnetic confinement
+- inertial confinement
+- tokamak
+- fusion research
+- atomic physics
+- molecular physics
+- optical physics
+- atom interferometr
+- ultracold atom
+- cold atom
+- bose-einstein condensate
+- bose einstein condensate
+- degenerate quantum gas
+- quantum optic
+- laser physic
+- laser-cooling
+- laser cooling
+- optical clock
+- precision measurement
+- atomic clock
+- quantum information
+- quantum comput
+- quantum simulation
+- quantum communication
+- quantum cryptograph
+- quantum sensor
+- quantum metrology
+- quantum entangl
+- qubit
+- photonic
+- optomechanic
+- statistical physics
+- statistical mechanic
+- soft matter
+- complex systems physics
+- nonlinear dynamics
+- nonlinear physic
+- chaos theory
+- critical phenomena
+- phase transition
+- nonequilibrium
+- non-equilibrium physic
+- fluid dynamics
+- fluid mechanic
+- turbulence physic
+- granular physic
+- biophysic
+- medical physic
+- radiation physic
+- accelerator physic
+- beam physics
+- particle accelerator
+- synchrotron radiation physics
+- free-electron laser
+- free electron laser
+- gravitational physic
+- gravitational wave physic
+- mathematical physics
+- theoretical physics
+- computational physics
+- experimental physics
+- condensed matter physics
+context_terms:
+- theoretical
+- experimental
+- computational
+- numerical
+- simulation
+- modelling
+- modeling
+- instrumentation
+- detector
+- cryogenic
+- spectroscopy
+- spectroscop
+- interferometr
+- laser
+- optics
+- photonics
+- magnetometer
+- sensor
+- data analysis
+- machine learning
+- deep learning
+- high-performance computing
+- gpu
+- monte carlo
+- bayesian
+- first-principles
+- ab initio
+- density functional theory
+- tensor network
+- quantum
+- spacetime
+- hamiltonian
+- lagrangian
+- symmetry
+- renormalization
+- perturbation
+- scattering
+- cross section
+- luminosity
+- beamline
+- vacuum
+- cleanroom
+- microfabrication
+negative_terms:
+- astronomy
+- astrophysic
+- cosmolog
+- galaxy
+- exoplanet
+- stellar
+- interstellar
+- nebula
+- supernova
+- black hole astrophysics
+- solar physic
+- heliophysic
+- space weather
+- planetary science
+- organic chemistry
+- organometallic
+- synthetic chemistr
+- catalysis
+- electrochemistr
+- polymer chemistry
+- biochemistry
+- molecular biology
+- cell biology
+- genomic
+- immunolog
+- microbiolog
+- neuroscien
+- cancer
+- clinical
+- cardiolog
+- oncology
+- pharmacology
+- drug
+- protein
+- civil engineering
+- structural engineering
+- mechanical engineering
+- electrical engineering
+- chemical engineering
+- petroleum engineering
+- mining engineering
+- materials science
+- economics
+- finance
+- quantitative finance
+- machine learning engineering
+- software engineering
+search_terms:
+- physics
+- particle physics
+- nuclear physics
+- quantum optics
+- atomic physics
+- plasma physics
+- gravitational waves
+- accelerator physics
+- quantum computing
+- theoretical physics
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+supervisor_source: ads
+supervisor_ads_db: physics
+supervisor_arxiv_cat: physics.*
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 31 = "Physics and Astronomy". ADS stays the primary source,
+# but these topics enable the author-direct OpenAlex fallback.
+supervisor_field: 31
+supervisor_topics:
+  - T10048   # Particle physics theoretical and experimental studies
+  - T10093   # Nuclear physics research studies
+  - T10523   # Atomic and Molecular Physics
+  - T10425   # Cold Atom Physics and Bose-Einstein Condensates
+  - T10622   # Quantum Mechanics and Applications
+  - T10382   # Quantum and electron transport phenomena
+  - T10591   # Theoretical and Computational Physics
+  - T10095   # Cosmology and Gravitation Theories
+  - T10025   # Black Holes and Theoretical Physics
+  - T11520   # Advanced Thermodynamics and Statistical Mechanics
+  - T10248   # Nonlinear Waves and Solitons
+  - T11960   # Relativity and Gravitational Theory
+  - T11050   # Photorefractive and Nonlinear Optics
+  - T10384   # Laser-Plasma Interactions and Diagnostics
+
+subfields:
+  particle_physics:
+    label: Particle & High-Energy Physics
+    keywords:
+    - particle physics
+    - high-energy physics
+    - standard model
+    - beyond the standard model
+    - quark
+    - lepton
+    - hadron
+    - collider
+    - neutrino
+    - dark matter
+  nuclear_physics:
+    label: Nuclear Physics
+    keywords:
+    - nuclear physics
+    - nuclear structure
+    - nuclear fission
+    - nuclear fusion
+    - hadron spectroscopy
+    - nuclear astrophysic
+    - radioisotope
+  amo:
+    label: Atomic, Molecular & Optical Physics
+    keywords:
+    - atomic physics
+    - molecular physics
+    - quantum optics
+    - ultracold atom
+    - bose-einstein condensate
+    - optical clock
+    - atom interferometr
+    - laser-cooling
+  plasma_physics:
+    label: Plasma Physics
+    keywords:
+    - plasma physics
+    - magnetic confinement
+    - tokamak
+    - inertial confinement
+    - plasma turbulence
+    - fusion research
+  quantum_info:
+    label: Quantum Information & Computing
+    keywords:
+    - quantum information
+    - quantum comput
+    - quantum simulation
+    - qubit
+    - quantum cryptograph
+    - quantum sensor
+    - quantum metrology
+  gravitational:
+    label: Gravitational Physics
+    keywords:
+    - gravitational physic
+    - gravitational wave physic
+    - general relativit
+    - quantum gravity
+    - cosmology
+  statistical_physics:
+    label: Statistical & Soft Matter Physics
+    keywords:
+    - statistical physics
+    - statistical mechanic
+    - soft matter
+    - critical phenomena
+    - phase transition
+    - nonequilibrium
+    - complex systems
+  accelerator:
+    label: Accelerator & Beam Physics
+    keywords:
+    - accelerator physic
+    - beam physics
+    - particle accelerator
+    - free-electron laser
+    - synchrotron radiation
+departments:
+  - country: United Kingdom
+    institution: University of Cambridge — Cavendish Laboratory
+    url: https://www.phy.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Oxford — Department of Physics
+    url: https://www.physics.ox.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: Imperial College London — Department of Physics
+    url: https://www.imperial.ac.uk/physics
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — Department of Physics
+    url: https://phys.ethz.ch/
+    field_specific: true
+  - country: Switzerland
+    institution: EPFL — Institute of Physics
+    url: https://www.epfl.ch/schools/sb/research/physics/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Physics (Munich)
+    url: https://www.mpp.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Gravitational Physics (Hannover/Potsdam)
+    url: https://www.aei.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: DESY
+    url: https://www.desy.de/
+    field_specific: true
+  - country: Germany
+    institution: Technische Universität München — Physics
+    url: https://www.ph.tum.de/
+    field_specific: true
+  - country: Germany
+    institution: Heidelberg University — Kirchhoff Institute for Physics
+    url: https://www.kip.uni-heidelberg.de/
+    field_specific: true
+  - country: Switzerland
+    institution: CERN
+    url: https://careers.cern/
+    field_specific: true
+  - country: Denmark
+    institution: University of Copenhagen — Niels Bohr Institute
+    url: https://nbi.ku.dk/english/
+    field_specific: true
+  - country: Netherlands
+    institution: University of Amsterdam — Institute of Physics
+    url: https://iop.uva.nl/
+    field_specific: true
+  - country: Japan
+    institution: University of Tokyo — Department of Physics
+    url: https://www.phys.s.u-tokyo.ac.jp/en/
+    field_specific: true
+  - country: United States
+    institution: MIT — Department of Physics
+    url: https://web.mit.edu/physics/
+    field_specific: true
+  - country: United States
+    institution: Stanford University — Physics
+    url: https://physics.stanford.edu/
+    field_specific: true
+  - country: United States
+    institution: University of California, Berkeley — Physics
+    url: https://physics.berkeley.edu/
+    field_specific: true
+  - country: United States
+    institution: California Institute of Technology — PMA
+    url: https://pma.caltech.edu/
+    field_specific: true
+  - country: Canada
+    institution: Perimeter Institute for Theoretical Physics
+    url: https://perimeterinstitute.ca/
+    field_specific: true
+  - country: India
+    institution: Tata Institute of Fundamental Research
+    url: https://www.tifr.res.in/
+    field_specific: true

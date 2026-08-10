@@ -1,0 +1,64 @@
+# V1 Data Contracts
+
+## UserProfile
+- id
+- raw_text
+- domain
+- subfield
+- skills
+- methods
+- tools
+- experience_level
+- target_roles
+- countries_preferred
+- funding_requirement
+- constraints
+- confidence
+
+## Opportunity
+- id
+- source
+- title
+- institution
+- department
+- country
+- city
+- url
+- type
+- field
+- subfield
+- topics
+- skills_required
+- methods_required
+- funding_status
+- deadline
+- confidence
+
+## Supervisor
+- id
+- name
+- institution
+- department
+- country
+- profile_url
+- email
+- topics
+- methods
+- recent_papers
+- fit_score
+- confidence
+
+## MatchResult
+- id
+- user_id
+- object_type
+- object_id
+- overall_score
+- topic_score
+- method_score
+- skill_score
+- location_score
+- funding_score
+- competitiveness_score
+- explanation
+- confidence

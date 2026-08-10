@@ -1,0 +1,444 @@
+# fields/mathematics.yaml — mathematics (pure & applied: algebra, number theory,
+# geometry & topology, analysis & PDE, probability & statistics, computational
+# mathematics, dynamical systems, mathematical physics ...)
+# =============================================================================
+# Matching rules (see the relevance engine in phd_aggregator.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("mathematic" catches mathematics/mathematical/mathematician);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words
+#     ("PDE" does not fire inside "spade").
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#   departments     the uni_departments sweep-list (top mathematics groups)
+# =============================================================================
+name: mathematics
+description: Mathematics — algebra and number theory, geometry and topology,
+  analysis and partial differential equations, probability and statistics,
+  applied and computational mathematics, dynamical systems and mathematical
+  physics
+core_anchors:
+- mathematics
+- mathematical
+- mathematician
+- pure mathematics
+- applied mathematics
+- algebra
+- algebraic geometry
+- commutative algebra
+- representation theory
+- group theory
+- number theory
+- arithmetic geometry
+- analytic number theory
+- modular form
+- langlands
+- combinatorics
+- combinatorial
+- graph theory
+- extremal graph
+- matroid
+- coding theory
+- geometry
+- geometric
+- differential geometry
+- riemannian geometry
+- symplectic geometry
+- algebraic topology
+- topology
+- topological
+- knot theory
+- geometric topology
+- complex geometry
+- kähler geometry
+- kahler geometry
+- algebraic combinatorics
+- analysis
+- functional analysis
+- harmonic analysis
+- complex analysis
+- real analysis
+- fourier analysis
+- calculus of variations
+- operator algebra
+- banach space
+- hilbert space
+- partial differential equation
+- partial differential equations
+- pde
+- elliptic equation
+- nonlinear pde
+- calculus
+- differential equation
+- differential equations
+- dynamical systems
+- dynamical system
+- ergodic theory
+- ergodic
+- dynamical
+- chaos theory
+- fluid mechanics mathematics
+- probability
+- probabilistic
+- stochastic
+- stochastic process
+- stochastic differential equation
+- random matrix
+- statistical mathematics
+- mathematical statistics
+- statistics mathematics
+- statistical theory
+- measure theory
+- probability theory
+- martingale
+- markov process
+- random graph
+- numerical analysis
+- numerical mathematics
+- numerical methods
+- scientific computing
+- numerical linear algebra
+- computational mathematics
+- computational number theory
+- approximation theory
+- inverse problem
+- mathematical physics
+- mathematical model
+- mathematical modeling
+- mathematical modelling
+- applied analysis
+- asymptotic analysis
+- homogenization
+- multiscale
+- nonlinear analysis
+- variational method
+- optimization mathematics
+- control theory
+- mathematical biology
+- mathematical finance
+- game theory
+- discrete mathematics
+- logic mathematics
+- mathematical logic
+- model theory
+- set theory
+- category theory
+- operator theory
+- spectral theory
+- semigroup theory
+- classical analysis
+context_terms:
+- theorem
+- proof
+- conjecture
+- lemma
+- axiom
+- rigorous
+- abstract
+- manifold
+- vector space
+- linear algebra
+- matrix
+- integral
+- derivative
+- function space
+- convergence
+- asymptotic
+- bounded
+- compactness
+- topology
+- open problem
+- algorithm
+- computation
+- simulation
+- data-driven
+- machine learning
+- deep learning
+- optimization
+- bayesian
+- monte carlo
+- sampling
+- estimation
+- hypothesis
+- regression
+- time series
+- nonlinear
+- stability
+- bifurcation
+- invariant
+- entropy
+- fractal
+- infinite-dimensional
+- geometric
+negative_terms:
+- astronomy
+- astrophysic
+- cosmolog
+- galaxy
+- stellar
+- exoplanet
+- particle physics
+- nuclear physics
+- quantum physics
+- condensed matter
+- solid state
+- plasma physic
+- chemistry
+- organometallic
+- catalysis
+- electrochemistry
+- polymer
+- biochemistry
+- molecular biology
+- cell biology
+- genomic
+- immunolog
+- microbiology
+- neuroscience
+- cancer
+- clinical
+- pharmacology
+- ecology
+- agriculture
+- civil engineering
+- structural engineering
+- mechanical engineering
+- electrical engineering
+- chemical engineering
+- petroleum engineering
+- mining
+- machine learning engineer
+- software engineering
+- web development
+- finance
+- economics
+- marketing
+- accounting
+search_terms:
+- mathematics
+- pure mathematics
+- applied mathematics
+- number theory
+- algebra
+- geometry
+- topology
+- analysis
+- partial differential equations
+- probability
+- statistics
+- dynamical systems
+- numerical analysis
+- mathematical physics
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: math.*
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 26 = "Mathematics". supervisor_topics drive the AUTHOR index
+# query — real researchers ranked by h-index and recent activity.
+supervisor_field: 26
+supervisor_topics:
+  - T10061   # Algebraic Geometry and Number Theory
+  - T11166   # Analytic Number Theory Research
+  - T10287   # Algebraic structures and combinatorial models
+  - T10948   # Advanced Combinatorial Mathematics
+  - T11476   # Graph theory and applications
+  - T11703   # Rings, Modules, and Algebras
+  - T10304   # Geometric and Algebraic Topology
+  - T10896   # Homotopy and Cohomology in Algebraic Topology
+  - T12351   # Geometry and complex manifolds
+  - T10884   # Holomorphic and Operator Theory
+  - T10229   # Geometric Analysis and Curvature Flows
+  - T10194   # Nonlinear Partial Differential Equations
+  - T10541   # Nonlinear Differential Equations Analysis
+  - T11022   # Spectral Theory in Mathematical Physics
+  - T10136   # Statistical Methods and Inference
+  - T13500   # Probability and Statistical Research
+  - T11416   # Numerical methods for differential equations
+  - T10963   # Advanced Optimization Algorithms Research
+supervisor_senior_signal: last_author
+
+subfields:
+  algebra_number_theory:
+    label: Algebra & Number Theory
+    topics: [T10061, T11166, T11703]
+    keywords:
+    - algebra
+    - number theory
+    - algebraic geometry
+    - representation theory
+    - group theory
+    - modular form
+    - langlands
+    - arithmetic geometry
+  geometry_topology:
+    label: Geometry & Topology
+    topics: [T10304, T10896, T12351, T10229]
+    keywords:
+    - geometry
+    - differential geometry
+    - symplectic geometry
+    - topology
+    - algebraic topology
+    - knot theory
+    - riemannian geometry
+  analysis_pde:
+    label: Analysis & PDE
+    topics: [T10194, T10541, T10884]
+    keywords:
+    - analysis
+    - functional analysis
+    - harmonic analysis
+    - partial differential equation
+    - calculus of variations
+    - operator algebra
+  probability_statistics:
+    label: Probability & Statistics
+    topics: [T13500, T10136]
+    keywords:
+    - probability
+    - stochastic process
+    - random matrix
+    - statistical theory
+    - measure theory
+    - markov process
+  applied_math:
+    label: Applied Mathematics
+    keywords:
+    - applied mathematics
+    - mathematical model
+    - inverse problem
+    - control theory
+    - mathematical biology
+    - mathematical finance
+    - game theory
+    - fluid mechanics mathematics
+  computational_math:
+    label: Computational Mathematics
+    topics: [T11416, T10963, T11205]
+    keywords:
+    - numerical analysis
+    - scientific computing
+    - numerical linear algebra
+    - approximation theory
+    - computational mathematics
+  dynamical_systems:
+    label: Dynamical Systems
+    keywords:
+    - dynamical systems
+    - ergodic theory
+    - chaos theory
+    - bifurcation
+    - stochastic differential equation
+  logic_discrete:
+    label: Logic & Discrete Mathematics
+    topics: [T10287, T10948, T11476]
+    keywords:
+    - discrete mathematics
+    - combinatorics
+    - graph theory
+    - mathematical logic
+    - model theory
+    - set theory
+    - category theory
+departments:
+  - country: United Kingdom
+    institution: University of Cambridge — DPMMS
+    url: https://www.dpmms.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Oxford — Mathematical Institute
+    url: https://www.maths.ox.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: Imperial College London — Department of Mathematics
+    url: https://www.imperial.ac.uk/mathematics
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — D-MATH
+    url: https://math.ethz.ch/
+    field_specific: true
+  - country: Switzerland
+    institution: EPFL — Institute of Mathematics
+    url: https://www.epfl.ch/schools/sb/research/math/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Mathematics (Bonn)
+    url: https://www.mpim-bonn.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: University of Bonn — Hausdorff Center for Mathematics
+    url: https://www.hcm.uni-bonn.de/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Mathematics in the Sciences (Leipzig)
+    url: https://www.mis.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Humboldt-Universität zu Berlin — Institut für Mathematik
+    url: https://www.math.hu-berlin.de/
+    field_specific: true
+  - country: France
+    institution: Institut des Hautes Études Scientifiques (IHES)
+    url: https://www.ihes.fr/
+    field_specific: true
+  - country: France
+    institution: Institut Henri Poincaré
+    url: https://www.ihp.fr/en
+    field_specific: true
+  - country: France
+    institution: École Normale Supérieure — Département de Mathématiques
+    url: https://www.math.ens.psl.eu/
+    field_specific: true
+  - country: Netherlands
+    institution: University of Amsterdam — Korteweg-de Vries Institute
+    url: https://kdvi.uva.nl/
+    field_specific: true
+  - country: Netherlands
+    institution: Leiden University — Mathematical Institute
+    url: https://www.universiteitleiden.nl/en/science/mathematics
+    field_specific: true
+  - country: Denmark
+    institution: University of Copenhagen — Department of Mathematical Sciences
+    url: https://www.math.ku.dk/english/
+    field_specific: true
+  - country: Sweden
+    institution: KTH Royal Institute of Technology — Mathematics
+    url: https://www.kth.se/en/sci/institutioner/matematik
+    field_specific: true
+  - country: Japan
+    institution: University of Tokyo — Graduate School of Mathematical Sciences
+    url: https://www.ms.u-tokyo.ac.jp/en/
+    field_specific: true
+  - country: United States
+    institution: MIT — Department of Mathematics
+    url: https://math.mit.edu/
+    field_specific: true
+  - country: United States
+    institution: Harvard University — Department of Mathematics
+    url: https://www.math.harvard.edu/
+    field_specific: true
+  - country: United States
+    institution: Princeton University — Department of Mathematics
+    url: https://www.math.princeton.edu/
+    field_specific: true
+  - country: United States
+    institution: Stanford University — Mathematics
+    url: https://mathematics.stanford.edu/
+    field_specific: true
+  - country: United States
+    institution: Institute for Advanced Study — School of Mathematics
+    url: https://www.ias.edu/math
+    field_specific: true
