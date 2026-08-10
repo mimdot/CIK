@@ -46,6 +46,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(32), default="user")
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     email_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    marketing_consent: Mapped[Optional[bool]] = mapped_column(Boolean)
+    consent_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     profiles: Mapped[list["UserProfileRow"]] = relationship(

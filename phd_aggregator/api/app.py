@@ -30,7 +30,7 @@ from starlette.responses import Response
 
 from api.deps import _get_engine
 from api.metrics import metrics
-from api.routes import (admin, apikeys, assistant, auth, bookmarks,
+from api.routes import (account, admin, apikeys, assistant, auth, bookmarks,
                         email as email_router, invites, matches,
                         opportunities, pipeline, preferences, profile,
                         supervisors)
@@ -247,6 +247,7 @@ app.include_router(admin.router)
 app.include_router(email_router.router)
 app.include_router(apikeys.router)
 app.include_router(assistant.router)
+app.include_router(account.router)
 app.include_router(v1_router)
 
 
