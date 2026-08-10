@@ -29,7 +29,7 @@ psycopg2-binary>=2.9       # PostgreSQL driver (optional; needed for PG backend)
 # Sprint 04 — REST API + Auth (api/*)
 fastapi>=0.110             # REST framework (api/app.py)
 uvicorn[standard]>=0.29    # ASGI server for the API
-python-jose[cryptography]>=3.3   # JWT tokens (api/security.py)
+PyJWT>=2.8                       # JWT tokens (api/security.py)
 bcrypt>=4.0                # password hashing (api/security.py)
 httpx>=0.24                # TestClient transport for the API tests
 

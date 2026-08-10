@@ -17,7 +17,7 @@ import time
 from typing import Optional
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
 
 SECRET_KEY = os.environ.get("CIK_SECRET_KEY", "")
 if not SECRET_KEY:
@@ -87,7 +87,7 @@ def decode_access_token(token: str) -> Optional[int]:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return int(payload["sub"])
-    except (JWTError, KeyError, ValueError):
+    except (jwt.InvalidTokenError, KeyError, ValueError):
         return None
 
 
