@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,15 +38,16 @@ export default function CoverLetterModal({ open, onOpenChange, match }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (open) {
+  function handleOpenChange(next: boolean) {
+    if (!next) {
       setText("");
       setModel(null);
       setUsage(null);
       setError(null);
       setCopied(false);
     }
-  }, [open]);
+    onOpenChange(next);
+  }
 
   async function handleGenerate() {
     setGenerating(true);
@@ -82,7 +83,7 @@ export default function CoverLetterModal({ open, onOpenChange, match }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Draft cover letter</DialogTitle>
