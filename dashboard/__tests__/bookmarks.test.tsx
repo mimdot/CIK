@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import BookmarksPage from "@/app/bookmarks/page";
+import BookmarksPage from "@/app/(app)/bookmarks/page";
 import { ToastProvider } from "@/components/ui/toast";
 import { ApiError, deleteBookmark, fetchBookmarks } from "@/lib/api";
 import type { Bookmark, Opportunity } from "@/types";

@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import AdminPage from "@/app/admin/page";
+import AdminPage from "@/app/(app)/admin/page";
 import {
   ApiError,
   createInvite,

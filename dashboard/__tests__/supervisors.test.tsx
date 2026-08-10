@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import SupervisorsPage from "@/app/supervisors/page";
+import SupervisorsPage from "@/app/(app)/supervisors/page";
 import { ApiError, fetchSupervisors } from "@/lib/api";
 import type { Supervisor } from "@/types";
 

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import OnboardingPage from "@/app/onboarding/page";
+import OnboardingPage from "@/app/(app)/onboarding/page";
 import {
   ApiError,
   buildProfile,

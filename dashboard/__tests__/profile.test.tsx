@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import ProfilePage from "@/app/profile/page";
+import ProfilePage from "@/app/(app)/profile/page";
 import { ToastProvider } from "@/components/ui/toast";
 import { ApiError, buildProfile, fetchProfile, updateProfile } from "@/lib/api";
 import type { UserProfile } from "@/types";

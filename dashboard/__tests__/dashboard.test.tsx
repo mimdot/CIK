@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import DashboardPage from "@/app/page";
+import DashboardPage from "@/app/(app)/page";
 import { ApiError, createBookmark, fetchMatches } from "@/lib/api";
 import type { Match } from "@/types";
 

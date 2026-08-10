@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import ErrorBoundary from "@/components/ErrorBoundary";
-import Nav from "@/components/Nav";
 import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
@@ -18,15 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <ToastProvider>
-          <Nav />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
-            <ErrorBoundary>{children}</ErrorBoundary>
-          </main>
-          <footer className="border-t py-4 text-center text-xs text-muted-foreground">
-            Career Intelligence Kit · Sprint 05
-          </footer>
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

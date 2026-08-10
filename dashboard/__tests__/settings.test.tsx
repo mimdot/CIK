@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import SettingsPage from "@/app/settings/page";
+import SettingsPage from "@/app/(app)/settings/page";
 import { ToastProvider } from "@/components/ui/toast";
 import {
   ApiError,
