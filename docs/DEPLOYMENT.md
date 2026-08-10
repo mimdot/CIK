@@ -80,6 +80,15 @@ docker compose \
   up -d --build
 ```
 
+For a full engineer-architected beta deployment see the ops docs:
+
+- `PROVISIONING.md` — harden the OS, wire up TLS, first-run admin/invites.
+- `BETA_RUNBOOK.md` — invites, day-to-day health, upgrades, incident playbooks.
+- `BETA_CHECKLIST.md` — the go/no-go list to walk before opening the beta.
+- `BACKUPS.md` — nightly encrypted backups and restore drills.
+- `SECURITY.md` — the security posture checklist; `MONITORING.md` — Sentry,
+  uptime, JSON logs, alert triage.
+
 ---
 
 ## 2. Reverse proxy + SSL/TLS
