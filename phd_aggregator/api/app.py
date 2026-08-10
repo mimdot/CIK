@@ -30,6 +30,7 @@ from starlette.responses import Response
 
 from api.deps import _get_engine
 from api.metrics import metrics
+from core import observe
 from api.routes import (account, admin, apikeys, assistant, auth, bookmarks,
                         email as email_router, invites, matches,
                         opportunities, pipeline, preferences, profile,
@@ -110,6 +111,38 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# --- request id + access log (Sprint 10, B3) -----------------------------------
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Tag every request with a short request id.
+
+    Ids come from the caller's ``X-Request-Id`` header when present (useful to
+    correlate with the dashboard's fetch), otherwise a fresh random id. The id
+    is echoed back in the ``X-Request-Id`` response header and bound to the
+    thread-local context so log lines within the request carry it. Emits a
+    single structured access-log line per call.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        import logging
+        import time
+        import uuid
+        request_id = request.headers.get("x-request-id", "") or uuid.uuid4().hex[:12]
+        observe.set_request_id(request_id)
+        request.state.request_id = request_id
+        start = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = round((time.perf_counter() - start) * 1000, 1)
+        logging.getLogger("phd_aggregator").info(
+            "http %s %s -> %s (%.1f ms)",
+            request.method, request.url.path, response.status_code, duration_ms,
+            extra={"request_id": request_id, "method": request.method,
+                   "path": request.url.path,
+                   "status_code": response.status_code,
+                   "duration_ms": duration_ms})
+        response.headers["X-Request-Id"] = request_id
+        return response
+
+
 # --- security headers ----------------------------------------------------------
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add hardening headers to every response."""
@@ -162,6 +195,11 @@ class CsrfMiddleware(BaseHTTPMiddleware):
 app.add_middleware(CsrfMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(MetricsMiddleware)
+app.add_middleware(RequestIdMiddleware)  # outermost: captures the full request
+
+# JSON structured logs (Sprint 10, B3) — on in production, off in dev/tests.
+if os.environ.get("CIK_JSON_LOGS", "").strip().lower() in ("1", "true", "yes"):
+    observe.configure_json_logging()
 
 
 # --- meta endpoints ------------------------------------------------------------

@@ -40,6 +40,7 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST:-}
       ASSISTANT_DAILY_LIMIT: ${ASSISTANT_DAILY_LIMIT:-50}
       LLM_MONTHLY_CAP_USD: ${LLM_MONTHLY_CAP_USD:-}
+      CIK_JSON_LOGS: ${CIK_JSON_LOGS:-1}
     expose:
       - "8000"
     stop_grace_period: 30s
