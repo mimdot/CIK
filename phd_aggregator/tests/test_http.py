@@ -221,6 +221,86 @@ def test_http_close_with_none_state():
     h.close()  # must not raise
 
 
+# ------------------------------------------------------------ SSRF guard (Sprint 10 D1)
+def test_ssrf_blocks_private_ip_literals():
+    for url in ("http://127.0.0.1/x", "http://10.0.0.1/", "http://192.168.1.1/",
+                "http://169.254.169.254/latest/meta-data/", "http://172.16.0.1/",
+                "http://[::1]/", "http://[fc00::1]/"):
+        assert http_mod._blocked_url_reason(url), url
+
+
+def test_ssrf_allows_public_ip_literal_and_hostnames():
+    assert http_mod._blocked_url_reason("http://8.8.8.8/") is None
+    assert http_mod._blocked_url_reason("http://example.com/a") is None
+    assert http_mod._blocked_url_reason("https://example.org:443/x") is None
+
+
+def test_ssrf_blocks_non_http_schemes():
+    assert http_mod._blocked_url_reason("file:///etc/passwd")
+    assert http_mod._blocked_url_reason("ftp://example.com/")
+    assert http_mod._blocked_url_reason("gopher://example.com/")
+
+
+def test_ssrf_blocks_hostname_resolving_to_private(monkeypatch):
+    monkeypatch.setattr(http_mod.socket, "getaddrinfo",
+                        lambda *a, **kw: [(2, 1, 6, "", ("127.0.0.1", 0))])
+    reason = http_mod._blocked_url_reason("https://evil.invalid/steal")
+    assert reason and "private" in reason
+
+
+def test_ssrf_allows_hostname_resolving_to_public(monkeypatch):
+    monkeypatch.setattr(http_mod.socket, "getaddrinfo",
+                        lambda *a, **kw: [(2, 1, 6, "", ("93.184.216.34", 0))])
+    assert http_mod._blocked_url_reason("https://example.com/x") is None
+
+
+def test_ssrf_fail_open_on_dns_error(monkeypatch):
+    import socket as _s
+    monkeypatch.setattr(http_mod.socket, "getaddrinfo",
+                        lambda *a, **kw: (_ for _ in ()).throw(_s.gaierror(-2)))
+    assert http_mod._blocked_url_reason("https://no-such-host.invalid/x") is None
+
+
+def test_http_get_blocks_private_literal():
+    h = _mk_http()
+    h.session.get = mock.Mock()
+    h.robots.can_fetch = mock.Mock(return_value=True)
+    assert h.get("http://127.0.0.1/steal") is None
+    h.session.get.assert_not_called()
+
+
+def test_http_get_blocks_private_resolution(monkeypatch):
+    monkeypatch.setattr(http_mod.socket, "getaddrinfo",
+                        lambda *a, **kw: [(2, 1, 6, "", ("10.0.0.1", 0))])
+    h = _mk_http()
+    h.session.get = mock.Mock()
+    h.robots.can_fetch = mock.Mock(return_value=True)
+    assert h.get("https://internal.corp/steal") is None
+    h.session.get.assert_not_called()
+
+
+def test_ssrf_can_be_disabled_via_env(monkeypatch):
+    monkeypatch.setenv("CIK_SSRF_GUARD", "0")
+    assert http_mod._blocked_url_reason("http://127.0.0.1/x") is None
+
+
+def test_ssrf_cache_used(monkeypatch):
+    calls = []
+    real = http_mod.socket.getaddrinfo
+
+    def fake(*a, **kw):
+        calls.append(a)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(http_mod.socket, "getaddrinfo", fake)
+    try:
+        http_mod._blocked_url_reason("https://example.com/once")
+        http_mod._blocked_url_reason("https://example.com/twice")
+    except OSError:
+        pass  # offline: fail-open, cache still exercised
+    assert len(calls) <= 1
+
+
 # ----------------------------------------------------------- back-compat
 def test_backcompat_names_reachable_from_monolith():
     for name in ("Http", "RobotsCache"):

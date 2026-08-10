@@ -11,6 +11,7 @@ constants). Nothing imports back, so the module stays acyclic.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import re
@@ -63,6 +64,112 @@ BROWSER_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "Upgrade-Insecure-Requests": "1",
 }
+
+
+# -----------------------------------------------------------------------------
+# SSRF guard (Sprint 10, D1) — never fetch internal/private targets.
+#
+# A crawler-backed platform that lets an operator/user hand it URLs must not
+# reach RFC1918 / loopback / link-local / metadata addresses (classic SSRF).
+# Every outbound fetch funnels through Http, so the guard lives here. It
+# rejects non-http(s) schemes, raw private-IP literals, and hostnames that
+# resolve (at check time) to a private/local address. Disable only for local
+# experimentation with `CIK_SSRF_GUARD=0`.
+# -----------------------------------------------------------------------------
+
+# Networks that are never legitimate crawl targets. IPv4 includes the RFC1918
+# space, loopback, link-local (incl. the cloud metadata address 169.254.169.254),
+# CGNAT, benchmarking/documentation ranges, multicast and broadcast.
+_PRIVATE_NETWORKS = tuple(
+    ipaddress.ip_network(n)
+    for n in (
+        "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8",
+        "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24",
+        "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24",
+        "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4", "255.255.255.255/32",
+    )
+)
+
+_IPV6_PRIVATE_NETWORKS = tuple(
+    ipaddress.ip_network(n)
+    for n in (
+        "::1/128", "::/128", "::ffff:0:0/96", "64:ff9b::/96", "fc00::/7",
+        "fe80::/10", "2001:db8::/32",
+    )
+)
+
+# Per-host check cache: host -> reason (None when safe). Prevents a DNS lookup
+# per request; 5-minute TTL. Fail-open on expiration (re-check next time).
+_HOST_CHECK_CACHE: dict[str, tuple[float, Optional[str]]] = {}
+_HOST_CHECK_TTL = 300.0
+# Also remember the current monotonic clock for TTL math.
+_tt_clock = time.monotonic
+
+
+def _ssrf_enabled() -> bool:
+    return os.environ.get("CIK_SSRF_GUARD", "1").strip().lower() not in (
+        "0", "false", "no")
+
+
+def _is_private_ip(ip: str) -> bool:
+    """True if `ip` (v4 or v6, already un-bracketed) is a private/local range."""
+    try:
+        addr = ipaddress.ip_address(ip.strip("[]"))
+    except ValueError:
+        return False
+    return any(addr in net for net in _PRIVATE_NETWORKS) or any(
+        addr in net for net in _IPV6_PRIVATE_NETWORKS)
+
+
+def _blocked_url_reason(url: str) -> Optional[str]:
+    """Return a short human reason if `url` must NOT be fetched, else None.
+
+    Only http/https is allowed; a host that is a private-IP literal is blocked
+    outright; a hostname is resolved once (cached) and blocked if ANY answer is
+    private/local. An unresolvable hostname is treated as safe (the fetch will
+    fail naturally) so offline/dev setups keep working.
+    """
+    if not _ssrf_enabled():
+        return None
+    try:
+        p = urlparse(url)
+    except ValueError:
+        return "unparseable URL"
+    if p.scheme not in ("http", "https"):
+        return f"disallowed scheme {p.scheme!r}"
+    host = p.hostname
+    if not host:
+        return "no hostname in URL"
+    if _is_private_ip(host):
+        return f"private IP literal {host!r}"
+    now = _tt_clock()
+    cached = _HOST_CHECK_CACHE.get(host)
+    if cached and now - cached[0] < _HOST_CHECK_TTL:
+        return cached[1]
+    reason: Optional[str] = None
+    try:
+        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+        for info in infos:
+            ip = info[4][0]
+            if _is_private_ip(ip):
+                reason = f"{host!r} resolves to private IP {ip}"
+                break
+    except socket.gaierror:
+        reason = None  # fail-open: DNS down / NXDOMAIN — fetch will fail anyway
+    except Exception as exc:  # pragma: no cover - defensive
+        log.debug("SSRF check failed for %r: %s", host, exc)
+        reason = None
+    _HOST_CHECK_CACHE[host] = (now, reason)
+    return reason
+
+
+def _guard_url(url: str) -> bool:
+    """True if `url` passes the SSRF guard; False (after logging) if blocked."""
+    reason = _blocked_url_reason(url)
+    if reason is None:
+        return True
+    log.warning("[ssrf] blocked fetch of %s (%s)", url, reason)
+    return False
 
 
 # -----------------------------------------------------------------------------
@@ -294,6 +401,8 @@ class Http:
     # -- plain GETs -----------------------------------------------------------
     def raw_get(self, url: str, **kw) -> Optional["requests.Response"]:
         """GET without a robots check (used to fetch robots.txt itself)."""
+        if not _guard_url(url):
+            return None
         self._throttle()
         try:
             return self.session.get(
@@ -310,7 +419,9 @@ class Http:
         `ignore_robots=True` skips the robots.txt check for THIS request only.
         Reserved for low-volume, user-initiated personal queries against
         endpoints whose robots.txt blanket-disallows all bots (e.g. LinkedIn's
-        public guest job search) — never used for crawling."""
+        public guest job search) —         never used for crawling."""
+        if not _guard_url(url):
+            return None
         if not ignore_robots and not self.robots.can_fetch(url):
             log.warning("robots.txt disallows %s — skipping", url)
             return None
@@ -350,6 +461,8 @@ class Http:
         Rotates through CURL_IMPERSONATION on consecutive blocked requests
         (a rotating, recent Chrome fingerprint trips far fewer bot filters
         than a single static one)."""
+        if not _guard_url(url):
+            return None
         self._throttle()
         proxies = None
         if self.cfg.proxy:
@@ -592,6 +705,8 @@ class Http:
             log.warning("Playwright not installed, cannot render %s "
                         "(pip install playwright && playwright install chromium)",
                         url)
+            return None
+        if not _guard_url(url):
             return None
         if not self.robots.can_fetch(url):
             log.warning("robots.txt disallows %s — skipping", url)
