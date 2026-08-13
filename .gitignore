@@ -27,3 +27,28 @@ phd_aggregator/.seen_positions.json
 phd_aggregator/phd_positions_selftest*.csv
 phd_aggregator/phd_positions_selftest*.html
 phd_aggregator/phd_positions_selftest*.json
+
+# SQLite runtime DBs (recreated on first run; see DEFAULT_DB_URL)
+phd_data.db
+phd_data.db.bak
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Supervisor finder outputs (supervisors_<field>_<country>.*)
+phd_aggregator/supervisors_*.csv
+phd_aggregator/supervisors_*.json
+phd_aggregator/supervisors_*.html
+
+# Build / packaging artifacts (PyInstaller sidecar, zips, logs)
+phd_aggregator/build/
+phd_aggregator/dist/
+*.zip
+nohup.out
+
+# Uploaded CVs — never commit user data (Phase 2B upload dir)
+phd_aggregator/uploads/
+uploads/
+
+# Agent/tooling workspaces
+.opencode/
