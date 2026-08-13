@@ -15,7 +15,7 @@ from core.records import make_record
 from .base import log, register_source
 
 
-@register_source("findaphd")
+@register_source("findaphd", label="FindAPhD")
 def source_findaphd(cfg: Config, http: Http) -> list[dict]:
     """[JS] FindAPhD (findaphd.com). Cloudflare-protected: plain GET and even
     browser-TLS clients get the JS challenge, so this goes straight to the

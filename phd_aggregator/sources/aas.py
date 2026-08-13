@@ -15,7 +15,10 @@ from core.records import make_record
 from .base import _feed_records, log, register_source
 
 
-@register_source("aas")
+@register_source(
+    "aas", fields=("astronomy",),
+    label="AAS Job Register",
+    note="The American Astronomical Society board — astronomy/astrophysics only.")
 def source_aas(cfg: Config, http: Http) -> list[dict]:
     """[FEED/JS] AAS Job Register (jobregister.aas.org) — THE astronomy board.
 

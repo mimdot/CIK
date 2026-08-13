@@ -12,7 +12,7 @@ from core.records import make_record
 from .base import log, register_source
 
 
-@register_source("euraxess")
+@register_source("euraxess", label="EURAXESS (EU)")
 def source_euraxess(cfg: Config, http: Http) -> list[dict]:
     """[HTML] EURAXESS (euraxess.ec.europa.eu). The old RSS endpoint is gone
     and the plain ?keywords= parameter is IGNORED by the new portal (it happily

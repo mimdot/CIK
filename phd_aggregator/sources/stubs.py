@@ -10,7 +10,9 @@ from core.http import Http
 from .base import log, register_source
 
 
-@register_source("iau")
+@register_source(
+    "iau", fields=("astronomy",),
+    label="IAU (stub)")
 def source_iau(cfg: Config, http: Http) -> list[dict]:
     """[STUB] IAU job listings. The IAU's job page (iau.org/science/
     publications/jobs) was RETIRED in the 2024/25 site redesign — verified
@@ -23,7 +25,9 @@ def source_iau(cfg: Config, http: Http) -> list[dict]:
     return []
 
 
-@register_source("astrobetter")
+@register_source(
+    "astrobetter", fields=("astronomy",),
+    label="AstroBetter Rumor Mill (stub)")
 def source_astrobetter(cfg: Config, http: Http) -> list[dict]:
     """[STUB] AstroBetter Rumor Mill (astrobetter.com/wiki/Rumor+Mill).
     The rumor mill tracks POSTDOC & FACULTY hiring outcomes — it is not a feed

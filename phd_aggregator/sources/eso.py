@@ -10,7 +10,10 @@ from core.utils import guess_country
 from .base import log, register_source
 
 
-@register_source("eso")
+@register_source(
+    "eso", fields=("astronomy",),
+    label="ESO recruitment",
+    note="European Southern Observatory — astronomy only.")
 def source_eso(cfg: Config, http: Http) -> list[dict]:
     """[FEED] ESO recruitment portal (recruitment.eso.org) — official RSS at
     /jobs.rss (verified live). Mostly staff/fellowship ads, but ESO

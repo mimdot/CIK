@@ -60,6 +60,31 @@ search_terms:
   - oceanography
   - coral reef
 
+# WHICH BOARDS THIS FIELD USES.
+# -----------------------------------------------------------------------------
+# You almost never need this block. Two things already happen for free:
+#
+#   1. Every GENERAL multi-discipline board (EURAXESS, jobs.ac.uk, FindAPhD,
+#      Nature Careers, AcademicTransfer, AcademicJobsOnline, JREC-IN, LinkedIn,
+#      your seed URLs, the university department sweep) is queried for EVERY
+#      field, using the search_terms above — your field's vocabulary, not
+#      anyone else's.
+#   2. A SPECIALIST board is crawled only for the fields it declares itself.
+#      The AAS Job Register declares astronomy, so a chemistry run never
+#      touches it — and vice versa.
+#
+# Use `sources:` only to claim a specialist board that does not already name
+# your field. Names must match `python phd_aggregator.py --list-sources`.
+# Unknown names are ignored with a warning, never a crash.
+#
+# sources:
+#   - acs_careers
+#   - rsc_jobs
+#
+# With no dedicated board of your own, the run logs
+#   "no dedicated sources for <field> yet — using the general boards"
+# and still works: general boards + your keywords is a complete search.
+
 # Scoring: keep a post iff (>= 1 core anchor matched) AND (score >= threshold).
 # Title evidence counts far more than description evidence. The defaults are
 # sane — only tune these once you've seen a few runs.

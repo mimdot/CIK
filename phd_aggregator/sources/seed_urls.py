@@ -167,7 +167,7 @@ def discover_siblings(seed_url: str, seed_html: Optional[str], cfg: Config,
     return out
 
 
-@register_source("seed_urls")
+@register_source("seed_urls", label="Your seed URLs")
 def source_seed_urls(cfg: Config, http: Http) -> list[dict]:
     """[HTML] Hand-picked seed URLs from the seed file (+ board siblings).
     See the section comment above for the parse chain and gate semantics."""

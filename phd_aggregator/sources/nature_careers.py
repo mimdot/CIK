@@ -11,7 +11,7 @@ from core.records import make_record
 from .base import log, register_source
 
 
-@register_source("nature_careers")
+@register_source("nature_careers", label="Nature Careers")
 def source_nature_careers(cfg: Config, http: Http) -> list[dict]:
     """[HTML] Nature Careers (nature.com/naturecareers).
 

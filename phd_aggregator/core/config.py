@@ -555,6 +555,11 @@ class Config:
     # UNIVERSITY_DEPARTMENTS registry
     departments: list = field(default_factory=list)
     departments_explicit: bool = False
+    # Boards this field claims for itself, from the profile's `sources:` block.
+    # These are ADDED to the general multi-discipline boards and to any source
+    # that names the field in its own @register_source(fields=...) declaration.
+    # See sources.base.resolve_sources_for_field.
+    profile_sources: list = field(default_factory=list)
     # --- seed URLs ---
     seed_file: str = SEED_FILE
     seed_bypass_gate: bool = SEED_BYPASS_GATE
@@ -818,6 +823,22 @@ def apply_field_profile(cfg: Config, profile: dict) -> None:
             })
         cfg.departments = cleaned
         cfg.departments_explicit = True
+    # Optional per-field board list — the job boards, societies and databases
+    # that actually serve THIS discipline:
+    #   sources:
+    #     - acs_careers
+    #     - rsc_jobs
+    # Names must match a @register_source name (`--list-sources`). This is how
+    # a new field claims a specialist board without touching any Python; the
+    # general multi-discipline boards are always added on top.
+    if isinstance(profile.get("sources"), list):
+        cfg.profile_sources = [str(s).strip() for s in profile["sources"]
+                               if str(s).strip()]
+        log.info("field profile: %d dedicated source(s) declared",
+                 len(cfg.profile_sources))
+    elif profile.get("sources") is not None:
+        log.warning("field profile: `sources` must be a list of source names "
+                    "— ignored")
         log.info("field profile: %d departments loaded for uni_departments",
                  len(cleaned))
 

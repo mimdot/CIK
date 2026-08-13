@@ -14,7 +14,7 @@ from core.records import make_record
 from .base import log, register_source
 
 
-@register_source("academictransfer")
+@register_source("academictransfer", label="AcademicTransfer (NL)")
 def source_academictransfer(cfg: Config, http: Http) -> list[dict]:
     """[JS] AcademicTransfer (NL). The public site is a Nuxt SPA; its search
     XHR (api.academictransfer.com/vacancies/) requires a session token, and

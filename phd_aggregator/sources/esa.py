@@ -23,7 +23,10 @@ _ESA_SITES = {
 }
 
 
-@register_source("esa")
+@register_source(
+    "esa", fields=("astronomy", "physics", "engineering"),
+    label="ESA careers",
+    note="European Space Agency — space science and space engineering.")
 def source_esa(cfg: Config, http: Http) -> list[dict]:
     """[HTML] ESA careers (jobs.esa.int, SuccessFactors). Search results are
     server-rendered; job links carry class 'jobTitle-link' (verified live).

@@ -11,7 +11,7 @@ from core.records import make_record
 from .base import log, register_source
 
 
-@register_source("jrecin")
+@register_source("jrecin", label="JREC-IN (Japan)")
 def source_jrecin(cfg: Config, http: Http) -> list[dict]:
     """[HTML] JREC-IN Portal (Japan). The search form submits a plain GET to
     /seek/SeekJorSearch (verified live — the old CSRF/Playwright dance is no

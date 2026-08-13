@@ -11,7 +11,7 @@ from core.records import make_record
 from .base import log, register_source
 
 
-@register_source("academicjobsonline")
+@register_source("academicjobsonline", label="AcademicJobsOnline")
 def source_academicjobsonline(cfg: Config, http: Http) -> list[dict]:
     """[HTML] AcademicJobsOnline (academicjobsonline.org). Category pages are
     server-rendered; robots.txt asks for a 5s crawl delay (honored). Each

@@ -329,7 +329,7 @@ _PHD_LINK_BLOCK_RE = re.compile(
     r"graduates?\s+of|life\s+at|phd\s+life|faq)\b", re.I)
 
 
-@register_source("uni_departments")
+@register_source("uni_departments", label="University department sweep")
 def source_uni_departments(cfg: Config, http: Http) -> list[dict]:
     """[HTML] Sweep the department pages listed in the ACTIVE FIELD PROFILE's
     `departments:` block (top universities for YOUR major, world-wide) and

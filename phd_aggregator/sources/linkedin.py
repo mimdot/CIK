@@ -27,7 +27,7 @@ LINKEDIN_LOCATIONS = ["European Union", "United Kingdom", "Japan", "China"]
 LINKEDIN_MAX_PAGES = 1          # pages of 25 per (keyword, location) pair
 
 
-@register_source("linkedin")
+@register_source("linkedin", label="LinkedIn (guest search)")
 def source_linkedin(cfg: Config, http: Http) -> list[dict]:
     """[HTML] LinkedIn Jobs via the public guest search endpoint (no login).
 

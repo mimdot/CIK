@@ -12,7 +12,7 @@ from core.utils import parse_date
 from .base import log, register_source
 
 
-@register_source("jobs_ac_uk")
+@register_source("jobs_ac_uk", label="jobs.ac.uk (UK)")
 def source_jobs_ac_uk(cfg: Config, http: Http) -> list[dict]:
     """[HTML] jobs.ac.uk (UK). RSS export was removed; the search results are
     server-rendered. jobTypeFacet[]=phds narrows to PhD studentships (verified
