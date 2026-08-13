@@ -88,10 +88,10 @@ green. Refactors and behavior changes stay in separate commits (per your rules).
 | **2B CV file upload** | **done** (working tree) | `core/cv.py` (TXT/PDF/DOCX, local-only, clear errors) + base64-JSON `POST /api/profile/extract-cv` (no `python-multipart`) + Profile-page upload control feeding the existing extract→edit flow. TXT + endpoint + guards verified here; PDF/DOCX activate on `pip install pdfplumber python-docx`. Tests: +11 py, +1 UI. |
 | **P1 M3 streaming progress** | **done** (working tree) | `fetch_sources` emits start + per-source `{status,records,duration}` events → `run_pipeline_job` records them (in-memory job record / rq `job.meta`) → `get_job_status` surfaces `progress` → `useRunJob` + the Engine-run dialog stream "N / total sources" and per-source records/errors. Tests: +2 py, +1 UI. |
 | **L3 `on_event`→lifespan** | **done** (working tree) | Migrated the deprecated startup handler to a `lifespan` context manager (removes both deprecation warnings). |
-| P1 M2 conditional-GET cache | open (recommend separate change) | ETag/Last-Modified revalidation on the shared `Http`; default-on risks the 715-test suite and the real win needs the proxied network — better as its own reviewed commit. |
+| **P1 M2 conditional-GET cache** | **done** (committed) | `core/http_cache.py` (SQLite, thread-safe, shared across workers) + `Http.get/raw_get` revalidate with If-None-Match/If-Modified-Since → 304 serves the cached body; store 200s with validators. `Config.http_cache`/`force_refresh` + `--force-refresh`/`--no-http-cache`. Off under `CIK_TESTING`; cache file gitignored. Tests: +6. |
 | Lazy imports (L-startup) | open (low value) | Only the CLI shim eagerly loads `pandas`/`sqlalchemy`; the desktop **sidecar** (api.app) already doesn't, so the "instant startup" win is small and the shim's back-compat re-export test makes it delicate. |
 | L1/L2 (sidecar proxy/port) | open | Desktop sidecar hardcodes port 8000 and may not find `config.yaml` for the proxy — verify/robustify when building the Tauri app. |
 
-Verification to date: **`pytest` 715 passed / 1 skipped**, **dashboard jest 94
+Verification to date: **`pytest` 721 passed / 1 skipped**, **dashboard jest 94
 passed / 14 suites**, `tsc` clean, offline `--self-test` green.
 </content>
