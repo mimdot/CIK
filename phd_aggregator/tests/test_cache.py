@@ -93,7 +93,7 @@ def test_supervisor_helpers_roundtrip():
 def test_enqueue_fallback_runs_job(monkeypatch):
     from core import tasks
 
-    def fake_run(country=None, sources=None):
+    def fake_run(country=None, sources=None, field=None, on_progress=None):
         return 3
     monkeypatch.setattr(tasks, "run_pipeline_job", fake_run)
     monkeypatch.setattr(tasks, "_redis", lambda: None)

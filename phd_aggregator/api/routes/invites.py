@@ -31,9 +31,18 @@ router = APIRouter(prefix="/api/invites", tags=["invites"])
 
 
 def invites_required() -> bool:
-    """True when the API requires an invite code to register (opt-in)."""
-    return os.environ.get("INVITES_REQUIRED", "").strip().lower() in (
-        "1", "true", "yes")
+    """True when the API requires an invite code to register.
+
+    Controlled by ``CIK_INVITE_REQUIRED`` (:func:`api.routes.auth.register`),
+    which wins over the legacy ``INVITES_REQUIRED`` name. The default is OFF
+    (open registration, matching the pre-existing dev/test behavior); opt into
+    the private-beta gate with ``CIK_INVITE_REQUIRED=1``.
+    """
+    for name in ("CIK_INVITE_REQUIRED", "INVITES_REQUIRED"):
+        value = os.environ.get(name)
+        if value is not None:
+            return value.strip().lower() in ("1", "true", "yes")
+    return False
 
 
 class InviteCreate(BaseModel):

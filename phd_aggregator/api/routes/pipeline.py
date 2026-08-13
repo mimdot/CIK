@@ -25,9 +25,15 @@ jobs_router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 @router.post("/run", response_model=PipelineRunOut, status_code=202)
 def trigger_run(body: PipelineRunRequest) -> PipelineRunOut:
+    if body.field:
+        from core.config import list_field_profiles
+        if body.field not in list_field_profiles():
+            raise HTTPException(status_code=422,
+                                detail=f"Unknown field profile: {body.field}")
     try:
         run_id = tasks.enqueue_pipeline_job(country=body.country,
-                                            sources=body.sources)
+                                            sources=body.sources,
+                                            field=body.field)
     except RuntimeError as exc:
         raise HTTPException(status_code=429, detail=str(exc))
     return PipelineRunOut(status="started", run_id=run_id)

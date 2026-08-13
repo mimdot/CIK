@@ -674,6 +674,29 @@ def list_field_profiles() -> list[str]:
     return sorted(n for n in names if n != "template")
 
 
+def field_profile_keywords(name: str) -> list[str]:
+    """Search keywords for a field profile name.
+
+    Expands a ``fields/<name>.yaml`` profile into a lowercased, deduplicated
+    list of terms taken from ``core_anchors``, ``context_terms``, and the
+    ``keywords`` of every subfield. Returns ``[]`` when the profile is missing
+    or carries no terms — callers should treat an empty list as "no results",
+    NOT as "match everything"."""
+    profile = load_field_profile(name)
+    if not profile:
+        return []
+    keywords: list[str] = []
+    for key in ("core_anchors", "context_terms"):
+        if isinstance(profile.get(key), list):
+            keywords.extend(str(k) for k in profile[key] if isinstance(k, str))
+    subfields = profile.get("subfields")
+    if isinstance(subfields, dict):
+        for sub in subfields.values():
+            if isinstance(sub, dict) and isinstance(sub.get("keywords"), list):
+                keywords.extend(str(k) for k in sub["keywords"] if isinstance(k, str))
+    return list(dict.fromkeys(k.lower() for k in keywords if k.strip()))
+
+
 def _oa_field_id(value: object) -> Optional[str]:
     """'https://openalex.org/fields/20' | 'fields/20' | '20' -> '20'.
 

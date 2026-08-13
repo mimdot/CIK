@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import os
+from core.env import env_flag
 from datetime import datetime
 from typing import Optional
 
@@ -39,7 +40,7 @@ def digest_llm_enabled() -> bool:
     Selection stays deterministic regardless; this only controls the optional
     plain-language rewrite of the 'why this fits' text. Defaults to ON so the
     feature is live once an LLM provider is configured."""
-    return os.environ.get("DIGEST_LLM_ENABLED", "1") not in ("0", "false", "")
+    return env_flag("DIGEST_LLM_ENABLED", default=True, falsy=("0", "false", "", "no"))
 
 
 def dashboard_url() -> str:

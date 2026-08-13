@@ -116,14 +116,24 @@ def _send_reset_email(email: str, token: str) -> None:
     )
 
 
+def _cookie_secure() -> bool:
+    """Whether session/CSRF cookies carry the ``Secure`` attribute.
+
+    Defaults to True (required behind TLS). Set ``CIK_COOKIE_SECURE=0`` for
+    plain-HTTP local development — browsers refuse to store Secure cookies on
+    ``http://localhost`` origins, which silently breaks browser sessions."""
+    from core.env import env_flag
+    return env_flag("CIK_COOKIE_SECURE", default=True)
+
+
 def _set_auth_cookie(response: Response, token: str) -> None:
-    """Store the JWT as an httpOnly cookie (SameSite=Strict, Secure)."""
+    """Store the JWT as an httpOnly cookie (SameSite=Strict, Secure in TLS)."""
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         httponly=True,
         samesite="strict",
-        secure=True,
+        secure=_cookie_secure(),
         max_age=60 * 60,
         path="/",
     )
@@ -142,7 +152,7 @@ def _set_csrf_cookie(response: Response) -> str:
         value=token,
         httponly=False,
         samesite="strict",
-        secure=True,
+        secure=_cookie_secure(),
         max_age=60 * 60,
         path="/",
     )

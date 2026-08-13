@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from api.deps import get_db
@@ -16,6 +16,12 @@ from db.models import Opportunity
 router = APIRouter(prefix="/api/opportunities", tags=["opportunities"])
 
 
+def _like(q: str) -> str:
+    """Escape a free-text search term for use inside a LIKE/ILIKE pattern."""
+    escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 @router.get("")
 def list_opportunities(
     country: str | None = Query(None, description="exact country filter"),
@@ -23,13 +29,15 @@ def list_opportunities(
     # Backward compat: 'type' matches the Opportunity model column name.
     type: str | None = Query(None, alias="type",
                              description="position type (phd/postdoc/...)"),
+    q: str | None = Query(None, description="free-text search on title, "
+                                            "description or institution"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     session: Session = Depends(get_db),
 ) -> dict:
     # When no filters are applied the full list is stable between pipeline
     # runs, so serve it from cache (invalidated on each pipeline run).
-    if not (country or source or type) and page == 1:
+    if not (country or source or type or q) and page == 1:
         cached = cache.get_cached_opportunity_list()
         if cached is not None:
             total = len(cached)
@@ -53,6 +61,12 @@ def list_opportunities(
         stmt = stmt.where(Opportunity.source == source)
     if type:
         stmt = stmt.where(Opportunity.position_type == type)
+    if q:
+        like = _like(q)
+        stmt = stmt.where(
+            or_(Opportunity.title.ilike(like, escape="\\"),
+                Opportunity.short_description.ilike(like, escape="\\"),
+                Opportunity.institution.ilike(like, escape="\\")))
 
     total = session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = list(session.scalars(

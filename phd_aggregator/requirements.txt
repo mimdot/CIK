@@ -17,6 +17,11 @@ playwright>=1.40          # headless-browser fallback for JS/Cloudflare pages;
 # Optional — nicer main-text extraction for seed URLs
 readability-lxml>=0.8
 
+# Phase 2B — CV file upload (optional; TXT parses without these, PDF/DOCX need them)
+pdfplumber>=0.11          # PDF text extraction (POST /api/profile/extract-cv)
+python-docx>=1.1          # DOCX text extraction
+#   PyMuPDF>=1.24         # alternative PDF backend (used if pdfplumber absent)
+
 # Phase 2 — Profile Engine (Track B)
 pydantic>=2.0              # UserProfile schema (core/profile_schema.py)
 litellm>=1.40              # provider-agnostic LLM wrapper (core/llm.py);

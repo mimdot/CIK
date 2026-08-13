@@ -107,8 +107,8 @@ _tt_clock = time.monotonic
 
 
 def _ssrf_enabled() -> bool:
-    return os.environ.get("CIK_SSRF_GUARD", "1").strip().lower() not in (
-        "0", "false", "no")
+    from core.env import env_flag
+    return env_flag("CIK_SSRF_GUARD", default=True)
 
 
 def _is_private_ip(ip: str) -> bool:
@@ -345,7 +345,12 @@ class Http:
     when the chain is exhausted the URL is skipped with a clear log line.
     """
 
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: Config, *, detect: bool = True):
+        """``detect`` runs proxy auto-detection / direct-internet probing in the
+        constructor (the default). Pass ``detect=False`` for the per-source
+        worker instances used during concurrent fetching: the parent already
+        resolved ``cfg.proxy`` once, so the workers must not each re-probe the
+        network (and must not mutate the shared cfg concurrently)."""
         self.cfg = cfg
         self.timeout = cfg.timeout
         self._last_request = 0.0
@@ -355,22 +360,23 @@ class Http:
         self._pw_headless = True
         self._cffi_index = 0       # curl_cffi impersonation rotation cursor
 
-        if cfg.proxy or cfg.auto_detect_proxy:
-            detected = detect_proxy(cfg.proxy, cfg.auto_detect_proxy)
-            if detected is not None:
-                cfg.proxy = detected
-            elif cfg.proxy:
-                cfg.proxy = None  # configured proxy died; candidate sweep failed
-        if not cfg.proxy:
-            if cfg.proxy_fallback_direct:
-                if _direct_online():
-                    log.info("no working proxy — using a DIRECT connection")
+        if detect:
+            if cfg.proxy or cfg.auto_detect_proxy:
+                detected = detect_proxy(cfg.proxy, cfg.auto_detect_proxy)
+                if detected is not None:
+                    cfg.proxy = detected
+                elif cfg.proxy:
+                    cfg.proxy = None  # configured proxy died; sweep failed
+            if not cfg.proxy:
+                if cfg.proxy_fallback_direct:
+                    if _direct_online():
+                        log.info("no working proxy — using a DIRECT connection")
+                    else:
+                        log.warning("no proxy AND no direct internet — check "
+                                    "your VPN/proxy (requests will fail fast "
+                                    "rather than hang)")
                 else:
-                    log.warning("no proxy AND no direct internet — check your "
-                                "VPN/proxy (requests will fail fast rather "
-                                "than hang)")
-            else:
-                log.warning("no working proxy — requests will likely fail")
+                    log.warning("no working proxy — requests will likely fail")
 
         self.session = requests.Session()
         self.session.headers.update(BROWSER_HEADERS)

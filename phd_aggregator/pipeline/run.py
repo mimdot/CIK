@@ -413,10 +413,112 @@ def apply_profile_matching(records: list[dict], profile, cfg: Config) -> list[di
     return records
 
 
+def _source_concurrency() -> int:
+    """How many sources to fetch in parallel. One worker == one source == one
+    domain, so this caps how many DOMAINS are hit at once; it never raises the
+    in-flight request count against a single domain (that stays 1, and the
+    polite per-request delay is preserved per source). Override with
+    ``CIK_SOURCE_CONCURRENCY`` (1 = the old fully-sequential behaviour)."""
+    try:
+        return max(1, int(os.environ.get("CIK_SOURCE_CONCURRENCY", "6")))
+    except (TypeError, ValueError):
+        return 6
+
+
+def fetch_sources(cfg: Config, only_sources: Optional[list[str]] = None,
+                  limit_per_source: Optional[int] = None,
+                  on_progress=None) -> list[dict]:
+    """Fetch every enabled source and return the concatenated raw records.
+
+    Sources are fetched CONCURRENTLY (thread pool), each in its own isolated
+    :class:`Http` (``detect=False`` — the caller must resolve the proxy once
+    first by constructing an ``Http(cfg)``). Isolation means one slow, hanging
+    or crashing source can neither block nor corrupt the state (throttle,
+    curl_cffi rotation cursor, browser context) of another. Results are
+    reassembled in the original source order, so the output is byte-for-byte
+    identical to a sequential run regardless of completion order (deterministic
+    dedupe/merge downstream).
+
+    ``on_progress``, if given, is called with small dicts as the run advances so
+    a UI can stream per-source status: once with ``{"event": "start", "total":
+    N}`` and then, as EACH source finishes (in completion order),
+    ``{"event": "source", "source", "status": "done"|"error", "records",
+    "duration"}``. It may be called from worker threads, so the callback must be
+    thread-safe; it is best-effort and never allowed to break a run."""
+    def _is_enabled(name: str) -> bool:
+        return ((name in only_sources) if only_sources
+                else cfg.sources_enabled.get(name, False))
+
+    todo: list[tuple] = []
+    for name, fn in SOURCES.items():
+        if _is_enabled(name):
+            todo.append((name, fn))
+        else:
+            log.info("skip %s (disabled)", name)
+
+    def _emit(event: dict) -> None:
+        if on_progress is None:
+            return
+        try:
+            on_progress(event)
+        except Exception as exc:  # progress must never break the crawl
+            log.debug("progress callback failed: %s", exc)
+
+    _emit({"event": "start", "total": len(todo)})
+
+    def _fetch_one(name, fn) -> list[dict]:
+        t0 = time.time()
+        worker_http = Http(cfg, detect=False)
+        try:
+            recs = fn(cfg, worker_http) or []
+        except Exception as exc:  # one source failing never sinks the run
+            log.warning("source %s failed (%s) — continuing", name, exc,
+                        exc_info=cfg.debug)
+            _record_source(name, raw_records=-1, error=True,
+                           duration_s=time.time() - t0)
+            _emit({"event": "source", "source": name, "status": "error",
+                   "records": 0, "duration": round(time.time() - t0, 2)})
+            return []
+        finally:
+            worker_http.close()
+        for r in recs:
+            r.setdefault("source", name)
+        if limit_per_source:
+            recs = recs[:limit_per_source]
+        log.info("source %s -> %d raw records", name, len(recs))
+        _record_source(name, raw_records=len(recs), error=False,
+                       duration_s=time.time() - t0)
+        _emit({"event": "source", "source": name, "status": "done",
+               "records": len(recs), "duration": round(time.time() - t0, 2)})
+        return recs
+
+    workers = max(1, min(len(todo), _source_concurrency()))
+    if workers <= 1 or len(todo) <= 1:
+        raw: list[dict] = []
+        for name, fn in todo:
+            log.info("running source: %s", name)
+            raw.extend(_fetch_one(name, fn))
+        return raw
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    log.info("fetching %d sources concurrently (%d workers)", len(todo), workers)
+    results: dict[str, list[dict]] = {}
+    with ThreadPoolExecutor(max_workers=workers,
+                            thread_name_prefix="src") as pool:
+        futures = {pool.submit(_fetch_one, name, fn): name for name, fn in todo}
+        for fut in as_completed(futures):
+            results[futures[fut]] = fut.result()  # _fetch_one never raises
+    # Reassemble in source order for a deterministic, sequential-identical list.
+    raw = []
+    for name, _ in todo:
+        raw.extend(results.get(name, []))
+    return raw
+
+
 def run(cfg: Config, only_sources: Optional[list[str]] = None,
         limit_per_source: Optional[int] = None,
         injected_raw: Optional[list[dict]] = None,
-        profile=None) -> list[dict]:
+        profile=None, on_progress=None) -> list[dict]:
     """Fetch enabled sources, filter, freshness-check, dedupe, detect NEW,
     write, summarise. `injected_raw` bypasses network fetching (--self-test).
     When a UserProfile is supplied (Track C3), every kept opportunity is scored
@@ -428,31 +530,14 @@ def run(cfg: Config, only_sources: Optional[list[str]] = None,
     if injected_raw is not None:
         raw = [dict(r) for r in injected_raw]
     else:
+        # The parent Http resolves the proxy ONCE (detect=True) and is reused by
+        # the freshness stage below. The actual crawl runs concurrently, one
+        # isolated Http per source — see fetch_sources().
         http = Http(cfg)
         try:
-            for name, fn in SOURCES.items():
-                enabled = (name in only_sources) if only_sources else cfg.sources_enabled.get(name, False)
-                if not enabled:
-                    log.info("skip %s (disabled)", name)
-                    continue
-                log.info("running source: %s", name)
-                t0 = time.time()
-                try:
-                    recs = fn(cfg, http) or []
-                except Exception as exc:
-                    log.warning("source %s failed (%s) — continuing", name, exc,
-                                exc_info=cfg.debug)
-                    _record_source(name, raw_records=-1, error=True,
-                                   duration_s=time.time() - t0)
-                    continue
-                for r in recs:
-                    r.setdefault("source", name)
-                if limit_per_source:
-                    recs = recs[:limit_per_source]
-                log.info("source %s -> %d raw records", name, len(recs))
-                _record_source(name, raw_records=len(recs), error=False,
-                               duration_s=time.time() - t0)
-                raw.extend(recs)
+            raw = fetch_sources(cfg, only_sources=only_sources,
+                                limit_per_source=limit_per_source,
+                                on_progress=on_progress)
         finally:
             http.close()
 

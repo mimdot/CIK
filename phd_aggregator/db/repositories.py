@@ -199,18 +199,62 @@ class SupervisorRepo:
         return self.session.get(Supervisor, sup_id)
 
     def search(self, *, country: Optional[str] = None,
-               field: Optional[str] = None,
+               field: Optional[list[str]] = None,
+               q: Optional[str] = None,
                limit: int = 100) -> list[Supervisor]:
+        from sqlalchemy import or_
+
         stmt = select(Supervisor)
         if country:
             stmt = stmt.where(Supervisor.country == country)
-        if field:
-            safe = field.replace("\\", "\\\\").replace("%", "\\%")
+        if q:
+            safe = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             like = f"%{safe}%"
-            stmt = stmt.where(Supervisor.topics.like(like, escape="\\") |
-                              Supervisor.department.like(like, escape="\\"))
+            stmt = stmt.where(
+                or_(Supervisor.name.ilike(like, escape="\\"),
+                    Supervisor.department.ilike(like, escape="\\"),
+                    Supervisor.topics.ilike(like, escape="\\")))
+        if field:
+            # Filter supervisors whose topics contain any of the field keywords
+            conditions = []
+            for keyword in field:
+                safe = keyword.replace("\\", "\\\\").replace("%", "\\%")
+                like = f"%{safe}%"
+                conditions.append(Supervisor.topics.like(like, escape="\\"))
+                conditions.append(Supervisor.department.like(like, escape="\\"))
+            if conditions:
+                stmt = stmt.where(or_(*conditions))
         return list(self.session.scalars(
             stmt.order_by(Supervisor.fit_score.desc().nulls_last()).limit(limit)))
+
+    def upsert(self, data: dict) -> Supervisor:
+        """Insert or update a supervisor by (name, country) dedup key.
+
+        Keeps the highest fit_score; merges topics/methods/recent_papers
+        from the new data when the incoming score is better.
+        """
+        name = data.get("name")
+        country = data.get("country")
+        if not name or not country:
+            raise ValueError("Supervisor upsert requires name and country")
+
+        existing = self.session.scalar(
+            select(Supervisor).where(
+                Supervisor.name == name, Supervisor.country == country))
+        if existing is None:
+            row = Supervisor(**data)
+            self.session.add(row)
+            self.session.flush()
+            return row
+
+        incoming_score = data.get("fit_score") or 0.0
+        current_score = existing.fit_score or 0.0
+        if incoming_score >= current_score:
+            for k, v in data.items():
+                if v is not None:
+                    setattr(existing, k, v)
+            self.session.flush()
+        return existing
 
 
 # --- BookmarkRepo (Sprint 04) ----------------------------------------------------

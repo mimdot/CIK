@@ -359,7 +359,7 @@ def test_dead_letters_retry_and_heartbeat(db_session, client, monkeypatch):
     monkeypatch.setattr(tasks, "MAX_PIPELINE_RETRIES", 0)
     tasks._in_memory_jobs.clear()
 
-    def always_fail(country=None, sources=None):
+    def always_fail(country=None, sources=None, field=None, on_progress=None):
         raise RuntimeError("disk full")
     monkeypatch.setattr(tasks, "run_pipeline_job", always_fail)
     job_id = tasks.enqueue_pipeline_job(country="DE")
@@ -375,7 +375,8 @@ def test_dead_letters_retry_and_heartbeat(db_session, client, monkeypatch):
     assert any(j["job_id"] == job_id for j in resp.json()["jobs"])
 
     monkeypatch.setattr(tasks, "run_pipeline_job",
-                        lambda country=None, sources=None: 4)
+                        lambda country=None, sources=None, field=None,
+                        on_progress=None: 4)
     resp = client.post(f"/api/admin/tasks/{job_id}/retry", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["retried"] is True
@@ -595,7 +596,9 @@ def test_me_with_malformed_auth_header_401(client):
     assert resp.status_code == 401
 
 
-def test_login_sets_httponly_cookie(client):
+def test_login_sets_httponly_cookie(client, monkeypatch):
+    # Hermetic: ensure Secure is set by default regardless of ambient env
+    monkeypatch.setenv("CIK_COOKIE_SECURE", "1")
     client.post("/api/auth/register",
                 json={"email": "ck@example.com", "password": PASSWORD})
     resp = client.post("/api/auth/login",
@@ -606,6 +609,23 @@ def test_login_sets_httponly_cookie(client):
     assert "HttpOnly" in set_cookie
     assert "SameSite=strict" in set_cookie
     assert "Secure" in set_cookie
+
+
+def test_login_cookie_not_secure_when_disabled(client, monkeypatch):
+    """CIK_COOKIE_SECURE=0 (plain-HTTP local dev) must drop the Secure flag."""
+    monkeypatch.setenv("CIK_COOKIE_SECURE", "0")
+    client.post("/api/auth/register",
+                json={"email": "ck2@example.com", "password": PASSWORD})
+    resp = client.post("/api/auth/login",
+                       json={"email": "ck2@example.com", "password": PASSWORD})
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "")
+    assert "cik_token=" in set_cookie
+    assert "HttpOnly" in set_cookie
+    assert "SameSite=strict" in set_cookie
+    assert "Secure" not in set_cookie
+    all_cookies = resp.headers.get_list("set-cookie")
+    assert not any("Secure" in c for c in all_cookies)
 
 
 def test_login_still_returns_token_in_body(client):
@@ -787,13 +807,16 @@ def test_profile_scoped_to_authenticated_user(client, auth, monkeypatch):
 def seed_opportunities(db_session):
     make_opportunity(db_session, title="PhD in radio astronomy",
                      country="Germany", source="euraxess",
-                     position_type="phd")
+                     position_type="phd",
+                     short_description="Telescope array signal processing.")
     make_opportunity(db_session, title="Postdoc in cosmology",
                      country="Netherlands", source="findaphd",
                      position_type="postdoc",
+                     short_description="Cosmic microwave background maps.",
                      url="https://ex.org/j/2")
     make_opportunity(db_session, title="PhD in ISM",
                      country="Germany", source="eso", position_type="phd",
+                     short_description="Interstellar medium chemistry.",
                      url="https://ex.org/j/3")
     db_session.commit()
 
@@ -843,6 +866,26 @@ def test_opportunities_filter_no_match(client, db_session):
     seed_opportunities(db_session)
     resp = client.get("/api/opportunities",
                       params={"country": "Japan"})
+    assert resp.json()["total"] == 0
+
+
+def test_opportunities_search_q_matches_title(client, db_session):
+    seed_opportunities(db_session)
+    resp = client.get("/api/opportunities", params={"q": "radio"})
+    data = resp.json()
+    assert data["total"] == 1
+    assert "radio" in data["items"][0]["title"].lower()
+
+
+def test_opportunities_search_q_matches_description(client, db_session):
+    seed_opportunities(db_session)
+    resp = client.get("/api/opportunities", params={"q": "cosmology"})
+    assert resp.json()["total"] == 1
+
+
+def test_opportunities_search_q_no_match(client, db_session):
+    seed_opportunities(db_session)
+    resp = client.get("/api/opportunities", params={"q": "quantum_xyz"})
     assert resp.json()["total"] == 0
 
 
@@ -958,6 +1001,44 @@ def test_matches_min_score_filter(client, db_session, auth, monkeypatch):
     filtered = resp.json()["items"]
     assert len(filtered) <= len(all_items)
     assert all(i["match_score"] >= 0.9 for i in filtered)
+
+
+def test_matches_field_filter_uses_keywords(client, db_session, auth,
+                                            monkeypatch):
+    """field is a profile name: it expands to keywords and matches
+    topic/department/field/subfield containment (like supervisors), not an
+    exact equality on the opportunity's `field` column."""
+    seed_matches_context(db_session, auth, client, monkeypatch)
+    db_session.add(Opportunity(
+        source="euraxess", source_raw="https://ex.org/j/cmb",
+        title="CMB data analysis", country="Germany", position_type="phd",
+        url="https://ex.org/j/cmb",
+        short_description="Analyzing cosmic microwave background maps.",
+        topics='["cosmic microwave background"]'))
+    db_session.add(Opportunity(
+        source="euraxess", source_raw="https://ex.org/j/graph",
+        title="Network topology", country="Germany", position_type="phd",
+        url="https://ex.org/j/graph",
+        short_description="Graph theory applied to networks.",
+        topics='["graph theory"]'))
+    db_session.commit()
+    resp = client.get("/api/matches", headers=auth,
+                      params={"field": "astronomy"})
+    data = resp.json()
+    assert data["total"] == 1
+    assert "CMB data analysis" in data["items"][0]["title"]
+
+
+def test_matches_field_filter_unknown_profile_empty(client, db_session, auth,
+                                                    monkeypatch):
+    """An unknown field profile must yield an explicit empty result, never a
+    silent match-everything."""
+    seed_matches_context(db_session, auth, client, monkeypatch)
+    resp = client.get("/api/matches", headers=auth,
+                      params={"field": "no_such_profile"})
+    data = resp.json()
+    assert data["total"] == 0
+    assert data["items"] == []
 
 
 def test_matches_limit(client, db_session, auth, monkeypatch):
@@ -1093,11 +1174,53 @@ def test_supervisors_filter_country(client, db_session):
 
 
 def test_supervisors_filter_field(client, db_session):
+    # field is a field-profile name: it expands to profile keywords and matches
+    # topic/department containment (e.g. astronomy -> "cosmic microwave
+    # background"), not a raw substring on the field value.
+    db_session.add(Supervisor(name="Dr. CMB Astro", country="Germany",
+                              fit_score=0.9, department="Cosmology",
+                              source="openalex",
+                              topics='["cosmic microwave background"]'))
+    db_session.add(Supervisor(name="Prof. Control", country="Germany",
+                              fit_score=0.6, department="Systems Engineering",
+                              source="openalex",
+                              topics='["control systems"]'))
+    db_session.commit()
+    resp = client.get("/api/supervisors", params={"field": "astronomy"})
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["name"] == "Dr. CMB Astro"
+
+
+def test_supervisors_filter_unknown_field_returns_empty(client, db_session):
+    """An unknown field profile must return an explicit empty list, never the
+    full unfiltered set."""
     seed_supervisors(db_session)
-    resp = client.get("/api/supervisors", params={"field": "ISM"})
-    items = resp.json()["items"]
-    assert len(items) == 1
-    assert "ISM" in items[0]["department"]
+    resp = client.get("/api/supervisors",
+                      params={"field": "no_such_profile"})
+    data = resp.json()
+    assert data["total"] == 0
+    assert data["items"] == []
+
+
+def test_supervisors_search_q_matches_name(client, db_session):
+    seed_supervisors(db_session)
+    resp = client.get("/api/supervisors", params={"q": "ada"})
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["name"] == "Dr. Ada Astro"
+
+
+def test_supervisors_search_q_matches_topic(client, db_session):
+    seed_supervisors(db_session)
+    resp = client.get("/api/supervisors", params={"q": "cosmology"})
+    assert resp.json()["total"] == 1
+
+
+def test_supervisors_search_q_no_match(client, db_session):
+    seed_supervisors(db_session)
+    resp = client.get("/api/supervisors", params={"q": "botany"})
+    assert resp.json()["total"] == 0
 
 
 def test_supervisor_get_by_id(client, db_session):
@@ -1110,6 +1233,107 @@ def test_supervisor_get_by_id(client, db_session):
 
 def test_supervisor_get_404(client):
     assert client.get("/api/supervisors/9999").status_code == 404
+
+
+# --- supervisors /run — desktop "run online search" button --------------------
+def test_supervisors_run_requires_auth_401(client):
+    resp = client.post("/api/supervisors/run",
+                       json={"country": "Germany"})
+    assert resp.status_code == 401
+
+
+def test_supervisors_run_enqueues_job(client, auth, monkeypatch):
+    from core import tasks
+    monkeypatch.setattr(tasks, "enqueue_supervisor_job",
+                        lambda countries, field=None: "abc123")
+    resp = client.post("/api/supervisors/run", headers=auth,
+                       json={"country": "Germany", "field": "astronomy"})
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["status"] == "started"
+    assert data["run_id"] == "abc123"
+
+
+def test_supervisors_run_accepts_country_list(client, auth, monkeypatch):
+    from core import tasks
+    captured = {}
+
+    def fake_enqueue(countries, field=None):
+        captured["countries"] = countries
+        captured["field"] = field
+        return "xyz789"
+
+    monkeypatch.setattr(tasks, "enqueue_supervisor_job", fake_enqueue)
+    resp = client.post("/api/supervisors/run", headers=auth,
+                       json={"country": ["Germany", "Netherlands"]})
+    assert resp.status_code == 202
+    assert captured["countries"] == ["Germany", "Netherlands"]
+    assert captured["field"] is None
+
+
+def test_supervisors_run_unknown_field_422(client, auth):
+    resp = client.post("/api/supervisors/run", headers=auth,
+                       json={"country": "Germany", "field": "no_such_profile"})
+    assert resp.status_code == 422
+
+
+def test_supervisors_run_empty_country_422(client, auth):
+    resp = client.post("/api/supervisors/run", headers=auth,
+                       json={"country": ""})
+    assert resp.status_code == 422
+
+
+def test_supervisors_run_too_many_429(client, auth, monkeypatch):
+    from core import tasks
+
+    def boom(countries, field=None):
+        raise RuntimeError("too many concurrent runs")
+
+    monkeypatch.setattr(tasks, "enqueue_supervisor_job", boom)
+    resp = client.post("/api/supervisors/run", headers=auth,
+                       json={"country": "Germany"})
+    assert resp.status_code == 429
+
+
+def test_supervisor_sync_job_roundtrip(monkeypatch):
+    """In-process fallback: enqueue -> worker thread -> completed with the
+    upserted count surfaced as records."""
+    from core import tasks
+    monkeypatch.setattr(tasks, "_redis", lambda: None)
+    monkeypatch.setattr(tasks, "RETRY_BACKOFF_S", 0.0)
+    monkeypatch.setattr(tasks, "MAX_PIPELINE_RETRIES", 0)
+    tasks._in_memory_jobs.clear()
+
+    monkeypatch.setattr(
+        tasks, "run_supervisor_sync_job",
+        lambda countries, field=None, quick=True: 12)
+    job_id = tasks.enqueue_supervisor_job(["Germany"], field="astronomy")
+    deadline = time.time() + 5
+    info = None
+    while time.time() < deadline:
+        info = tasks.get_job_status(job_id)
+        if info and info["status"] == "completed":
+            break
+        time.sleep(0.02)
+    assert info is not None
+    assert info["status"] == "completed"
+    assert info["records"] == 12
+
+
+def test_supervisor_sync_single_flight(monkeypatch):
+    """A second concurrent supervisor sync must be rejected (429 at the API),
+    not queued unboundedly."""
+    from core import tasks
+    monkeypatch.setattr(tasks, "_redis", lambda: None)
+    tasks._in_memory_jobs.clear()
+
+    # Occupy the one slot manually to simulate an in-flight search.
+    tasks._supervisor_slots.acquire()
+    try:
+        with pytest.raises(RuntimeError):
+            tasks.enqueue_supervisor_job(["Germany"])
+    finally:
+        tasks._supervisor_slots.release()
 
 
 # ---------------------------------------------------------------------------
@@ -1290,10 +1514,11 @@ def test_preferences_stored_per_profile(client, db_session, auth, monkeypatch):
 def fake_run(monkeypatch):
     from core import tasks as tasks_module
 
-    def fake_run(country=None, sources=None):
+    def fake_run(country=None, sources=None, field=None, on_progress=None):
         return [{"title": "fake record"}]
     monkeypatch.setattr(tasks_module, "run_pipeline_job",
-                        lambda country=None, sources=None: 1)
+                        lambda country=None, sources=None, field=None,
+                        on_progress=None: 1)
     return fake_run
 
 
@@ -1312,9 +1537,118 @@ def test_pipeline_run_accepts_sources(client, fake_run):
     assert resp.json()["status"] == "started"
 
 
+def test_extract_cv_txt(client):
+    import base64
+    auth = _register_and_login(client, "cvuser@example.com")
+    content = base64.b64encode(
+        b"PhD researcher in astronomy; radio interferometry with LOFAR; Python."
+    ).decode()
+    resp = client.post("/api/profile/extract-cv", headers=auth,
+                       json={"filename": "cv.txt", "content_b64": content})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "astronomy" in body["raw_text"]
+    assert body["chars"] > 0
+    assert body["filename"] == "cv.txt"
+
+
+def test_extract_cv_requires_auth(client):
+    resp = client.post("/api/profile/extract-cv",
+                       json={"filename": "cv.txt", "content_b64": "eA=="})
+    assert resp.status_code in (401, 403)
+
+
+def test_extract_cv_unsupported_type_422(client):
+    import base64
+    auth = _register_and_login(client, "cvuser2@example.com")
+    content = base64.b64encode(b"plausible cv text " * 10).decode()
+    resp = client.post("/api/profile/extract-cv", headers=auth,
+                       json={"filename": "cv.rtf", "content_b64": content})
+    assert resp.status_code == 422
+    assert "Unsupported" in resp.json()["detail"]
+
+
+def test_extract_cv_bad_base64_422(client):
+    auth = _register_and_login(client, "cvuser3@example.com")
+    resp = client.post("/api/profile/extract-cv", headers=auth,
+                       json={"filename": "cv.txt",
+                             "content_b64": "!!! not base64 !!!"})
+    assert resp.status_code == 422
+
+
 def test_pipeline_run_sources_not_list_422(client):
     resp = client.post("/api/pipeline/run", json={"sources": "eso"})
     assert resp.status_code == 422
+
+
+def test_pipeline_run_accepts_field(client, fake_run):
+    resp = client.post("/api/pipeline/run", json={"field": "biology"})
+    assert resp.status_code == 202
+    assert resp.json()["status"] == "started"
+
+
+def test_pipeline_run_unknown_field_422(client):
+    resp = client.post("/api/pipeline/run", json={"field": "not_a_real_field"})
+    assert resp.status_code == 422
+    assert "Unknown field profile" in resp.json()["detail"]
+
+
+def test_pipeline_job_records_per_source_progress(monkeypatch):
+    """M3: the in-process job accumulates per-source progress events into its
+    record, so get_job_status can stream them to the run dialog."""
+    from core import tasks as tasks_module
+
+    monkeypatch.setattr("db.init.resolve_db_url", lambda: "sqlite://")
+    monkeypatch.setattr("db.init.seed_from_json", lambda *a, **k: 0)
+
+    def fake_pipeline_run(cfg, only_sources=None, on_progress=None, **kw):
+        if on_progress:
+            on_progress({"event": "start", "total": 2})
+            on_progress({"event": "source", "source": "eso", "status": "done",
+                         "records": 3, "duration": 0.1})
+            on_progress({"event": "source", "source": "aas", "status": "error",
+                         "records": 0, "duration": 0.2})
+        return []
+
+    monkeypatch.setattr(tasks_module, "pipeline_run", fake_pipeline_run)
+    with tasks_module._in_memory_jobs_lock:
+        tasks_module._in_memory_jobs["progjob"] = {"job_id": "progjob",
+                                                   "status": "running"}
+    tasks_module.run_pipeline_job(
+        on_progress=tasks_module._inproc_progress_callback("progjob"))
+
+    prog = tasks_module.get_job_status("progjob")["progress"]
+    assert prog["total"] == 2
+    assert prog["completed"] == 2
+    by_src = {s["source"]: s for s in prog["sources"]}
+    assert by_src["eso"]["status"] == "done" and by_src["eso"]["records"] == 3
+    assert by_src["aas"]["status"] == "error"
+
+
+def test_run_pipeline_job_field_selects_taxonomy(monkeypatch):
+    """The chosen field must reach build_config so the crawl scores against
+    that field's taxonomy — this is the wiring that makes the dashboard's
+    field dropdown actually change what a run collects (H1/2A)."""
+    from core import tasks as tasks_module
+
+    # Isolate the DB-seeding side effect: the field wiring is all we assert.
+    monkeypatch.setattr("db.init.resolve_db_url", lambda: "sqlite://")
+    monkeypatch.setattr("db.init.seed_from_json", lambda *a, **k: 0)
+
+    seen: list[tuple] = []
+
+    def capture(cfg, only_sources=None, **kw):
+        seen.append((cfg.field_profile, tuple(cfg.core_anchors)))
+        return []
+
+    monkeypatch.setattr(tasks_module, "pipeline_run", capture)
+    tasks_module.run_pipeline_job(field="biology")   # explicit field profile
+    tasks_module.run_pipeline_job()                  # server default taxonomy
+
+    assert seen[0][0] == "biology"
+    # A different profile means a genuinely different anchor set was compiled,
+    # not just a relabelled default.
+    assert seen[0][1] != seen[1][1]
 
 
 def test_pipeline_status_completed_with_records(client, fake_run):
@@ -1327,7 +1661,7 @@ def test_pipeline_status_completed_with_records(client, fake_run):
 def test_pipeline_status_failed(client, monkeypatch):
     from core import tasks as tasks_module
 
-    def broken_run(country=None, sources=None):
+    def broken_run(country=None, sources=None, field=None, on_progress=None):
         raise RuntimeError("boom")
     monkeypatch.setattr(tasks_module, "run_pipeline_job", broken_run)
     run_id = client.post("/api/pipeline/run", json={}).json()["run_id"]

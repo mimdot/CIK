@@ -26,6 +26,40 @@ log = logging.getLogger("phd_aggregator")
 DEFAULT_LLM = os.environ.get("LLM_DEFAULT_MODEL", "openai/gpt-4o-mini")
 FALLBACK_LLM = os.environ.get("LLM_FALLBACK_MODEL", "ollama/llama3.1:8b")
 
+
+def parse_model_chain(raw: str) -> list[str]:
+    """Comma-separated model ids -> a non-empty list, deduped in order.
+
+    Used to build the provider failover chain from ``LLM_MODEL_CHAIN`` (e.g.
+    ``gemini/gemini-2.5-flash-lite,mistral/mistral-large-latest``) so lanes are
+    walked from highest capacity down. A trailing/leading space around each id
+    is tolerated."""
+    out: list[str] = []
+    for piece in raw.split(","):
+        model = piece.strip()
+        if model and model not in out:
+            out.append(model)
+    return out
+
+
+def _default_max_retries() -> int:
+    """Retries per non-final provider lane. Env ``LLM_CHAIN_RETRIES`` (default
+    2, preserved from the previous single-fallback behavior). Lower it to speed
+    failover when a lane is blackholed (e.g. a blocked provider)."""
+    raw = os.environ.get("LLM_CHAIN_RETRIES", "2").strip()
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 2
+
+
+def env_model_chain() -> list[str]:
+    """The ordered ``LLM_MODEL_CHAIN`` env list, if configured.
+
+    Read at construction time (not at import) so tests and callers can control
+    it per-instance and module import stays side-effect free."""
+    return parse_model_chain(os.environ.get("LLM_MODEL_CHAIN", ""))
+
 # --- Sprint 09, Track C1: cost accounting + guardrails ------------------------
 # Per-1M-token prices as (input, output) USD, used to estimate spend from the
 # llm_usage rows and to enforce LLM_MONTHLY_CAP_USD. Unknown models use a
@@ -195,14 +229,27 @@ class LLMRouter:
 
     def __init__(self, default_model: str = DEFAULT_LLM,
                  fallback_model: str = FALLBACK_LLM,
-                 backend=None, max_retries: int = 2,
-                 temperature: float = 0.0):
+                 backend=None, max_retries: Optional[int] = None,
+                 temperature: float = 0.0,
+                 model_chain: Optional[list[str]] = None):
+        """``model_chain`` is an explicit ordered lane list (highest capacity
+        first, tried in order). When unset, the ``LLM_MODEL_CHAIN`` env var is
+        read at construction time; if that is empty,
+        ``[default_model, fallback_model]`` is used (the original two-lane
+        fallback). ``max_retries`` defaults to ``LLM_CHAIN_RETRIES`` (2) and
+        applies to every lane before the last; the final lane is attempted
+        once."""
         self.default_model = default_model
         self.fallback_model = fallback_model
         self._backend = backend            # injectable for tests
         self._litellm = None               # resolved lazily
-        self.max_retries = max_retries
+        self.max_retries = (max_retries if max_retries is not None
+                            else _default_max_retries())
         self.temperature = temperature
+        # An empty model list is treated as "unset" so a blank LLM_MODEL_CHAIN
+        # (or parse of it) still falls through to default/fallback.
+        self.model_chain = (list(model_chain) if model_chain is not None
+                            else env_model_chain()) or None
 
     def _call(self, model: str, prompt: str, schema) -> str:
         """Single completion call, returning the text. Raises on failure.
@@ -224,25 +271,53 @@ class LLMRouter:
         resp = self._litellm.completion(**kwargs)
         return resp.choices[0].message.content
 
+    def _models(self) -> list[str]:
+        """The ordered provider-lane list: the explicit ``model_chain``, else
+        the env ``LLM_MODEL_CHAIN`` resolved at construction, else
+        ``[default_model, fallback_model]`` — deduped, empty ids dropped."""
+        candidates = self.model_chain or []
+        models = list(candidates)
+        if not models and self.default_model:
+            models.append(self.default_model)
+            if self.fallback_model and self.fallback_model != self.default_model:
+                models.append(self.fallback_model)
+        out: list[str] = []
+        for model in models:
+            if model and model not in out:
+                out.append(model)
+        return out
+
     def _run_completion(self, prompt: str, schema) -> str:
-        """The existing retry-then-fallback completion logic."""
+        """Walk the provider chain from the highest-capacity lane down.
+
+        Every non-final lane gets ``1 + max_retries`` attempts before moving to
+        the next lane; the final lane is attempted once. This generalizes the
+        original behavior (retry the primary, then one fallback attempt) while
+        preserving the exact call counts the tests pin."""
+        models = self._models()
+        if not models:
+            raise RuntimeError("LLMRouter: no models configured")
         last_exc: Optional[Exception] = None
-        for attempt in range(1 + self.max_retries):
-            try:
-                return self._call(self.default_model, prompt, schema)
-            except Exception as exc:
-                last_exc = exc
-                log.warning("LLM attempt %d on %s failed: %s",
-                            attempt + 1, self.default_model, exc)
-                time.sleep(min(0.5 * (2 ** attempt) +
-                               random.uniform(0, 0.5), 5.0))
-        try:
-            log.warning("primary model failed (%s) — falling back to %s",
-                        last_exc, self.fallback_model)
-            return self._call(self.fallback_model, prompt, schema)
-        except Exception as exc:
-            log.error("LLM fallback %s also failed: %s", self.fallback_model, exc)
-            raise
+        for idx, model in enumerate(models):
+            is_last = idx == len(models) - 1
+            attempts = (1 if is_last else 1 + self.max_retries) if len(models) > 1 \
+                else 1 + self.max_retries
+            for attempt in range(attempts):
+                try:
+                    return self._call(model, prompt, schema)
+                except Exception as exc:
+                    last_exc = exc
+                    log.warning("LLM attempt %d on %s failed: %s",
+                                attempt + 1, model, exc)
+                    if attempt < attempts - 1:
+                        time.sleep(min(0.5 * (2 ** attempt) +
+                                       random.uniform(0, 0.5), 5.0))
+        # Unreachable in practice (at least one attempt always runs); keep the
+        # final raise explicit rather than relying on an assert (which python -O
+        # strips) for the exception flow.
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("LLMRouter: provider chain failed without an error")
 
     def complete(self, prompt: str, schema: dict | None = None,
                  *, user_id: Optional[int] = None,

@@ -173,7 +173,7 @@ from matching import (  # noqa: F401
 
 from cli.commands import (  # noqa: F401
     DEFAULT_DB_URL, build_profile_cmd, db_available, load_active_profile,
-    make_admin_cmd, seed_db_cmd, show_profile_cmd,
+    make_admin_cmd, seed_db_cmd, show_profile_cmd, sync_supervisors_cmd,
 )
 
 
@@ -209,6 +209,11 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                          "from OpenAlex (any major, no token), NASA ADS "
                          "(astro/physics, ADS_API_TOKEN) or arXiv; writes "
                          "supervisors_<field>_<country>.csv/.json and exits")
+    ap.add_argument("--sync-supervisors", action="store_true",
+                    help="aggregate supervisor candidates across ALL field "
+                         "profiles for the given --country (repeatable) and "
+                         "upsert into the DB for the dashboard; requires "
+                         "--country (e.g. --country Germany --country Netherlands)")
     ap.add_argument("--supervisor-source", choices=["auto", "openalex", "ads",
                                                     "arxiv"],
                     help="literature source for --find-supervisors: 'auto' "
@@ -453,6 +458,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return self_test(cfg)
     if args.find_supervisors:
         return find_supervisors(cfg, Http(cfg))
+    if args.sync_supervisors:
+        return sync_supervisors_cmd(args.country, field=args.field, db_url=args.db or DEFAULT_DB_URL)
     if args.build_profile:
         return build_profile_cmd(args.build_profile, db_url=args.db or DEFAULT_DB_URL)
     if args.seed_db:

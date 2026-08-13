@@ -7,6 +7,8 @@ from :mod:`core.profile` and stores the result as the user's active profile.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import logging
 
@@ -16,8 +18,10 @@ from sqlalchemy.orm import Session
 from api.deps import (get_active_profile, get_active_profile_row,
                       get_current_user, get_db)
 from api.routes.matches import invalidate_match_cache
-from api.schemas import BuildProfileRequest, ProfileUpdate
+from api.schemas import (BuildProfileRequest, ExtractCvRequest,
+                         ExtractCvResponse, ProfileUpdate)
 from core import cache
+from core.cv import CvParseError, extract_cv_text
 from core.llm import LLMRouter
 from core.profile import extract_profile
 from core.profile_schema import UserProfile
@@ -49,6 +53,27 @@ def get_profile(profile: UserProfile | None = Depends(get_active_profile)) -> di
     if profile is None:
         raise HTTPException(status_code=404, detail="No active profile")
     return profile.model_dump()
+
+
+@router.post("/extract-cv", response_model=ExtractCvResponse)
+def extract_cv(body: ExtractCvRequest,
+               user: User = Depends(get_current_user)) -> ExtractCvResponse:
+    """Parse an uploaded CV (PDF/DOCX/TXT) to plain text — locally, never sent
+    to any third party and never stored. Returns the extracted text for the
+    user to review/edit before ``POST /build`` uses it."""
+    payload = body.content_b64.split(",", 1)[-1]  # tolerate a data: URL prefix
+    try:
+        data = base64.b64decode(payload, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=422, detail="Invalid base64 file data.")
+    try:
+        text = extract_cv_text(body.filename, data)
+    except CvParseError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    log.info("extracted %d chars from CV '%s' for user %s",
+             len(text), body.filename, user.id)
+    return ExtractCvResponse(filename=body.filename, chars=len(text),
+                             raw_text=text)
 
 
 @router.post("/build", response_model=dict, status_code=201)

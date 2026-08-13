@@ -25,7 +25,7 @@ from api.deps import get_active_profile_row, get_current_user, get_db
 from api.schemas import MatchFeedbackRequest
 from api.serializers import opportunity_out
 from core import cache
-from core.config import build_config
+from core.config import build_config, field_profile_keywords
 from core.profile_schema import UserProfile
 from db.models import Opportunity
 from db.repositories import MatchFeedbackRepo
@@ -56,6 +56,22 @@ def _opp_dict(opp: Opportunity) -> dict:
     """The minimal opportunity view the scorer expects."""
     return {"title": opp.title, "short_description": opp.short_description,
             "institution": opp.institution, "country": opp.country}
+
+
+def _opportunity_hits_field(opp: dict, keywords: list[str]) -> bool:
+    """Does an opportunity match any field-profile keyword?
+
+    Performs the same containment test the supervisors endpoint uses (topics /
+    department), extended to field/subfield — the two filters share the
+    profile-keyword semantics so a field profile name filters both lists
+    consistently."""
+    haystack = " ".join([
+        opp.get("field") or "",
+        opp.get("subfield") or "",
+        opp.get("department") or "",
+        " ".join(str(t) for t in (opp.get("topics") or [])),
+    ]).lower()
+    return any(kw in haystack for kw in keywords)
 
 
 def _compute_matches(profile: UserProfile, session: Session) -> list[dict]:
@@ -99,7 +115,8 @@ def _compute_matches(profile: UserProfile, session: Session) -> list[dict]:
 def list_matches(
     min_score: float = Query(0.0, ge=0.0, le=1.0),
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=200),
+    limit: int = Query(500, ge=1, le=500),
+    field: str | None = Query(None, description="filter opportunities by field (e.g. astronomy, biology)"),
     row=Depends(get_active_profile_row),
     session: Session = Depends(get_db),
 ) -> dict:
@@ -117,6 +134,11 @@ def list_matches(
                 _match_cache[key] = _compute_matches(profile, session)
             items = _match_cache[key]
         cache.cache_match_results(row.id, items)
+    if field:
+        keywords = field_profile_keywords(field)
+        # Unknown profile: explicit empty result, never "match everything".
+        items = ([i for i in items if _opportunity_hits_field(i, keywords)]
+                 if keywords else [])
     if min_score > 0.0:
         items = [i for i in items if i["match_score"] >= min_score]
     total = len(items)

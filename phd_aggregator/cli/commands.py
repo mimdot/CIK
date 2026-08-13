@@ -8,6 +8,8 @@ through the monolith.
 - C2 ``seed_db_cmd``:        seed opportunities from the pipeline's JSON.
 - C3 ``load_active_profile``: find the active profile for ``--run`` scoring.
 - C4 ``show_profile_cmd``:   print the active profile from the DB.
+- C5 ``sync_supervisors_cmd``: aggregate and upsert supervisor candidates
+  from all field profiles into the DB for dashboard display.
 
 The DB is SQLite (MVP). A file-backed URL only gets created/touched when the
 file already exists, so a plain aggregation run never leaves a stray DB behind.
@@ -15,9 +17,11 @@ file already exists, so a plain aggregation run never leaves a stray DB behind.
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import os
+import time
 from typing import Optional
 
 from sqlalchemy import select, text
@@ -27,7 +31,8 @@ from core.llm import LLMRouter
 from core.profile import extract_profile
 from core.profile_schema import UserProfile
 from db.init import DEFAULT_DB_URL, count_opportunities, init_db, seed_from_json
-from db.repositories import ProfileRepo
+from db.repositories import ProfileRepo, SupervisorRepo
+from core import cache as core_cache
 
 log = logging.getLogger("phd_aggregator")
 
@@ -144,3 +149,193 @@ def make_admin_cmd(email: str, db_url: str = DEFAULT_DB_URL) -> int:
         session.commit()
         print(f"Promoted {user.email} (user id {user.id}) to admin.")
     return 0
+
+
+# --- C5 ----------------------------------------------------------------------
+def sync_supervisors_cmd(
+    countries: list[str],
+    field: Optional[str] = None,
+    db_url: str = DEFAULT_DB_URL,
+) -> int:
+    """CLI wrapper around :func:`sync_supervisors`; returns an exit code."""
+    try:
+        sync_supervisors(countries, field=field, db_url=db_url)
+        return 0
+    except Exception as exc:
+        log.error("Supervisor sync failed: %s", exc)
+        return 1
+
+
+def sync_supervisors(
+    countries: list[str],
+    field: Optional[str] = None,
+    db_url: str = DEFAULT_DB_URL,
+    quick: bool = False,
+) -> tuple[int, int]:
+    """
+    Sweep all field profiles (or a specific one with ``field``), run the
+    supervisor finder chain for each target country, and upsert ranked
+    candidates into the DB for the dashboard.
+
+    Shared by the CLI (``--sync-supervisors``) and the API job that powers the
+    desktop "run online search" button. ``quick=True`` lightens the OpenAlex
+    pool/enrich settings so an interactive search from the UI finishes in
+    reasonable time; the CLI keeps the deeper production settings.
+
+    Returns ``(upserted, total_candidates)``.
+    """
+    import phd_aggregator as P
+
+    P._load_dotenv()
+    token = os.environ.get(P.ADS_TOKEN_ENV)
+
+    session = _session(db_url)
+    repo = SupervisorRepo(session)
+
+    if field:
+        profiles = [field] if field in P.list_field_profiles() else []
+        if not profiles:
+            log.error("Field profile %r not found", field)
+            return 0, 0
+    else:
+        profiles = P.list_field_profiles()
+
+    countries = [c.strip() for c in countries if c.strip()]
+    if not countries:
+        log.error("At least one country is required")
+        return 0, 0
+
+    log.info("Syncing supervisors for %d field profile(s) x %d country(ies): %s",
+             len(profiles), len(countries), ", ".join(countries))
+
+    total_upserted = 0
+    total_candidates = 0
+
+    # Interactive (UI) runs are lighter so a user gets results, not a wait.
+    pool_pages = 2 if quick else 3
+    author_enrich = 25 if quick else 80
+    recent_works = 10 if quick else 25
+
+    for profile_name in profiles:
+        prof = P.load_field_profile(profile_name) or {}
+        for country in countries:
+            t0 = time.time()
+            try:
+                cfg = P.build_config(
+                    argparse.Namespace(no_config=True, debug=False, phd_only=False, field=None)
+                )
+                P.apply_field_profile(cfg, prof)
+                cfg.field_profile = profile_name
+                cfg.subfield = None
+                P.compile_taxonomy(cfg)
+                cfg.countries = [country]
+                cfg.delay = 0.4
+                cfg.supervisor_pool_pages = pool_pages
+                cfg.supervisor_author_enrich = author_enrich
+                cfg.supervisor_recent_works = recent_works
+
+                label, keywords, focus_topics = P._supervisor_focus(cfg)
+                log.info("[sync] field=%s country=%s keywords=%s topics=%s",
+                         label, country, keywords, focus_topics)
+
+                http = P.Http(cfg)
+                # try/finally so the HTTP session is always closed — including
+                # when an inner step raises and the outer handler below runs.
+                try:
+                    ranked, src = [], None
+                    n_papers = 0
+
+                    for s in P._supervisor_chain(cfg, token):
+                        if s == "ads" and token:
+                            docs = P.ads_supervisor_docs(cfg, http, token, keywords, country)
+                            n_papers = len(docs)
+                            ranked = P.aggregate_supervisors(docs, country, keywords) if docs else []
+                            if ranked:
+                                src = "ADS"
+                                break
+                        elif s == "openalex":
+                            if focus_topics:
+                                ranked = P.openalex_supervisor_authors(
+                                    cfg, http, focus_topics, country, cfg.supervisor_field)
+                                if ranked:
+                                    src = "OpenAlex"
+                                    break
+                            docs = P.openalex_supervisor_docs(cfg, http, keywords, country)
+                            n_papers = len(docs)
+                            ranked = P.aggregate_supervisors(docs, country, keywords) if docs else []
+                            if ranked:
+                                src = "OpenAlex"
+                                break
+                        else:  # arxiv
+                            docs = P.arxiv_supervisor_docs(cfg, http, keywords)
+                            n_papers = len(docs)
+                            ranked = P.aggregate_supervisors(docs, None, keywords) if docs else []
+                            target_cty = P.canonical_country(country)
+                            ranked = [r for r in ranked if r["country"] in (target_cty, "unverified")]
+                            if ranked:
+                                src = "arXiv"
+                                break
+
+                    if not ranked:
+                        log.warning("[sync] %s / %s: no candidates from any source",
+                                    label, country)
+                        continue
+
+                    # Map ranked candidates to Supervisor data and upsert
+                    for r in ranked:
+                        topics = _topics_to_json(r.get("topics"))
+                        sup_data = {
+                            "source": src,
+                            "name": r.get("name"),
+                            "institution": r.get("institution"),
+                            # Supervisor has no dedicated institution field; the
+                            # department column doubles as the institution.
+                            "department": r.get("institution"),
+                            "country": r.get("country"),
+                            "profile_url": r.get("author_search") or r.get("orcid_link"),
+                            "email": r.get("public_email"),
+                            "topics": topics,
+                            # methods column reuses topics until a candidate
+                            # provides a separate methods breakdown.
+                            "methods": topics,
+                            "recent_papers": _papers_to_json(r.get("representative_papers")),
+                            "fit_score": r.get("score"),
+                            "confidence": min(1.0, (r.get("papers", 0) / 20.0) * (r.get("score", 0) / 100.0)),
+                        }
+                        try:
+                            repo.upsert(sup_data)
+                            total_upserted += 1
+                        except Exception as e:
+                            log.warning("Failed to upsert %s: %s",
+                                        sup_data.get("name"), e)
+
+                    total_candidates += len(ranked)
+                    log.info("[sync] %s / %s: %d candidates (src=%s, %.1fs)",
+                             label, country, len(ranked), src, time.time() - t0)
+                finally:
+                    http.close()
+
+            except Exception as exc:
+                log.error("Sync failed for %s / %s: %s", profile_name, country, exc)
+                continue
+
+    session.commit()
+    session.close()
+    core_cache.invalidate_supervisors()
+    log.info("Supervisor sync complete: %d upserted from %d total candidates",
+             total_upserted, total_candidates)
+    return total_upserted, total_candidates
+
+
+def _topics_to_json(topics: Optional[str]) -> Optional[str]:
+    """Convert semicolon-separated topics string to JSON array."""
+    if not topics:
+        return None
+    return json.dumps([t.strip() for t in topics.split(";") if t.strip()])
+
+
+def _papers_to_json(papers: Optional[str]) -> Optional[str]:
+    """Convert pipe-separated representative papers to JSON array."""
+    if not papers:
+        return None
+    return json.dumps([p.strip() for p in papers.split("|") if p.strip()])

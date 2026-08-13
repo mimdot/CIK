@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -26,6 +26,24 @@ class HealthOut(BaseModel):
 class BuildProfileRequest(BaseModel):
     raw_text: str = Field(..., min_length=1,
                           description="CV / biography text to extract from")
+
+
+class ExtractCvRequest(BaseModel):
+    """Upload a CV file as base64 for local text extraction (Track 2B).
+
+    Base64 in a JSON body (not multipart) keeps the upload dependency-free and
+    the file bytes never touch a third party."""
+
+    filename: str = Field(..., min_length=1,
+                          description="original filename (used to pick a parser)")
+    content_b64: str = Field(..., min_length=1,
+                             description="base64-encoded file bytes")
+
+
+class ExtractCvResponse(BaseModel):
+    filename: str
+    chars: int
+    raw_text: str
 
 
 class ProfileUpdate(BaseModel):
@@ -140,6 +158,16 @@ class BookmarkCreate(BaseModel):
 class PipelineRunRequest(BaseModel):
     sources: Optional[list[str]] = None
     country: Optional[str] = None
+    field: Optional[str] = Field(
+        None, description="field profile to crawl and score under (e.g. "
+                          "astronomy, biology); omit for the server default")
+
+
+class SupervisorRunRequest(BaseModel):
+    """Trigger a supervisor search for one or more countries, optionally
+    restricted to a single field profile (e.g. ``astronomy``)."""
+    country: Union[str, list[str]]
+    field: Optional[str] = None
 
 
 class PipelineRunOut(BaseModel):

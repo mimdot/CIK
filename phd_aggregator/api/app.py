@@ -16,9 +16,12 @@ Production knobs (env vars, see ``.env.example``):
 from __future__ import annotations
 
 import os
+import logging
+from contextlib import asynccontextmanager
 
 import hmac
 import sentry_sdk
+from core.env import env_flag
 from fastapi import FastAPI, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -62,7 +65,40 @@ def _set_sentry_user(request: Request) -> None:
             sentry_sdk.set_user({"id": str(user_id)})
 
 
+# --- weekly digest scheduler (Sprint 07, A3) — started via lifespan -----------
+# Start the in-process fallback scheduler once per process. With Redis +
+# rq-scheduler present this registers a cron instead (see core.tasks). Disabled
+# under tests (CIK_TESTING=1) so the test suite spawns no background threads.
+_started_scheduler = False
+
+
+def _start_scheduler() -> None:
+    global _started_scheduler
+    # Disable in every process except one (e.g. `CIK_SCHEDULER_ENABLED=0` on
+    # extra uvicorn workers) so the weekly-digest cron is never registered
+    # more than once per deployment. Disabled under tests too (CIK_TESTING=1).
+    if not env_flag("CIK_SCHEDULER_ENABLED", default=True):
+        return
+    if _started_scheduler or os.environ.get("CIK_TESTING", "") == "1":
+        return
+    _started_scheduler = True
+    try:
+        from core.tasks import start_digest_scheduler
+        start_digest_scheduler()
+    except Exception:  # pragma: no cover - infra dependent
+        logging.getLogger("phd_aggregator").exception(
+            "digest scheduler failed to start")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Process startup/shutdown (replaces the deprecated on_event('startup'))."""
+    _start_scheduler()
+    yield
+
+
 app = FastAPI(title="Career Intelligence API", version="0.1.0",
+              lifespan=lifespan,
               description="REST API over the PhD aggregator's profiles, "
                           "opportunities, matches, supervisors and pipeline. "
                           "Public, versioned developer API under /api/v1 "
@@ -198,8 +234,17 @@ app.add_middleware(MetricsMiddleware)
 app.add_middleware(RequestIdMiddleware)  # outermost: captures the full request
 
 # JSON structured logs (Sprint 10, B3) — on in production, off in dev/tests.
-if os.environ.get("CIK_JSON_LOGS", "").strip().lower() in ("1", "true", "yes"):
+if env_flag("CIK_JSON_LOGS", default=False):
     observe.configure_json_logging()
+
+# Warn if running in dev cookie mode (no Secure flag) — production deployments
+# must serve cookies over HTTPS to prevent session hijacking.
+if not env_flag("CIK_COOKIE_SECURE", default=True):
+    logging.getLogger("phd_aggregator").warning(
+        "CIK_COOKIE_SECURE=0 — session cookies lack the Secure flag. "
+        "This is expected for local HTTP development but unsafe behind HTTPS. "
+        "Ensure CIK_COOKIE_SECURE=1 in production."
+    )
 
 
 # --- meta endpoints ------------------------------------------------------------
@@ -287,31 +332,3 @@ app.include_router(apikeys.router)
 app.include_router(assistant.router)
 app.include_router(account.router)
 app.include_router(v1_router)
-
-
-# --- weekly digest scheduler (Sprint 07, A3) ------------------------------------
-# Start the in-process fallback scheduler once per process. With Redis +
-# rq-scheduler present this registers a cron instead (see core.tasks). Disabled
-# under tests (CIK_TESTING=1) so the test suite spawns no background threads.
-_started_scheduler = False
-
-
-@app.on_event("startup")
-def _start_scheduler() -> None:
-    global _started_scheduler
-    # Disable in every process except one (e.g. `CIK_SCHEDULER_ENABLED=0` on
-    # extra uvicorn workers) so the weekly-digest cron is never registered
-    # more than once per deployment. Disabled under tests too (CIK_TESTING=1).
-    if (os.environ.get("CIK_SCHEDULER_ENABLED", "1").lower() in
-            ("0", "false", "no")):
-        return
-    if _started_scheduler or os.environ.get("CIK_TESTING", "") == "1":
-        return
-    _started_scheduler = True
-    try:
-        from core.tasks import start_digest_scheduler
-        start_digest_scheduler()
-    except Exception:  # pragma: no cover - infra dependent
-        import logging
-        logging.getLogger("phd_aggregator").exception(
-            "digest scheduler failed to start")

@@ -48,28 +48,111 @@ RETRY_BACKOFF_S = max(0.0, float(os.environ.get("CIK_JOB_RETRY_DELAY", "2")))
 _in_memory_jobs: dict[str, dict] = {}
 _in_memory_jobs_lock = threading.Lock()
 _fallback_slots = threading.Semaphore(3)  # mirrors the old concurrency cap
+# Supervisor syncs are heavy and share the same SQLite DB — never run two at
+# once, and don't let them pile up behind pipeline runs.
+_supervisor_slots = threading.Semaphore(1)
 
 # Cross-worker idempotency for the weekly digest batch (one claim per UTC day).
 _digest_run_day: Optional[str] = None
 _digest_run_lock = threading.Lock()
 
 
+# --- per-source progress (M3: streamed to the run dialog) ---------------------
+def _apply_progress(prog: dict, event: dict) -> None:
+    """Fold one fetch_sources progress event into a job's progress dict."""
+    if event.get("event") == "start":
+        prog["total"] = event.get("total", 0)
+        prog["completed"] = 0
+        prog["sources"] = []
+    elif event.get("event") == "source":
+        prog.setdefault("sources", []).append({
+            "source": event.get("source"),
+            "status": event.get("status"),
+            "records": event.get("records", 0),
+            "duration": event.get("duration"),
+        })
+        prog["completed"] = len(prog["sources"])
+
+
+def _inproc_progress_callback(job_id: str):
+    """Thread-safe callback recording per-source progress on the in-memory job
+    record (fallback path); read back by :func:`get_job_status`."""
+    def cb(event: dict) -> None:
+        with _in_memory_jobs_lock:
+            rec = _in_memory_jobs.get(job_id)
+            if rec is None:
+                return
+            prog = rec.get("progress") or {"total": 0, "completed": 0,
+                                           "sources": []}
+            _apply_progress(prog, event)
+            rec["progress"] = prog
+    return cb
+
+
+def _rq_progress_callback():
+    """Inside an rq worker, return a thread-safe callback that accumulates
+    per-source progress into the job's meta. Returns None when not in a job."""
+    try:
+        from rq import get_current_job
+        job = get_current_job()
+    except Exception:
+        job = None
+    if job is None:
+        return None
+    lock = threading.Lock()
+
+    def cb(event: dict) -> None:
+        with lock:
+            prog = (job.meta or {}).get("progress") or {
+                "total": 0, "completed": 0, "sources": []}
+            _apply_progress(prog, event)
+            job.meta["progress"] = prog
+            try:
+                job.save_meta()
+            except Exception:  # pragma: no cover - depends on Redis
+                pass
+    return cb
+
+
 def run_pipeline_job(country: str | None = None,
-                     sources: list[str] | None = None) -> int:
+                     sources: list[str] | None = None,
+                     field: str | None = None,
+                     on_progress=None) -> int:
     """Execute the aggregation pipeline and return the number of records.
 
     The return value (an ``int`` record count) is stored as the rq *result* for
     the job, which the API surfaces via :func:`get_job_status` as ``records``.
     Also invalidates the cached lists (B1) so fresh data is served. This is the
     rq worker entrypoint — importable by dotted path ``core.tasks.run_pipeline_job``.
+
+    ``field`` selects the field profile (fields/<field>.yaml) the crawl scores
+    and filters against, so the dashboard's field dropdown changes what a run
+    collects. When omitted the built-in default taxonomy is used (unchanged
+    behaviour).
     """
     args = argparse.Namespace(
         country=[country] if country else None,
+        field=field or None,
         no_config=True,
     )
     cfg = build_config(args)
-    records = pipeline_run(cfg, only_sources=sources)
-    cache.invalidate_opportunities()
+    # In the rq worker no callback is passed in — discover the current job and
+    # stream progress into its meta so the API can poll per-source status.
+    if on_progress is None:
+        on_progress = _rq_progress_callback()
+    records = pipeline_run(cfg, only_sources=sources, on_progress=on_progress)
+    # The pipeline writes JSON/CSV/HTML; the dashboard reads the ``opportunities``
+    # table, so re-seed it from the JSON just written (idempotent upsert). A
+    # seeding failure must not fail the job — the run already succeeded.
+    try:
+        from db.init import init_db, resolve_db_url, seed_from_json
+        engine = init_db(resolve_db_url())
+        with Session(engine) as session:
+            seed_from_json(session, cfg.json_path)
+        cache.invalidate_opportunities()
+    except Exception as exc:
+        log.warning("pipeline job %s: DB seeding failed (%s) — outputs written "
+                    "to %s, dashboard may be stale", country, exc, cfg.json_path)
     cache.invalidate_supervisors()
     cache.invalidate_matches()
     return len(records)
@@ -81,16 +164,20 @@ def _redis():
 
 
 def _fallback_run(job_id: str, country: str | None,
-                  sources: list[str] | None, attempt: int = 1) -> None:
+                  sources: list[str] | None, field: str | None = None,
+                  attempt: int = 1) -> None:
     is_final: Optional[bool] = None
     try:
-        records = run_pipeline_job(country, sources)
+        records = run_pipeline_job(country, sources, field,
+                                   on_progress=_inproc_progress_callback(job_id))
         with _in_memory_jobs_lock:
             if _in_memory_jobs.get(job_id, {}).get("status") != "cancelled":
+                prev = _in_memory_jobs.get(job_id, {})
                 _in_memory_jobs[job_id] = {"job_id": job_id,
                                            "status": "completed",
                                            "records": records,
-                                           "attempts": attempt}
+                                           "attempts": attempt,
+                                           "progress": prev.get("progress")}
         is_final = True
     except Exception as exc:
         log.warning("pipeline job %s failed (attempt %s/%s): %s",
@@ -101,7 +188,7 @@ def _fallback_run(job_id: str, country: str | None,
             # finishes it when a terminal state is reached.
             time.sleep(RETRY_BACKOFF_S)
             threading.Thread(target=_fallback_run,
-                             args=(job_id, country, sources, attempt + 1),
+                             args=(job_id, country, sources, field, attempt + 1),
                              daemon=True).start()
             is_final = False
         else:
@@ -117,20 +204,21 @@ def _fallback_run(job_id: str, country: str | None,
             _fallback_slots.release()
 
 
-def _enqueue_fallback(country, sources) -> str:
+def _enqueue_fallback(country, sources, field=None) -> str:
     job_id = uuid.uuid4().hex[:12]
     if not _fallback_slots.acquire(blocking=False):
         raise RuntimeError("Too many concurrent pipeline runs — try again later")
     with _in_memory_jobs_lock:
         _in_memory_jobs[job_id] = {"job_id": job_id, "status": "running",
                                    "country": country, "sources": sources,
+                                   "field": field,
                                    "created_at": time.time(), "attempts": 1}
     threading.Thread(target=_fallback_run,
-                     args=(job_id, country, sources), daemon=True).start()
+                     args=(job_id, country, sources, field), daemon=True).start()
     return job_id
 
 
-def _enqueue_rq(country, sources) -> str:
+def _enqueue_rq(country, sources, field=None) -> str:
     from rq import Queue
     client = _redis()
     q = Queue(connection=client)
@@ -143,7 +231,7 @@ def _enqueue_rq(country, sources) -> str:
                           interval=[RETRY_BACKOFF_S] * MAX_PIPELINE_RETRIES)
         except Exception:
             retry = None
-    job = q.enqueue(run_pipeline_job, country, sources,
+    job = q.enqueue(run_pipeline_job, country, sources, field,
                     job_id=job_id,
                     retry=retry,
                     result_ttl=3600, failure_ttl=86400)
@@ -151,12 +239,104 @@ def _enqueue_rq(country, sources) -> str:
 
 
 def enqueue_pipeline_job(country: str | None = None,
-                         sources: list[str] | None = None) -> str:
-    """Start a pipeline run; returns the job id."""
+                         sources: list[str] | None = None,
+                         field: str | None = None) -> str:
+    """Start a pipeline run; returns the job id.
+
+    ``field`` names the field profile to crawl/score under (e.g. ``biology``);
+    ``None`` keeps the server default taxonomy.
+    """
     client = _redis()
     if client is not None:
-        return _enqueue_rq(country, sources)
-    return _enqueue_fallback(country, sources)
+        return _enqueue_rq(country, sources, field)
+    return _enqueue_fallback(country, sources, field)
+
+
+# ---------------------------------------------------------------------------
+# Supervisor search sync (desktop "run online search" button)
+# ---------------------------------------------------------------------------
+def run_supervisor_sync_job(countries: list[str],
+                            field: str | None = None,
+                            quick: bool = True) -> int:
+    """Aggregate + upsert supervisor candidates; returns the number upserted.
+
+    rq/thread worker entrypoint for :func:`enqueue_supervisor_job`. Runs the
+    same code path as the ``--sync-supervisors`` CLI but in a lighter
+    (``quick``) mode so an interactive search from the desktop UI finishes in
+    reasonable time. Invalidate the supervisor cache so fresh rows are served.
+    """
+    from cli.commands import sync_supervisors
+    from db.init import resolve_db_url
+
+    upserted, _ = sync_supervisors(countries, field=field,
+                                   db_url=resolve_db_url(), quick=quick)
+    return upserted
+
+
+def _fallback_supervisor_run(job_id: str, countries: list[str],
+                             field: str | None, quick: bool,
+                             attempt: int = 1) -> None:
+    is_final: Optional[bool] = None
+    try:
+        records = run_supervisor_sync_job(countries, field, quick)
+        with _in_memory_jobs_lock:
+            if _in_memory_jobs.get(job_id, {}).get("status") != "cancelled":
+                _in_memory_jobs[job_id] = {"job_id": job_id,
+                                           "status": "completed",
+                                           "records": records,
+                                           "attempts": attempt}
+        is_final = True
+    except Exception as exc:
+        log.warning("supervisor sync job %s failed (attempt %s/%s): %s",
+                    job_id, attempt, MAX_PIPELINE_RETRIES + 1, exc)
+        if attempt <= MAX_PIPELINE_RETRIES:
+            time.sleep(RETRY_BACKOFF_S)
+            threading.Thread(target=_fallback_supervisor_run,
+                             args=(job_id, countries, field, quick, attempt + 1),
+                             daemon=True).start()
+            is_final = False
+        else:
+            with _in_memory_jobs_lock:
+                if _in_memory_jobs.get(job_id, {}).get("status") != "cancelled":
+                    _in_memory_jobs[job_id] = {"job_id": job_id,
+                                               "status": "failed",
+                                               "error": str(exc),
+                                               "attempts": attempt}
+            is_final = True
+    finally:
+        if is_final:
+            _supervisor_slots.release()
+
+
+def enqueue_supervisor_job(countries: list[str],
+                           field: str | None = None,
+                           quick: bool = True) -> str:
+    """Start a supervisor search sync; returns the job id (poll with
+    :func:`get_job_status`, same as pipeline jobs)."""
+    countries = [c.strip() for c in countries if c and c.strip()]
+    if not countries:
+        raise ValueError("at least one country is required")
+    client = _redis()
+    if client is not None:
+        from rq import Queue
+        q = Queue(connection=client)
+        job_id = uuid.uuid4().hex[:12]
+        job = q.enqueue(run_supervisor_sync_job, countries, field, quick,
+                        job_id=job_id,
+                        result_ttl=3600, failure_ttl=86400)
+        return job.id
+    job_id = uuid.uuid4().hex[:12]
+    if not _supervisor_slots.acquire(blocking=False):
+        raise RuntimeError("A supervisor search is already running — wait for "
+                           "it to finish before starting another.")
+    with _in_memory_jobs_lock:
+        _in_memory_jobs[job_id] = {"job_id": job_id, "status": "running",
+                                   "country": ", ".join(countries),
+                                   "field": field,
+                                   "created_at": time.time(), "attempts": 1}
+    threading.Thread(target=_fallback_supervisor_run,
+                     args=(job_id, countries, field, quick), daemon=True).start()
+    return job_id
 
 
 def get_job_status(job_id: str) -> dict | None:
@@ -171,14 +351,18 @@ def get_job_status(job_id: str) -> dict | None:
         state = job.get_status()
         result = job.result
         exc = job.exc_info
+        progress = (job.meta or {}).get("progress")
         if state in ("finished", "completed"):
             return {"job_id": job_id, "status": "completed",
-                    "records": result if isinstance(result, int) else None}
+                    "records": result if isinstance(result, int) else None,
+                    "progress": progress}
         if state == "failed":
             return {"job_id": job_id, "status": "failed",
-                    "error": (exc or "job failed")[:2000]}
+                    "error": (exc or "job failed")[:2000],
+                    "progress": progress}
         if state in ("started", "deferred"):
-            return {"job_id": job_id, "status": "running"}
+            return {"job_id": job_id, "status": "running",
+                    "progress": progress}
         if state == "queued":
             return {"job_id": job_id, "status": "queued"}
         if state == "cancelled":
@@ -298,8 +482,9 @@ def retry_job(job_id: str) -> Optional[str]:
             return None
         country = info.get("country")
         sources = info.get("sources")
+        field = info.get("field")
         del _in_memory_jobs[job_id]
-    return _enqueue_fallback(country, sources)
+    return _enqueue_fallback(country, sources, field)
 
 
 def worker_heartbeat() -> dict:

@@ -10,7 +10,7 @@
 field_profile: computer_science  # run python phd_aggregator.py --field computer_science
                                    # or use: astronomy, economics, engineering, chemistry,
                                    # biology, physics, geology, etc.
-wanted_position_types: [phd]    # any of: phd, postdoc, faculty, staff
+wanted_position_types: [phd, postdoc]    # any of: phd, postdoc, faculty, staff
 keep_ambiguous: true            # keep posts whose level can't be determined
 countries: ["*"]                # "*" = worldwide, or e.g. [Germany, Japan]
 exclude_expired: true           # drop posts whose deadline has passed
