@@ -31,6 +31,10 @@ OUTPUT_FIELDS = [
     "effective_date", "age_days", "freshness", "url",
     "source", "relevance_score", "matched_anchors", "matched_keywords",
     "short_description", "position_type", "is_new",
+    # Which field profile collected and scored this record. write_outputs
+    # projects records onto exactly this list, so anything missing here never
+    # reaches the CSV/JSON — and therefore never reaches the database either.
+    "field", "subfield",
     "match_score", "match_explanation",
 ]
 
@@ -67,6 +71,8 @@ def make_record(*, title=None, institution=None, country=None, deadline=None,
         "raw_location": clean_oneline(raw_location),  # internal, dropped on write
         "is_new": False,
         "freshness": None,        # set by the freshness layer
+        "field": None,            # set by pipeline.run from the active profile
+        "subfield": None,         # ditto
         "effective_date": None,
         "age_days": None,
         "match_score": None,      # set by apply_profile_matching (Track C3)

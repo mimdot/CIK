@@ -103,6 +103,8 @@ export interface OpportunityFilters {
   source?: string;
   type?: string;
   q?: string;
+  /** Field profile the record was crawled under (e.g. "chemistry"). */
+  field?: string;
   page?: number;
   limit?: number;
 }
@@ -114,10 +116,35 @@ export interface SourceProgress {
   duration?: number;
 }
 
+/**
+ * End-of-run accounting. The engine reports what it found and every reason a
+ * record did not survive, so the headline count can always be explained
+ * ("63 found -> 41 after field filter -> 22 after dedupe -> 18 stored")
+ * instead of the UI and the engine quoting two unrelated numbers.
+ */
+export interface RunFunnel {
+  field?: string | null;
+  found: number;
+  after_field_filter: number;
+  after_freshness: number;
+  after_dedupe: number;
+  stored?: number;
+  storage_error?: string;
+  dropped: {
+    position_type: number;
+    off_field: number;
+    expired: number;
+    country: number;
+    stale: number;
+    duplicate: number;
+  };
+}
+
 export interface RunProgress {
   total: number;
   completed: number;
   sources: SourceProgress[];
+  funnel?: RunFunnel | null;
 }
 
 export interface PipelineStatus {

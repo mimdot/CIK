@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Iterable
+from typing import Iterable, Optional
 
 from core.config import Config
 from core.taxonomy import classify_position_type, country_allowed, \
@@ -21,14 +21,18 @@ log = logging.getLogger("phd_aggregator")
 
 # Filtering: position type -> relevance -> deadline -> region
 # -----------------------------------------------------------------------------
-def filter_records(records: Iterable[dict], cfg: Config) -> list[dict]:
+def filter_records(records: Iterable[dict], cfg: Config,
+                   stats: Optional[dict] = None) -> list[dict]:
     """Filter/score a feed of records.
 
     NOTE: mutates input records in-place (sets position_type,
     relevance_score, matched_anchors, matched_keywords, country).
+
+    Applies the position-type gate, the tiered relevance engine, the expiry
+    filter, and the region filter — in that order. When ``stats`` is given it
+    is filled with the per-stage drop counts, so a caller can tell the user
+    WHY the number shrank instead of only showing the survivors.
     """
-    """Apply the position-type gate, the tiered relevance engine, the expiry
-    filter, and the region filter — in that order."""
     all_records = list(records)
     kept: list[dict] = []
     today = date.today().isoformat()
@@ -112,4 +116,13 @@ def filter_records(records: Iterable[dict], cfg: Config) -> list[dict]:
     log.info("[filter] raw=%d -> kept=%d (type-gate=%d relevance=%d "
              "expired=%d geo=%d)", len(all_records), len(kept),
              drop_type, drop_rel, drop_expired, drop_geo)
+    if stats is not None:
+        stats.update({
+            "raw": len(all_records),
+            "kept": len(kept),
+            "dropped_position_type": drop_type,
+            "dropped_relevance": drop_rel,
+            "dropped_expired": drop_expired,
+            "dropped_country": drop_geo,
+        })
     return kept

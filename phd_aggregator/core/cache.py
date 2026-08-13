@@ -172,16 +172,24 @@ def invalidate_matches(profile_id: Optional[int] = None) -> int:
 
 
 # --- opportunities ------------------------------------------------------------
-def opportunity_list_key() -> str:
-    return "opportunities:list"
+def opportunity_list_key(field: Optional[str] = None) -> str:
+    """Cache key for the unfiltered opportunity list.
+
+    KEYED BY FIELD. With a single global key, selecting chemistry could be
+    served the astronomy list cached minutes earlier (1 h TTL) — which looks
+    exactly like "the engine is biased towards astronomy" even after the crawl
+    itself is fixed. ``None`` keeps the legacy key so nothing that predates
+    field scoping changes meaning.
+    """
+    return "opportunities:list" if not field else f"opportunities:list:{field}"
 
 
-def cache_opportunity_list(results: list) -> None:
-    set(opportunity_list_key(), results, ttl=OPPORTUNITIES_TTL)
+def cache_opportunity_list(results: list, field: Optional[str] = None) -> None:
+    set(opportunity_list_key(field), results, ttl=OPPORTUNITIES_TTL)
 
 
-def get_cached_opportunity_list() -> Optional[list]:
-    return get(opportunity_list_key())
+def get_cached_opportunity_list(field: Optional[str] = None) -> Optional[list]:
+    return get(opportunity_list_key(field))
 
 
 def invalidate_opportunities() -> int:

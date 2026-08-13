@@ -64,6 +64,11 @@ def _apply_progress(prog: dict, event: dict) -> None:
         prog["total"] = event.get("total", 0)
         prog["completed"] = 0
         prog["sources"] = []
+    elif event.get("event") == "funnel":
+        # End-of-run accounting: found -> filtered -> deduped -> stored, with
+        # the reason for every drop. Surfaced so the UI headline number and
+        # the engine's number can never disagree unexplained.
+        prog["funnel"] = {k: v for k, v in event.items() if k != "event"}
     elif event.get("event") == "source":
         prog.setdefault("sources", []).append({
             "source": event.get("source"),
@@ -140,21 +145,37 @@ def run_pipeline_job(country: str | None = None,
     # stream progress into its meta so the API can poll per-source status.
     if on_progress is None:
         on_progress = _rq_progress_callback()
-    records = pipeline_run(cfg, only_sources=sources, on_progress=on_progress)
+    funnel: dict = {}
+    records = pipeline_run(cfg, only_sources=sources, on_progress=on_progress,
+                           funnel=funnel)
     # The pipeline writes JSON/CSV/HTML; the dashboard reads the ``opportunities``
     # table, so re-seed it from the JSON just written (idempotent upsert). A
-    # seeding failure must not fail the job — the run already succeeded.
+    # seeding failure must not fail the job — the run already succeeded — but it
+    # must not be invisible either: when seeding fails the dashboard keeps
+    # showing the OLD row count while the engine reports the new one, which is
+    # exactly how "18 open positions" and "63 records" drift apart. Record it.
     try:
-        from db.init import init_db, resolve_db_url, seed_from_json
+        from db.init import (count_opportunities, init_db, resolve_db_url,
+                             seed_from_json)
         engine = init_db(resolve_db_url())
         with Session(engine) as session:
             seed_from_json(session, cfg.json_path)
+            funnel["stored"] = count_opportunities(session)
+        # Invalidate BEFORE anything else can read a stale list. Keyed by
+        # field, so switching field can never serve the previous field's rows.
         cache.invalidate_opportunities()
     except Exception as exc:
+        funnel["storage_error"] = str(exc)
         log.warning("pipeline job %s: DB seeding failed (%s) — outputs written "
                     "to %s, dashboard may be stale", country, exc, cfg.json_path)
     cache.invalidate_supervisors()
     cache.invalidate_matches()
+    if on_progress is not None:
+        # Final event: the funnel, so the UI can explain every drop.
+        try:
+            on_progress({"event": "funnel", **funnel})
+        except Exception as exc:  # never let reporting break a finished run
+            log.debug("funnel callback failed: %s", exc)
     return len(records)
 
 

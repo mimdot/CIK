@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RunFunnelSummary } from "@/components/RunFunnelSummary";
 import { useRunJob } from "@/hooks/useRunJob";
 import { ApiError, fetchFields, fetchOpportunities, triggerPipeline } from "@/lib/api";
 import type { Opportunity } from "@/types";
@@ -52,6 +53,9 @@ export default function OpportunitiesPage() {
         country: country || undefined,
         source: source || undefined,
         type: type || undefined,
+        // Scope the list to the selected field, so switching to chemistry
+        // cannot keep showing astronomy rows stored by an earlier run.
+        field: field || undefined,
         page,
         limit: PAGE_SIZE,
       });
@@ -63,7 +67,7 @@ export default function OpportunitiesPage() {
     } finally {
       setLoading(false);
     }
-  }, [country, source, type, page]);
+  }, [country, source, type, field, page]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -83,9 +87,13 @@ export default function OpportunitiesPage() {
   }, []);
 
   // Run-engine state (Phase 1: easy to run the engine from the UI).
-  function onRunCompleted(records: number | null) {
+  // The notice deliberately does NOT quote a second, differently-derived
+  // count. The engine's per-stage breakdown is rendered by RunFunnelSummary,
+  // and the headline "N open positions" below comes from the same filtered
+  // dataset the list does — the two can no longer disagree.
+  function onRunCompleted() {
     setNotice(
-      `Engine run finished — ${records ?? 0} records${field ? ` (${field})` : ""}. Data refreshed.`,
+      `Search finished${field ? ` for ${field}` : ""}. Showing the results below.`,
     );
     void load();
   }
@@ -123,7 +131,11 @@ export default function OpportunitiesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Opportunities</h1>
           <p className="text-sm text-muted-foreground">
-            {loading ? "Loading…" : `${total} open positions.`}
+            {loading
+              ? "Loading…"
+              : `${total} open position${total === 1 ? "" : "s"}${
+                  field ? ` in ${field}` : ""
+                }.`}
           </p>
         </div>
         <div className="flex items-end gap-2">
@@ -242,6 +254,9 @@ export default function OpportunitiesPage() {
                   ))}
                 </ul>
               </div>
+            )}
+            {run.progress?.funnel && (
+              <RunFunnelSummary funnel={run.progress.funnel} />
             )}
             {run.error && (
               <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-destructive">

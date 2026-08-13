@@ -528,12 +528,19 @@ def fetch_sources(cfg: Config, only_sources: Optional[list[str]] = None,
 def run(cfg: Config, only_sources: Optional[list[str]] = None,
         limit_per_source: Optional[int] = None,
         injected_raw: Optional[list[dict]] = None,
-        profile=None, on_progress=None) -> list[dict]:
+        profile=None, on_progress=None,
+        funnel: Optional[dict] = None) -> list[dict]:
     """Fetch enabled sources, filter, freshness-check, dedupe, detect NEW,
     write, summarise. `injected_raw` bypasses network fetching (--self-test).
     When a UserProfile is supplied (Track C3), every kept opportunity is scored
     against it (match_score + match_explanation) and the list is re-sorted by
-    match score (falling back to relevance)."""
+    match score (falling back to relevance).
+
+    ``funnel``, if given, is filled with the record count at every stage
+    (found -> field filter -> freshness -> dedupe) plus the per-reason drop
+    counts. That is what lets the UI answer "why did 63 become 18?" instead of
+    showing two unexplained numbers from two different layers.
+    """
     raw: list[dict] = []
     http: Optional[Http] = None
 
@@ -551,12 +558,44 @@ def run(cfg: Config, only_sources: Optional[list[str]] = None,
         finally:
             http.close()
 
-    kept = filter_records(raw, cfg)
+    # Stamp every record with the field profile it was collected under, so the
+    # stored row knows which discipline it belongs to and the dashboard can
+    # scope a view to the selected field instead of showing every field's rows.
+    active_field = getattr(cfg, "field_profile", None)
+    active_subfield = getattr(cfg, "subfield", None)
+    for r in raw:
+        # `or`, not setdefault: make_record already seeds both keys with None,
+        # so setdefault would leave them None. A source that knows better (a
+        # discipline-specific board) keeps its own value.
+        r["field"] = r.get("field") or active_field
+        r["subfield"] = r.get("subfield") or active_subfield
+
+    filter_stats: dict = {}
+    kept = filter_records(raw, cfg, stats=filter_stats)
+    after_filter = len(kept)
     state = load_state(cfg)
     kept = apply_freshness(kept, cfg, state, http=http)
+    after_freshness = len(kept)
     save_state(state, cfg)
     deduped = dedupe_records(kept)
     deduped.sort(key=sort_key)
+
+    if funnel is not None:
+        funnel.update({
+            "field": getattr(cfg, "field_profile", None),
+            "found": len(raw),
+            "after_field_filter": after_filter,
+            "after_freshness": after_freshness,
+            "after_dedupe": len(deduped),
+            "dropped": {
+                "position_type": filter_stats.get("dropped_position_type", 0),
+                "off_field": filter_stats.get("dropped_relevance", 0),
+                "expired": filter_stats.get("dropped_expired", 0),
+                "country": filter_stats.get("dropped_country", 0),
+                "stale": after_filter - after_freshness,
+                "duplicate": after_freshness - len(deduped),
+            },
+        })
 
     if profile:
         # Track B6/C3: score every kept opportunity against the active profile

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import OpportunitiesPage from "@/app/(app)/opportunities/page";
 import { ApiError, fetchFields, fetchOpportunities, jobStatus, triggerPipeline } from "@/lib/api";
@@ -120,6 +120,87 @@ describe("OpportunitiesPage", () => {
     expect(screen.getByText("aas")).toBeInTheDocument();
   });
 
+  it("explains the headline number with the run funnel (18-vs-63)", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "pf" });
+    mockJobStatus.mockResolvedValue({
+      run_id: "pf",
+      status: "completed",
+      records: 18,
+      progress: {
+        total: 1,
+        completed: 1,
+        sources: [{ source: "euraxess", status: "done", records: 63 }],
+        funnel: {
+          field: "astronomy",
+          found: 63,
+          after_field_filter: 41,
+          after_freshness: 41,
+          after_dedupe: 22,
+          stored: 18,
+          dropped: {
+            position_type: 0,
+            off_field: 22,
+            expired: 4,
+            country: 0,
+            stale: 0,
+            duplicate: 19,
+          },
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+    await user.click(screen.getByRole("button", { name: "Run engine" }));
+
+    // Every stage of the shrink is visible, not just the endpoints, so the
+    // user can see 63 become 18 step by step.
+    const funnel = await screen.findByTestId("run-funnel");
+    const chain = funnel.textContent?.replace(/\s+/g, " ") ?? "";
+    expect(chain).toContain("63 found");
+    expect(chain).toContain("41 after field filter");
+    expect(chain).toContain("22 after dedupe");
+    expect(chain).toContain("18 stored");
+    // ...and the reasons it shrank.
+    expect(within(funnel).getByText(/22 off-field/)).toBeInTheDocument();
+    expect(within(funnel).getByText(/19 duplicate/)).toBeInTheDocument();
+  });
+
+  it("warns when results were found but could not be saved", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "pe" });
+    mockJobStatus.mockResolvedValue({
+      run_id: "pe",
+      status: "completed",
+      records: 63,
+      progress: {
+        total: 1,
+        completed: 1,
+        sources: [],
+        funnel: {
+          found: 63,
+          after_field_filter: 63,
+          after_freshness: 63,
+          after_dedupe: 63,
+          storage_error: "database is locked",
+          dropped: {
+            position_type: 0, off_field: 0, expired: 0,
+            country: 0, stale: 0, duplicate: 0,
+          },
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+    await user.click(screen.getByRole("button", { name: "Run engine" }));
+
+    // A silently swallowed seeding failure is exactly how the UI count and the
+    // engine count drift apart. It must be said out loud.
+    expect(
+      await screen.findByText(/could not be saved \(database is locked\)/),
+    ).toBeInTheDocument();
+  });
+
   it("runs the engine scoped to the active country filter", async () => {
     mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "p1" });
     mockJobStatus.mockResolvedValue({
@@ -145,7 +226,12 @@ describe("OpportunitiesPage", () => {
     expect(screen.getByTestId("run-status")).toHaveTextContent("completed");
     expect(screen.getByTestId("run-records")).toHaveTextContent("42");
 
-    expect(await screen.findByText(/Engine run finished — 42 records/)).toBeInTheDocument();
+    // The completion notice no longer quotes a second, differently-derived
+    // count. Quoting the engine's "42 records" next to the page's "N open
+    // positions" is what produced the 18-vs-63 confusion; the per-stage
+    // breakdown explains the number instead (see RunFunnelSummary).
+    expect(await screen.findByText(/Search finished/)).toBeInTheDocument();
+    expect(screen.queryByText(/Engine run finished/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Done" }));
     await waitFor(() =>

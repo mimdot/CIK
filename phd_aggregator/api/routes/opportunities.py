@@ -31,27 +31,33 @@ def list_opportunities(
                              description="position type (phd/postdoc/...)"),
     q: str | None = Query(None, description="free-text search on title, "
                                             "description or institution"),
+    field: str | None = Query(None, description="field profile the record was "
+                                                "crawled under (e.g. chemistry)"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     session: Session = Depends(get_db),
 ) -> dict:
     # When no filters are applied the full list is stable between pipeline
-    # runs, so serve it from cache (invalidated on each pipeline run).
+    # runs, so serve it from cache (invalidated on each pipeline run). The
+    # cache key carries the field: a single global key would serve the
+    # astronomy list to a chemistry view for up to an hour.
     if not (country or source or type or q) and page == 1:
-        cached = cache.get_cached_opportunity_list()
+        cached = cache.get_cached_opportunity_list(field)
         if cached is not None:
             total = len(cached)
             return {"items": cached[:limit], "total": total,
-                    "page": 1, "limit": limit,
+                    "page": 1, "limit": limit, "field": field,
                     "pages": (total + limit - 1) // limit if total else 0}
+        stmt = select(Opportunity)
+        if field:
+            stmt = stmt.where(Opportunity.field == field)
         full = [opportunity_out(o) for o in session.scalars(
-            select(Opportunity).order_by(
-                Opportunity.posted_date.desc().nulls_last(),
-                Opportunity.id.desc()))]
-        cache.cache_opportunity_list(full)
+            stmt.order_by(Opportunity.posted_date.desc().nulls_last(),
+                          Opportunity.id.desc()))]
+        cache.cache_opportunity_list(full, field)
         total = len(full)
         return {"items": full[:limit], "total": total,
-                "page": 1, "limit": limit,
+                "page": 1, "limit": limit, "field": field,
                 "pages": (total + limit - 1) // limit if total else 0}
 
     stmt = select(Opportunity)
@@ -61,6 +67,8 @@ def list_opportunities(
         stmt = stmt.where(Opportunity.source == source)
     if type:
         stmt = stmt.where(Opportunity.position_type == type)
+    if field:
+        stmt = stmt.where(Opportunity.field == field)
     if q:
         like = _like(q)
         stmt = stmt.where(

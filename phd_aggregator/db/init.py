@@ -97,6 +97,12 @@ def _opportunity_values(r: dict) -> dict:
         "matched_keywords": _json_list(r.get("matched_keywords")),
         "short_description": r.get("short_description"),
         "position_type": r.get("position_type"),
+        # Which field profile this record was crawled and scored under. Without
+        # it the table cannot tell an astronomy row from a chemistry one, so a
+        # chemistry search still shows astronomy rows left over from an earlier
+        # run — even once the crawl itself is field-scoped.
+        "field": r.get("field"),
+        "subfield": r.get("subfield"),
         "is_new": bool(r.get("is_new", True)),
     }
 
