@@ -72,11 +72,26 @@ green. Refactors and behavior changes stay in separate commits (per your rules).
    CLI vs web vs desktop), CONTRIBUTING (add-a-source / add-a-field worked
    examples), lifespan migration (L3), sidecar port/proxy robustness (L1/L2).
 
-> **My recommendation:** do **1 and 2 first** (fast, high-value, low-risk), then
-> **3** (the measurable speed win the brief prioritizes). I'll profile before
-> touching anything in step 3 and report before/after numbers.
+**Decisions (confirmed):** proceed in the order above; **untrack + gitignore**
+`phd_data.db*`.
 
-**Please confirm this order (or reprioritize) before I start Phase 1.** In
-particular: (a) keep or untrack `phd_data.db*`? (b) is starting with H1+H2 then
-concurrency the order you want?
+## E. Progress log
+
+| Step | Status | Notes |
+|---|---|---|
+| H2 hygiene | **done** (committed `5814f3b`) | `.gitignore` extended; `phd_data.db*` untracked (files kept). |
+| Phase 0 docs | **done** (committed `cfb4f80`) | `ARCHITECTURE.md` + `ISSUES.md`. |
+| H1 field→run | **done** (working tree) | `field` threaded schema→route→tasks→`build_config`; "Field to crawl" dropdown; 422 on unknown field. Tests: +3 py, +1 UI. |
+| P1 concurrency (M1) | **done** (working tree) | Isolated `Http` per source, `ThreadPoolExecutor`, deterministic order; `CIK_SOURCE_CONCURRENCY` (=1 restores sequential). **Measured 13s→3s (4.3×)**. Tests: +3. |
+| 2C supervisor polish | **done** (working tree) | Multi-country (comma-separated → array), CSV/JSON export from the UI, actionable ADS-token hint. Tests: +2. (Per-country re-search already instant via DB + list cache.) |
+| Docs | **done** (working tree) | Rewrote root `README.md` (install / proxy / ADS / CLI vs web vs desktop); added root `CONTRIBUTING.md` (worked examples). |
+| **2B CV file upload** | **done** (working tree) | `core/cv.py` (TXT/PDF/DOCX, local-only, clear errors) + base64-JSON `POST /api/profile/extract-cv` (no `python-multipart`) + Profile-page upload control feeding the existing extract→edit flow. TXT + endpoint + guards verified here; PDF/DOCX activate on `pip install pdfplumber python-docx`. Tests: +11 py, +1 UI. |
+| **P1 M3 streaming progress** | **done** (working tree) | `fetch_sources` emits start + per-source `{status,records,duration}` events → `run_pipeline_job` records them (in-memory job record / rq `job.meta`) → `get_job_status` surfaces `progress` → `useRunJob` + the Engine-run dialog stream "N / total sources" and per-source records/errors. Tests: +2 py, +1 UI. |
+| **L3 `on_event`→lifespan** | **done** (working tree) | Migrated the deprecated startup handler to a `lifespan` context manager (removes both deprecation warnings). |
+| P1 M2 conditional-GET cache | open (recommend separate change) | ETag/Last-Modified revalidation on the shared `Http`; default-on risks the 715-test suite and the real win needs the proxied network — better as its own reviewed commit. |
+| Lazy imports (L-startup) | open (low value) | Only the CLI shim eagerly loads `pandas`/`sqlalchemy`; the desktop **sidecar** (api.app) already doesn't, so the "instant startup" win is small and the shim's back-compat re-export test makes it delicate. |
+| L1/L2 (sidecar proxy/port) | open | Desktop sidecar hardcodes port 8000 and may not find `config.yaml` for the proxy — verify/robustify when building the Tauri app. |
+
+Verification to date: **`pytest` 715 passed / 1 skipped**, **dashboard jest 94
+passed / 14 suites**, `tsc` clean, offline `--self-test` green.
 </content>
