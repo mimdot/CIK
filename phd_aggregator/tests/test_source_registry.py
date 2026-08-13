@@ -159,6 +159,53 @@ def test_register_source_defaults_to_general():
         SOURCES.pop("_t_general", None)
 
 
+# --- end-to-end: what a real run actually crawls ----------------------------
+
+def _crawled_sources(field, monkeypatch, only_sources=None):
+    """Names fetch_sources really calls, with the network stubbed out."""
+    import argparse
+
+    import pipeline.run as run_mod
+    from core.config import build_config
+
+    called: list[str] = []
+
+    def _fake(name):
+        def _fn(cfg, http):
+            called.append(name)
+            return []
+        return _fn
+
+    monkeypatch.setattr(run_mod, "SOURCES",
+                        {n: _fake(n) for n in SOURCES})
+    monkeypatch.setattr(run_mod, "Http",
+                        lambda cfg, detect=True: type(
+                            "H", (), {"close": lambda self: None})())
+    cfg = build_config(argparse.Namespace(field=field, no_config=True))
+    run_mod.fetch_sources(cfg, only_sources=only_sources)
+    return set(called)
+
+
+def test_chemistry_run_queries_zero_astronomy_only_sources(monkeypatch):
+    """Phase 8 requirement, end to end: not merely 'resolved off' — the
+    astronomy source functions are never CALLED for a chemistry run."""
+    crawled = _crawled_sources("chemistry", monkeypatch)
+    assert not (crawled & ASTRONOMY_ONLY)
+    assert "esa" not in crawled
+    assert "euraxess" in crawled and "findaphd" in crawled
+
+
+def test_astronomy_run_still_queries_its_specialist_boards(monkeypatch):
+    """Astronomy must not be weakened — it keeps every board it had."""
+    assert _crawled_sources("astronomy", monkeypatch) == LEGACY_ENABLED
+
+
+def test_explicit_source_flag_overrides_the_field(monkeypatch):
+    """--source aas is the user naming names; honour it even for chemistry."""
+    crawled = _crawled_sources("chemistry", monkeypatch, only_sources=["aas"])
+    assert crawled == {"aas"}
+
+
 def test_register_source_dedupes_and_falls_back_to_general():
     try:
         @register_source("_t_dupes", fields=("chemistry", "chemistry", "  "))

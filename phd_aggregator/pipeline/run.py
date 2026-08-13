@@ -20,7 +20,7 @@ from core.config import Config
 from core.http import Http
 from core.records import OUTPUT_FIELDS
 from core.utils import dedupe_key
-from sources.base import SOURCES, log
+from sources.base import SOURCES, log, resolve_sources_for_field
 from pipeline.dedupe import dedupe_records
 from pipeline.filter import filter_records
 from pipeline.freshness import apply_freshness, load_state, save_state
@@ -445,13 +445,23 @@ def fetch_sources(cfg: Config, only_sources: Optional[list[str]] = None,
     ``{"event": "source", "source", "status": "done"|"error", "records",
     "duration"}``. It may be called from worker threads, so the callback must be
     thread-safe; it is best-effort and never allowed to break a run."""
-    def _is_enabled(name: str) -> bool:
-        return ((name in only_sources) if only_sources
-                else cfg.sources_enabled.get(name, False))
+    # Which boards actually serve the selected field? An explicit --source list
+    # always wins (that is the user naming names). Otherwise the field profile
+    # decides: general multi-discipline boards + the specialists that declare
+    # this field + anything the profile's `sources:` block claims, intersected
+    # with the user's sources_enabled switches. This is what stops a chemistry
+    # run from crawling the AAS Job Register.
+    if only_sources:
+        enabled = {name: (name in only_sources) for name in SOURCES}
+    else:
+        enabled = resolve_sources_for_field(
+            getattr(cfg, "field_profile", None), cfg.sources_enabled,
+            getattr(cfg, "profile_sources", None),
+            known_sources=SOURCES)
 
     todo: list[tuple] = []
     for name, fn in SOURCES.items():
-        if _is_enabled(name):
+        if enabled.get(name, False):
             todo.append((name, fn))
         else:
             log.info("skip %s (disabled)", name)

@@ -104,6 +104,7 @@ def specialist_sources_for_field(field_name: Optional[str]) -> list[str]:
 def resolve_sources_for_field(field_name: Optional[str],
                               sources_enabled: dict[str, bool],
                               profile_sources: Optional[list[str]] = None,
+                              known_sources: Optional[Iterable[str]] = None,
                               ) -> dict[str, bool]:
     """Decide which sources a run for ``field_name`` should actually crawl.
 
@@ -120,6 +121,10 @@ def resolve_sources_for_field(field_name: Optional[str],
     Effective = relevant AND enabled. With ``field_name=None`` relevance is a
     no-op and the result is exactly the old ``sources_enabled`` behaviour.
 
+    ``known_sources`` is the set of source names to decide over; callers that
+    hold their own registry reference (``fetch_sources``, tests) must pass it
+    so a swapped-in registry is honoured. Defaults to everything registered.
+
     Logs a clear line when a field has no dedicated source of its own, so
     "why am I only seeing general boards for X?" is answerable from the log.
     """
@@ -131,9 +136,16 @@ def resolve_sources_for_field(field_name: Optional[str],
                     field_name, ", ".join(unknown))
         claimed -= set(unknown)
 
+    # Decide over the caller's registry, not SOURCE_INFO: anything registered
+    # straight into a SOURCES dict (tests, plugins, older third-party code) has
+    # no metadata, and must be treated as a GENERAL board so it behaves exactly
+    # as it did before this registry existed. Never silently drop a source.
+    names = list(known_sources) if known_sources is not None else list(SOURCES)
     resolved: dict[str, bool] = {}
-    for name, info in SOURCE_INFO.items():
-        relevant = info.serves(field_name) or name in claimed
+    for name in dict.fromkeys(names):
+        info = SOURCE_INFO.get(name)
+        relevant = name in claimed or (info.serves(field_name) if info
+                                       else True)
         resolved[name] = bool(relevant and sources_enabled.get(name, False))
 
     if field_name is not None:
