@@ -66,8 +66,9 @@ cd phd_aggregator
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-cp ../.env.example .env   # or set env vars in your shell
-export CIK_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+# The FastAPI app reads env from the process, so source the gitignored root
+# `.env` before starting (sets CORS_ORIGINS, DATABASE_URL, LLM keys, …).
+set -a; source ../.env; set +a
 
 # Run the API
 uvicorn api.app:app --reload
@@ -75,6 +76,10 @@ uvicorn api.app:app --reload
 # (optional) initialize the DB schema / apply Alembic migrations
 alembic upgrade head
 ```
+
+LLM features (profile build, match explanations, assistant drafting) walk a
+provider chain from highest capacity down — see `command.md` for the lane
+table. A blocked or out-of-credits lane fails over automatically.
 
 ### 3.2 Dashboard
 

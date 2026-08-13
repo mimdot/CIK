@@ -4,13 +4,19 @@ Tick every item before opening the private beta to users. Each item is either
 built (code in the repo) or a verification step you run on the provisioned VPS.
 Do not open invites while any required item is unchecked.
 
+> **Local-dev beta (2026-08-11):** the stack runs bare-metal on the developer
+> device (uvicorn :8000 + `next dev` :3000, see `command.md`). Release gates
+> are checked above; deploy/ops items below apply to the VPS beta and are not
+> yet ticked. This local instance uses **open registration** (`INVITES_REQUIRED`
+> unset) by choice; set `INVITES_REQUIRED=1` before opening the VPS beta.
+
 ## Release gates (local, in the repo)
 
-- [ ] `scripts/self_test.sh` exits 0 on the release commit
-- [ ] `pytest tests/ -q` green (treatment: ≥660 tests at the Sprint 10 baseline)
-- [ ] `npm test -- --runInBand` green (≥66 tests)
-- [ ] `npm run lint` green and `npx tsc --noEmit` clean
-- [ ] `next build` compiles green
+- [x] `scripts/self_test.sh` exits 0 on the release commit — **verified 2026-08-11 (local beta)**
+- [x] `pytest tests/ -q` green (treatment: ≥660 tests at the Sprint 10 baseline) — **675 passed 2026-08-11**
+- [x] `npm test -- --runInBand` green (≥66 tests) — **66 passed 2026-08-11**
+- [x] `npm run lint` green and `npx tsc --noEmit` clean — **both exit 0, 2026-08-11**
+- [x] `next build` compiles green — **2026-08-11**
 - [ ] `pip-audit -r phd_aggregator/requirements.txt` reports 0 vulnerabilities
 - [ ] `npm audit --audit-level=high` reports 0 vulnerabilities
 
