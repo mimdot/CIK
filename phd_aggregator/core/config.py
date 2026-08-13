@@ -30,6 +30,7 @@ import argparse
 import logging
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -628,8 +629,13 @@ def _script_dir() -> str:
 
 def _find_config_path(name: str) -> Optional[str]:
     """Look for a config file in the working directory, then next to the
-    script (so the tool works both installed and run in-place)."""
-    for base in (os.getcwd(), _script_dir()):
+    script, then (for a frozen/packaged binary) next to the executable — so the
+    tool finds config.yaml whether run in-place, installed, or bundled as the
+    desktop sidecar (whose CWD is the app-data dir)."""
+    bases = [os.getcwd(), _script_dir()]
+    if getattr(sys, "frozen", False):
+        bases.append(os.path.dirname(os.path.abspath(sys.executable)))
+    for base in bases:
         p = os.path.join(base, name)
         if os.path.isfile(p):
             return p
@@ -1003,6 +1009,12 @@ def build_config(args: argparse.Namespace) -> Config:
         cfg.core_anchors = cfg.core_anchors + list(args.keyword)
     if getattr(args, "threshold", None) is not None:
         cfg.threshold = float(args.threshold)
+    # Env override (packaged sidecar / 12-factor deploys): CIK_PROXY sets the
+    # proxy without needing config.yaml on disk; an empty value disables it and
+    # an explicit --proxy still wins.
+    _env_proxy = os.environ.get("CIK_PROXY")
+    if _env_proxy is not None and getattr(args, "proxy", None) is None:
+        cfg.proxy = _env_proxy or None
     if getattr(args, "proxy", None) is not None:
         cfg.proxy = args.proxy or None
     if getattr(args, "no_proxy_detect", False):

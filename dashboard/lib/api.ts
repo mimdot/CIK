@@ -34,11 +34,22 @@ function isTauri(): boolean {
   return !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
 }
 
-// In Tauri offline mode, the FastAPI sidecar runs on localhost:8000
-// In web mode, use the configured API URL or default to localhost:8000
-const API_BASE = isTauri()
-  ? "http://localhost:8000"
-  : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
+// Resolve the API base per call (so late injection is picked up).
+// - Desktop (Tauri): the Rust shell picks a free port for the sidecar and
+//   injects the resolved base as `window.__CIK_API_BASE__`. Fall back to the
+//   conventional port so the app still works when nothing was injected.
+// - Web: the configured URL, else localhost:8000.
+export function apiBase(): string {
+  if (isTauri()) {
+    const injected =
+      typeof window !== "undefined"
+        ? (window as unknown as { __CIK_API_BASE__?: string }).__CIK_API_BASE__
+        : undefined;
+    if (typeof injected === "string" && injected) return injected;
+    return "http://127.0.0.1:8000";
+  }
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+}
 
 const TOKEN_KEY = "cik_token";
 
@@ -108,7 +119,7 @@ async function request<T>(
   }
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    res = await fetch(`${apiBase()}${path}`, {
       ...options,
       headers,
       credentials: "include",
