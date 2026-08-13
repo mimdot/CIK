@@ -188,6 +188,19 @@ supervisor_topics:
   - T11043   # Merger and Competition Analysis
 supervisor_senior_signal: none
 
+
+# Per-source query knobs for THIS discipline (verified live 2026-08-14).
+#   euraxess.research_fields          EURAXESS `job_research_field` facet IDs
+#   euraxess.adjacent_research_fields one extra PhD-scoped sweep of a
+#                                     neighbouring subject
+#   academicjobsonline.categories     /ajo/<category> listing pages
+source_options:
+  euraxess:
+    research_fields: [117]
+    adjacent_research_fields: [298]
+  academicjobsonline:
+    categories: ['economics']
+
 subfields:
   macroeconomics:
     label: Macroeconomics

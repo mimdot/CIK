@@ -21,10 +21,39 @@ from .base import log, register_source
 # `start` pages by 25. Endpoint + selectors verified live July 2026.
 LINKEDIN_GUEST_URL = ("https://www.linkedin.com/jobs-guest/jobs/api/"
                       "seeMoreJobPostings/search")
+# Back-compat default only. The real queries are now built from the ACTIVE
+# FIELD PROFILE's search_terms — see linkedin_keywords_for(). Kept as the
+# fallback for a profile with no search terms at all, and because the name is
+# re-exported from phd_aggregator for back-compat.
 LINKEDIN_KEYWORDS = ["PhD astronomy", "PhD astrophysics", "PhD cosmology",
                      "doctoral researcher astrophysics"]
 LINKEDIN_LOCATIONS = ["European Union", "United Kingdom", "Japan", "China"]
 LINKEDIN_MAX_PAGES = 1          # pages of 25 per (keyword, location) pair
+LINKEDIN_MAX_KEYWORDS = 4       # keep the query volume low and polite
+
+
+def linkedin_keywords_for(cfg: Config) -> list[str]:
+    """Guest-search phrases for the active profile.
+
+    LinkedIn has no discipline facet, so the query IS the field: each of the
+    profile's leading search terms is prefixed with the position types being
+    hunted ("PhD chemistry", "postdoc chemistry"). A profile may state the
+    phrases outright with
+    ``source_options: {linkedin: {keywords: ["PhD synthetic chemistry"]}}``.
+    """
+    explicit = cfg.source_option("linkedin", "keywords")
+    if isinstance(explicit, list) and explicit:
+        return [str(k).strip() for k in explicit if str(k).strip()]
+
+    terms = [t for t in (cfg.search_terms or []) if str(t).strip()]
+    if not terms:
+        return list(LINKEDIN_KEYWORDS)
+    # "phd"/"postdoc" -> the words a job ad actually uses.
+    prefixes = [{"phd": "PhD", "postdoc": "Postdoc"}.get(t)
+                for t in (cfg.wanted_types or ["phd"])]
+    prefixes = [p for p in prefixes if p] or ["PhD"]
+    phrases = [f"{prefix} {term}" for term in terms for prefix in prefixes]
+    return list(dict.fromkeys(phrases))[:LINKEDIN_MAX_KEYWORDS]
 
 
 @register_source("linkedin", label="LinkedIn (guest search)")
@@ -42,12 +71,14 @@ def source_linkedin(cfg: Config, http: Http) -> list[dict]:
     records: list[dict] = []
     seen_urls: set[str] = set()
     locations = (cfg.countries if cfg.geo_filter_active else LINKEDIN_LOCATIONS)
-    log.info("[linkedin] guest search: %d keywords x %d locations "
-             "(robots.txt overridden for these personal-use queries)",
-             len(LINKEDIN_KEYWORDS), len(locations))
+    keywords = linkedin_keywords_for(cfg)
+    log.info("[linkedin] guest search for %r: %d keywords x %d locations "
+             "(%s) (robots.txt overridden for these personal-use queries)",
+             getattr(cfg, "field_profile", None), len(keywords), len(locations),
+             "; ".join(keywords))
 
     for loc in locations:
-        for kw in LINKEDIN_KEYWORDS:
+        for kw in keywords:
             for page in range(LINKEDIN_MAX_PAGES):
                 params = {"keywords": kw, "location": loc, "start": page * 25}
                 resp = http.get(LINKEDIN_GUEST_URL, params=params,

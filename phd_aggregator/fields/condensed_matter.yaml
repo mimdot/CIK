@@ -177,6 +177,19 @@ supervisor_topics:
   - T10389   # Polymer crystallization and properties
   - T11242   # Nuclear Materials and Properties
 
+
+# Per-source query knobs for THIS discipline (verified live 2026-08-14).
+#   euraxess.research_fields          EURAXESS `job_research_field` facet IDs
+#   euraxess.adjacent_research_fields one extra PhD-scoped sweep of a
+#                                     neighbouring subject
+#   academicjobsonline.categories     /ajo/<category> listing pages
+source_options:
+  euraxess:
+    research_fields: [345]
+    adjacent_research_fields: [47]
+  academicjobsonline:
+    categories: ['physics']
+
 subfields:
 
   quantum_materials:

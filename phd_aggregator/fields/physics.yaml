@@ -251,6 +251,19 @@ supervisor_topics:
   - T11050   # Photorefractive and Nonlinear Optics
   - T10384   # Laser-Plasma Interactions and Diagnostics
 
+
+# Per-source query knobs for THIS discipline (verified live 2026-08-14).
+#   euraxess.research_fields          EURAXESS `job_research_field` facet IDs
+#   euraxess.adjacent_research_fields one extra PhD-scoped sweep of a
+#                                     neighbouring subject
+#   academicjobsonline.categories     /ajo/<category> listing pages
+source_options:
+  euraxess:
+    research_fields: [345]
+    adjacent_research_fields: [34]
+  academicjobsonline:
+    categories: ['physics']
+
 subfields:
   particle_physics:
     label: Particle & High-Energy Physics

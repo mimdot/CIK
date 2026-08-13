@@ -270,6 +270,19 @@ supervisor_topics:
   - T10963   # Advanced Optimization Algorithms Research
 supervisor_senior_signal: last_author
 
+
+# Per-source query knobs for THIS discipline (verified live 2026-08-14).
+#   euraxess.research_fields          EURAXESS `job_research_field` facet IDs
+#   euraxess.adjacent_research_fields one extra PhD-scoped sweep of a
+#                                     neighbouring subject
+#   academicjobsonline.categories     /ajo/<category> listing pages
+source_options:
+  euraxess:
+    research_fields: [298]
+    adjacent_research_fields: [345]
+  academicjobsonline:
+    categories: ['mathematics', 'statistics']
+
 subfields:
   algebra_number_theory:
     label: Algebra & Number Theory

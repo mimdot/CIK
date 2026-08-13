@@ -11,6 +11,37 @@ from core.records import make_record
 from .base import log, register_source
 
 
+# AcademicJobsOnline category slugs, each verified live on 2026-08-14 by
+# fetching https://academicjobsonline.org/ajo/<slug> and counting job links
+# (chemistry 26, biology 44, cs 47, mathematics/economics/psychology/medicine/
+# engineering/statistics 40 each). A field profile overrides this with
+#     source_options: {academicjobsonline: {categories: [chemistry]}}
+AJO_CATEGORIES: dict[str, list[str]] = {
+    "astronomy": ["physics/Astronomy", "physics/Astrophysics"],
+    "physics": ["physics"],
+    "condensed_matter": ["physics"],
+    "chemistry": ["chemistry"],
+    "biology": ["biology"],
+    "computer_science": ["cs"],
+    "mathematics": ["mathematics", "statistics"],
+    "engineering": ["engineering"],
+    "economics": ["economics"],
+    "psychology": ["psychology"],
+    "medicine": ["medicine"],
+    "geology": ["geosciences"],
+    "geophysics_hydro": ["geosciences"],
+}
+
+
+def ajo_categories_for(cfg: Config) -> list[str]:
+    """Category path(s) to sweep for the active profile ([] = skip the board)."""
+    explicit = cfg.source_option("academicjobsonline", "categories")
+    if isinstance(explicit, list) and explicit:
+        return [str(c).strip().strip("/") for c in explicit if str(c).strip()]
+    name = (getattr(cfg, "field_profile", "") or "").strip().lower()
+    return list(AJO_CATEGORIES.get(name, []))
+
+
 @register_source("academicjobsonline", label="AcademicJobsOnline")
 def source_academicjobsonline(cfg: Config, http: Http) -> list[dict]:
     """[HTML] AcademicJobsOnline (academicjobsonline.org). Category pages are
@@ -18,10 +49,17 @@ def source_academicjobsonline(cfg: Config, http: Http) -> list[dict]:
     institution appears as an <h3 class="x1"> heading followed by an <ol> of
     job <li>s shaped like: [CODE] Title (deadline YYYY/MM/DD ...) Apply
     """
-    CATEGORY_URLS = [
-        "https://academicjobsonline.org/ajo/physics/Astronomy",
-        "https://academicjobsonline.org/ajo/physics/Astrophysics",
-    ]
+    categories = ajo_categories_for(cfg)
+    if not categories:
+        log.info("[academicjobsonline] no category mapping for profile %r — "
+                 "skipping (set source_options.academicjobsonline.categories "
+                 "in fields/%s.yaml)", getattr(cfg, "field_profile", None),
+                 getattr(cfg, "field_profile", "<profile>"))
+        return []
+    CATEGORY_URLS = [f"https://academicjobsonline.org/ajo/{c}"
+                     for c in categories]
+    log.info("[academicjobsonline] categories for %r: %s",
+             getattr(cfg, "field_profile", None), ", ".join(categories))
     LINK_RE = re.compile(r"^/ajo/jobs?/(\d+)$")
 
     out: list[dict] = []

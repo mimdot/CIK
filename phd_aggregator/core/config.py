@@ -560,6 +560,10 @@ class Config:
     # that names the field in its own @register_source(fields=...) declaration.
     # See sources.base.resolve_sources_for_field.
     profile_sources: list = field(default_factory=list)
+    # Per-source knobs from the profile's `source_options:` block, e.g. which
+    # EURAXESS research-field facets or AcademicJobsOnline categories THIS
+    # discipline should query. Read via Config.source_option().
+    source_options: dict = field(default_factory=dict)
     # --- seed URLs ---
     seed_file: str = SEED_FILE
     seed_bypass_gate: bool = SEED_BYPASS_GATE
@@ -615,6 +619,20 @@ class Config:
     @property
     def geo_filter_active(self) -> bool:
         return bool(self.countries) and "*" not in self.countries
+
+    def source_option(self, source: str, key: str, default=None):
+        """One knob from the active profile's ``source_options:`` block.
+
+        ``source_options: {euraxess: {research_fields: [47]}}`` is read as
+        ``cfg.source_option("euraxess", "research_fields")``. Returns
+        ``default`` when the profile says nothing, so every source keeps a
+        working built-in fallback and a thin profile is never a crash.
+        """
+        opts = self.source_options.get(source)
+        if not isinstance(opts, dict):
+            return default
+        value = opts.get(key, default)
+        return default if value is None else value
 
 
 # -----------------------------------------------------------------------------
@@ -839,6 +857,22 @@ def apply_field_profile(cfg: Config, profile: dict) -> None:
     elif profile.get("sources") is not None:
         log.warning("field profile: `sources` must be a list of source names "
                     "— ignored")
+    # Optional per-source knobs, e.g. which EURAXESS research-field facets or
+    # AcademicJobsOnline categories THIS discipline should ask for:
+    #   source_options:
+    #     euraxess: {research_fields: [47]}     # 47 = Chemistry
+    #     academicjobsonline: {categories: [chemistry]}
+    if isinstance(profile.get("source_options"), dict):
+        cfg.source_options = {
+            str(name): dict(opts)
+            for name, opts in profile["source_options"].items()
+            if isinstance(opts, dict)
+        }
+        log.info("field profile: source_options for %s",
+                 ", ".join(sorted(cfg.source_options)) or "(none)")
+    elif profile.get("source_options") is not None:
+        log.warning("field profile: `source_options` must be a mapping of "
+                    "source name -> options — ignored")
         log.info("field profile: %d departments loaded for uni_departments",
                  len(cleaned))
 

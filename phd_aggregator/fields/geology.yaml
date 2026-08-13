@@ -289,6 +289,19 @@ supervisor_topics:
   - T10109   # Paleontology and Stratigraphy of Fossils
 supervisor_senior_signal: last_author
 
+
+# Per-source query knobs for THIS discipline (verified live 2026-08-14).
+#   euraxess.research_fields          EURAXESS `job_research_field` facet IDs
+#   euraxess.adjacent_research_fields one extra PhD-scoped sweep of a
+#                                     neighbouring subject
+#   academicjobsonline.categories     /ajo/<category> listing pages
+source_options:
+  euraxess:
+    research_fields: [219]
+    adjacent_research_fields: [195]
+  academicjobsonline:
+    categories: ['geosciences']
+
 subfields:
   structural_tectonics:
     label: Structural Geology & Tectonics

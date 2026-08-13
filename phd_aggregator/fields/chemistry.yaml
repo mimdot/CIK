@@ -237,6 +237,19 @@ supervisor_topics:
   - T11434   # Electrochemical Analysis and Applications
 supervisor_senior_signal: last_author
 
+
+# Per-source query knobs for THIS discipline (verified live 2026-08-14).
+#   euraxess.research_fields          EURAXESS `job_research_field` facet IDs
+#   euraxess.adjacent_research_fields one extra PhD-scoped sweep of a
+#                                     neighbouring subject
+#   academicjobsonline.categories     /ajo/<category> listing pages
+source_options:
+  euraxess:
+    research_fields: [47]
+    adjacent_research_fields: [345]
+  academicjobsonline:
+    categories: ['chemistry']
+
 subfields:
   organic:
     label: Organic & Synthetic Chemistry

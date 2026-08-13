@@ -191,6 +191,19 @@ supervisor_topics:
   - T10466   # Meteorological Phenomena and Simulations
   - T11061   # Ocean Waves and Remote Sensing
 
+
+# Per-source query knobs for THIS discipline (verified live 2026-08-14).
+#   euraxess.research_fields          EURAXESS `job_research_field` facet IDs
+#   euraxess.adjacent_research_fields one extra PhD-scoped sweep of a
+#                                     neighbouring subject
+#   academicjobsonline.categories     /ajo/<category> listing pages
+source_options:
+  euraxess:
+    research_fields: [219, 345]
+    adjacent_research_fields: [195]
+  academicjobsonline:
+    categories: ['geosciences']
+
 subfields:
   hydrogeology:
     label: Hydrogeology and groundwater
