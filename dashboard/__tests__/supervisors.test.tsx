@@ -238,7 +238,7 @@ describe("SupervisorsPage", () => {
         csv = (parts ?? []).join("");
         return new RealBlob(parts, opts);
       });
-    const createObjectURL = jest.fn((_b: Blob) => "blob:mock");
+    const createObjectURL = jest.fn(() => "blob:mock");
     Object.assign(URL, { createObjectURL, revokeObjectURL: jest.fn() });
     const clickSpy = jest
       .spyOn(HTMLAnchorElement.prototype, "click")

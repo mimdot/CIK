@@ -135,6 +135,26 @@ export default function SupervisorsPage() {
     );
   }
 
+  // Declared BEFORE exportSupervisors, which closes over it. When a hoisted
+  // function referenced `filtered` from above its own `const` declaration,
+  // React Compiler could not preserve this memo and lint failed with
+  // react-hooks/preserve-manual-memoization. `toSorted` (not `sort`) keeps the
+  // memoized array immutable, which is the other half of what the rule wants.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const qs = q.split(/\s+/).filter(Boolean);
+    const list = items.filter((s) => {
+      if (!qs.length) return true;
+      const hay = `${s.name} ${s.institution ?? ""} ${s.department ?? ""} ${s.topics.join(" ")}`.toLowerCase();
+      return qs.every((part) => hay.includes(part));
+    });
+    return list.toSorted((a, b) => {
+      if (sort === "name") return a.name.localeCompare(b.name);
+      if (sort === "fit_asc") return (a.fit_score ?? 0) - (b.fit_score ?? 0);
+      return (b.fit_score ?? 0) - (a.fit_score ?? 0);
+    });
+  }, [items, query, sort]);
+
   function exportSupervisors(format: "csv" | "json") {
     if (!filtered.length) return;
     const suffix = country ? `_${country.replace(/\s+/g, "_")}` : "";
@@ -146,21 +166,6 @@ export default function SupervisorsPage() {
         JSON.stringify(filtered, null, 2), "application/json");
     }
   }
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const qs = q.split(/\s+/).filter(Boolean);
-    const list = items.filter((s) => {
-      if (!qs.length) return true;
-      const hay = `${s.name} ${s.institution ?? ""} ${s.department ?? ""} ${s.topics.join(" ")}`.toLowerCase();
-      return qs.every((part) => hay.includes(part));
-    });
-    return list.sort((a, b) => {
-      if (sort === "name") return a.name.localeCompare(b.name);
-      if (sort === "fit_asc") return (a.fit_score ?? 0) - (b.fit_score ?? 0);
-      return (b.fit_score ?? 0) - (a.fit_score ?? 0);
-    });
-  }, [items, query, sort]);
 
   function toggle(id: number) {
     setExpanded((prev) => {

@@ -21,16 +21,20 @@ with file:line evidence. This file is the *work list*.
 | `phd_aggregator/dist/` (sidecar binary) | 330 M | no |
 | `.opencode/` | 63 M | no |
 | `.codegraph/` | 17 M | no |
-| `phd_aggregator.zip` | 12 M | **untracked, not ignored** ⚠ |
+| `phd_aggregator.zip` | 12 M | no (`*.zip`) |
 | `phd_aggregator/.http_cache.sqlite` | 9.8 M | no |
 | **`.git/` — entire history** | **3.72 MiB** | — |
 
 **Conclusion: there is nothing to rewrite.** Git history is 3.7 MB. The 8 GB is
 100 % local build output that a `rm -rf` recreates on demand. No
 `git filter-repo`, no BFG, no fresh repo, no destructive operation of any kind.
-A fresh `git clone` of this project downloads **under 4 MB**. The only real
-action is closing the `phd_aggregator.zip` gap so a stray `git add -A` can't
-commit 12 MB.
+A fresh `git clone` of this project downloads **under 4 MB**.
+
+Verified with `git check-ignore`: every entry above is already ignored
+(`.codegraph/` self-ignores via its own `.gitignore`). **The `.gitignore`
+needs no changes** — `git add -A` today stages nothing but your two stray
+notes. My earlier suspicion that `phd_aggregator.zip` was exposed was wrong;
+`*.zip` covers it. 350 files tracked, largest is a 492 K lockfile.
 
 ### A2. "Why did CI fail?" — **Two unrelated, small, real causes.**
 
@@ -191,16 +195,16 @@ feature.
 timing, and live-launch pass (Phase 8), README/CONTRIBUTING with the worked
 "add a new field + its sources" example.
 
-### Decisions I need from you
+### Decisions (confirmed 2026-08-14)
 
-1. **Slow source (S2):** confirm `uni_departments` is the "13th source" you
-   meant — I'll measure it, but you have seen the run.
-2. **API keys / admin (U3):** nothing is vestigial; both are live features. Do
-   you want them **hidden from normal users** (my recommendation, keep the code)
-   or **removed** entirely?
-3. **Live source verification:** the brief says verify each new source is live
-   before wiring. That means real network calls through your V2Ray proxy from
-   this machine. Confirm the proxy is up and I should hit them.
+1. **Slow source (S2):** confirmed — `uni_departments`. Measure it, make it
+   opt-in (OFF by default) with a time-cost warning, and ship the manual
+   department/institution browse alternative.
+2. **API keys / admin (U3):** **hide from normal users, keep all the code.**
+   Nothing is deleted; the pages go behind an admin/role gate.
+3. **Live source verification:** **proxy is up — verify live.** Probe every
+   candidate source through SOCKS `127.0.0.1:10808` and wire only what
+   responds. Polite rate limiting, robots respected, no CAPTCHA work.
 
 ---
 

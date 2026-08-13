@@ -1,0 +1,22 @@
+# requirements-dev.txt — test/development dependencies.
+# =============================================================================
+# requirements.txt is the RUNTIME manifest: it is what a user (and the
+# PyInstaller sidecar) installs, and it deliberately carries no test tooling.
+# CI and contributors need this file as well:
+#
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   python3 -m pytest tests/ -q
+#
+# Without it `python3 -m pytest` fails with "No module named pytest" and the
+# suite never runs — which is exactly how the backend CI job was failing.
+# =============================================================================
+
+-r requirements.txt
+
+pytest>=8.0                # the test runner (tests/ — 726 tests)
+
+# NOTE: every other test-only import (httpx for the FastAPI TestClient,
+# python-docx for the CV parser tests, pandas, bs4, sqlalchemy, requests) is
+# already a runtime dependency in requirements.txt, so nothing else is needed
+# here. Keep it that way: a package belongs in requirements.txt if the shipped
+# app imports it, and here only if the tests do.

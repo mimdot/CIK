@@ -16,9 +16,14 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: phd_aggregator/requirements.txt
+          cache-dependency-path: |
+            phd_aggregator/requirements.txt
+            phd_aggregator/requirements-dev.txt
       - name: Install backend deps
-        run: pip install -r phd_aggregator/requirements.txt
+        # requirements-dev.txt pulls in requirements.txt AND the test runner.
+        # Installing only the runtime manifest is what made this job fail with
+        # "No module named pytest" — the suite never ran at all.
+        run: pip install -r phd_aggregator/requirements-dev.txt
       - name: Offline CLI self-test
         run: cd phd_aggregator && python3 phd_aggregator.py --self-test
       - name: Backend tests
