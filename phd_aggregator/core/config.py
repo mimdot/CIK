@@ -564,6 +564,9 @@ class Config:
     keep_undated_within_window: bool = KEEP_UNDATED_WITHIN_WINDOW
     state_path: str = STATE_FILE
     max_page_date_probes: int = MAX_PAGE_DATE_PROBES
+    # --- HTTP cache (M2: incremental conditional-GET crawl) ---
+    http_cache: bool = True          # persistent ETag/Last-Modified revalidation
+    force_refresh: bool = False      # --force-refresh: bypass the cache this run
     # --- supervisor finder ---
     supervisor_years_back: int = SUPERVISOR_YEARS_BACK
     supervisor_min_papers: int = SUPERVISOR_MIN_PAPERS
@@ -1032,6 +1035,10 @@ def build_config(args: argparse.Namespace) -> Config:
         cfg.supervisor_years_back = int(args.years_back)
     if getattr(args, "supervisor_source", None):
         cfg.supervisor_source = args.supervisor_source
+    if getattr(args, "force_refresh", False):
+        cfg.force_refresh = True
+    if getattr(args, "no_http_cache", False):
+        cfg.http_cache = False
     compile_taxonomy(cfg)
     return cfg
 

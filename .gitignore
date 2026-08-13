@@ -31,6 +31,12 @@ phd_aggregator/phd_positions_selftest*.json
 # SQLite runtime DBs (recreated on first run; see DEFAULT_DB_URL)
 phd_data.db
 phd_data.db.bak
+
+# HTTP conditional-GET cache (M2)
+.http_cache.sqlite
+.http_cache.sqlite-journal
+.http_cache.sqlite-wal
+.http_cache.sqlite-shm
 *.db-journal
 *.db-wal
 *.db-shm

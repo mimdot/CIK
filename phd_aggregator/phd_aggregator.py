@@ -232,6 +232,12 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                          f"older than this (default {MAX_AGE_DAYS})")
     ap.add_argument("--no-config", action="store_true",
                     help="ignore config.yaml (use built-in defaults + CLI only)")
+    ap.add_argument("--force-refresh", action="store_true",
+                    help="bypass the HTTP cache: re-fetch every page instead of "
+                         "revalidating with If-None-Match/If-Modified-Since "
+                         "(the cache is still refreshed for next time)")
+    ap.add_argument("--no-http-cache", action="store_true",
+                    help="disable the persistent HTTP conditional-GET cache")
     ap.add_argument("--keyword", action="append", metavar="KW",
                     help="EXTRA core anchor terms (repeatable)")
     ap.add_argument("--threshold", type=float, metavar="X",

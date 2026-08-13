@@ -51,6 +51,12 @@ from core.deps import (                       # noqa: E402  dependency flags
     curl_requests,
     feedparser,
 )
+from core.http_cache import (                  # noqa: E402  M2 conditional-GET
+    apply_validators,
+    cache_key,
+    get_http_cache,
+    response_from_cache,
+)
 
 
 # Realistic browser headers used for actual page fetches (several boards serve
@@ -396,6 +402,27 @@ class Http:
         self.session.mount("https://", adapter)
 
         self.robots = RobotsCache(self, cfg.user_agent, cfg.robots_obey)
+        # M2: shared persistent conditional-GET cache (None when off / testing).
+        self._cache = get_http_cache(cfg)
+
+    # -- conditional-GET cache (M2) -------------------------------------------
+    def _cache_lookup(self, url: str, params=None) -> Optional[dict]:
+        """Cached entry for a request, or None (also None under --force-refresh
+        so the request is made unconditionally but the cache is still updated)."""
+        if self._cache is None or self.cfg.force_refresh:
+            return None
+        return self._cache.get_entry(cache_key(url, params))
+
+    def _cache_store(self, url: str, params, resp) -> None:
+        """Persist a 200 response's validators + body when it carries an ETag or
+        Last-Modified (nothing to revalidate against otherwise)."""
+        if self._cache is None or resp is None or resp.status_code != 200:
+            return
+        etag = resp.headers.get("ETag")
+        last_modified = resp.headers.get("Last-Modified")
+        if etag or last_modified:
+            self._cache.store(cache_key(url, params), etag, last_modified,
+                              resp.content, resp.encoding)
 
     # -- throttling -----------------------------------------------------------
     def _throttle(self, extra_delay: float = 0.0) -> None:
@@ -410,12 +437,22 @@ class Http:
         if not _guard_url(url):
             return None
         self._throttle()
+        params = kw.get("params")
+        entry = self._cache_lookup(url, params)
+        if entry is not None:
+            headers = dict(kw.get("headers") or {})
+            apply_validators(headers, entry)
+            kw["headers"] = headers
         try:
-            return self.session.get(
+            resp = self.session.get(
                 url, timeout=(self.cfg.connect_timeout, self.timeout), **kw)
         except requests.RequestException as exc:
             log.debug("raw_get failed %s: %s", url, exc)
             return None
+        if resp.status_code == 304 and entry is not None:
+            return response_from_cache(url, entry)
+        self._cache_store(url, params, resp)
+        return resp
 
     def get(self, url: str, *, params=None, headers=None, impersonate=True,
             ignore_robots=False):
@@ -434,15 +471,25 @@ class Http:
         self._throttle(self.robots.crawl_delay(url) or 0.0)
         resp = None
         challenged = False
+        # M2: revalidate with the cached ETag / Last-Modified when available.
+        entry = self._cache_lookup(url, params)
+        req_headers = headers
+        if entry is not None:
+            req_headers = dict(headers or {})
+            apply_validators(req_headers, entry)
         try:
-            resp = self.session.get(url, params=params, headers=headers,
+            resp = self.session.get(url, params=params, headers=req_headers,
                                     timeout=(self.cfg.connect_timeout,
                                              self.timeout))
+            if resp.status_code == 304 and entry is not None:
+                log.debug("304 %s — served from HTTP cache", url)
+                return response_from_cache(url, entry)
             if resp.status_code < 400:
                 # a 200 can still be a Cloudflare interstitial, not content
                 if _CHALLENGE_RE.search(resp.text[:6000] or ""):
                     challenged = True
                 else:
+                    self._cache_store(url, params, resp)
                     return resp
         except requests.RequestException as exc:
             log.debug("GET failed %s: %s", url, exc)
