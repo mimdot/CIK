@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ApiError, createBookmark, fetchMatches } from "@/lib/api";
+import { ApiError, createBookmark, fetchMatches, fetchFields } from "@/lib/api";
 import type { Match } from "@/types";
 
 export default function DashboardPage() {
@@ -26,13 +26,15 @@ export default function DashboardPage() {
   const [country, setCountry] = useState("all");
   const [source, setSource] = useState("all");
   const [type, setType] = useState("all");
+  const [field, setField] = useState("");
+  const [fieldProfiles, setFieldProfiles] = useState<string[]>([]);
   const [bookmarkMsg, setBookmarkMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchMatches(0, 100);
+      const data = await fetchMatches(0, 100, field || undefined);
       const items = (data.items as Match[]).sort(
         (a, b) => b.match_score - a.match_score,
       );
@@ -43,12 +45,19 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [field]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // Load field profiles for the dropdown
+  useEffect(() => {
+    fetchFields()
+      .then((data) => setFieldProfiles(data.profiles))
+      .catch(() => setFieldProfiles([]));
+  }, []);
 
   const facets = useMemo(() => {
     const countries = new Set<string>();
@@ -136,6 +145,14 @@ export default function DashboardPage() {
               onChange={setType}
               options={facets.types}
               placeholder="All types"
+            />
+            <FilterSelect
+              id="field-filter"
+              label="Field"
+              value={field}
+              onChange={setField}
+              options={fieldProfiles}
+              placeholder="All fields"
             />
           </CardContent>
         </Card>

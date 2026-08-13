@@ -16,8 +16,10 @@ export default function LoginForm({
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"login" | "register" | null>(null);
+  const [intent, setIntent] = useState<"login" | "register">("login");
 
   async function submit(mode: "login" | "register") {
+    setIntent(mode);
     setError(null);
     setBusy(mode);
     try {
@@ -69,20 +71,25 @@ export default function LoginForm({
           <Input
             id="password"
             type="password"
-            autoComplete="current-password"
+            minLength={8}
+            autoComplete={intent === "register" ? "new-password" : "current-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="At least 8 characters"
+            placeholder="At least 8 chars, incl. upper & lowercase + a digit"
             required
           />
+          <p className="text-xs text-muted-foreground">
+            Must be at least 8 characters with at least one uppercase letter,
+            one lowercase letter, and one digit.
+          </p>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="inviteCode">Invite code (beta)</Label>
+          <Label htmlFor="inviteCode">Invite code (optional)</Label>
           <Input
             id="inviteCode"
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value)}
-            placeholder="Required only if invites are enforced"
+            placeholder="Optional: enter invite code if you have one"
             autoComplete="off"
           />
         </div>

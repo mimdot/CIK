@@ -1,26 +1,18 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DashboardPage from "@/app/(app)/page";
-import { ApiError, createBookmark, fetchMatches } from "@/lib/api";
+import { ApiError, createBookmark, fetchMatches, fetchFields } from "@/lib/api";
 import type { Match } from "@/types";
+// shared auth mock loaded via jest.requireActual inside the factory
 
-jest.mock("@/lib/api", () => ({
-  ApiError: class ApiError extends Error {
-    status: number;
-    constructor(message: string, status: number) {
-      super(message);
-      this.status = status;
-    }
-  },
-  getToken: jest.fn(() => "test-token"),
-  login: jest.fn(),
-  register: jest.fn(),
-  fetchMatches: jest.fn(),
-  createBookmark: jest.fn(),
-}));
+jest.mock("@/lib/api", () => {
+  const { mockAuthApi } = jest.requireActual("../test-utils/mock-auth");
+  return mockAuthApi({ login: jest.fn(), register: jest.fn(), fetchMatches: jest.fn(), createBookmark: jest.fn(), fetchFields: jest.fn() });
+});
 
 const mockFetchMatches = fetchMatches as jest.Mock;
 const mockCreateBookmark = createBookmark as jest.Mock;
+const mockFetchFields = fetchFields as jest.Mock;
 
 function match(overrides: Partial<Match>): Match {
   return {
@@ -63,6 +55,7 @@ const MATCHES: Match[] = [
 describe("DashboardPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetchFields.mockResolvedValue({ default: "astronomy", profiles: ["astronomy", "biology", "physics"] });
   });
 
   it("renders match cards sorted by score", async () => {

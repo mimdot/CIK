@@ -16,28 +16,12 @@ import {
   runDriftCheck,
 } from "@/lib/api";
 import type { AdminMetrics, InviteList } from "@/types";
+// shared auth mock loaded via jest.requireActual inside the factory
 
-jest.mock("@/lib/api", () => ({
-  ApiError: class ApiError extends Error {
-    status: number;
-    constructor(message: string, status: number) {
-      super(message);
-      this.status = status;
-    }
-  },
-  getToken: jest.fn(() => "test-token"),
-  fetchAdminMetrics: jest.fn(),
-  fetchInvites: jest.fn(),
-  createInvite: jest.fn(),
-  fetchSourceHealth: jest.fn(),
-  fetchFeedbackIntel: jest.fn(),
-  fetchDeadLetters: jest.fn(),
-  fetchWorkerHeartbeat: jest.fn(),
-  fetchAnomalies: jest.fn(),
-  runDriftCheck: jest.fn(),
-  runAnomalyDetect: jest.fn(),
-  retryDeadLetter: jest.fn(),
-}));
+jest.mock("@/lib/api", () => {
+  const { mockAuthApi } = jest.requireActual("../test-utils/mock-auth");
+  return mockAuthApi({ fetchAdminMetrics: jest.fn(), fetchInvites: jest.fn(), createInvite: jest.fn(), fetchSourceHealth: jest.fn(), fetchFeedbackIntel: jest.fn(), fetchDeadLetters: jest.fn(), fetchWorkerHeartbeat: jest.fn(), fetchAnomalies: jest.fn(), runDriftCheck: jest.fn(), runAnomalyDetect: jest.fn(), retryDeadLetter: jest.fn() });
+});
 
 const mockFetchAdminMetrics = fetchAdminMetrics as jest.Mock;
 const mockFetchInvites = fetchInvites as jest.Mock;

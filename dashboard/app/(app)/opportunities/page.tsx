@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -12,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ApiError, fetchOpportunities } from "@/lib/api";
+import { useRunJob } from "@/hooks/useRunJob";
+import { ApiError, fetchFields, fetchOpportunities, triggerPipeline } from "@/lib/api";
 import type { Opportunity } from "@/types";
 
 const PAGE_SIZE = 12;
@@ -24,10 +33,16 @@ export default function OpportunitiesPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [country, setCountry] = useState("");
   const [source, setSource] = useState("");
   const [type, setType] = useState("");
+
+  // Field profile to crawl/score under when running the engine (empty = server
+  // default). Populated from GET /api/fields so the list is data, not code.
+  const [field, setField] = useState("");
+  const [fieldProfiles, setFieldProfiles] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +75,35 @@ export default function OpportunitiesPage() {
     setPage(1);
   }, [country, source, type]);
 
+  // Field profiles for the run-scope dropdown.
+  useEffect(() => {
+    fetchFields()
+      .then((data) => setFieldProfiles(data.profiles))
+      .catch(() => setFieldProfiles([]));
+  }, []);
+
+  // Run-engine state (Phase 1: easy to run the engine from the UI).
+  function onRunCompleted(records: number | null) {
+    setNotice(
+      `Engine run finished — ${records ?? 0} records${field ? ` (${field})` : ""}. Data refreshed.`,
+    );
+    void load();
+  }
+  const run = useRunJob(onRunCompleted);
+
+  function handleRunEngine() {
+    setNotice(null);
+    // Scope the crawl to the active country filter (worldwide when unset) and
+    // the chosen field profile (server default when unset).
+    const scope = country.trim();
+    void run.start(() =>
+      triggerPipeline({
+        country: scope || undefined,
+        field: field || undefined,
+      }),
+    );
+  }
+
   const countries = useMemo(
     () => [...new Set(items.map((o) => o.country).filter(Boolean) as string[])].sort(),
     [items],
@@ -75,11 +119,34 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-2xl font-semibold">Opportunities</h1>
-        <p className="text-sm text-muted-foreground">
-          {loading ? "Loading…" : `${total} open positions.`}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Opportunities</h1>
+          <p className="text-sm text-muted-foreground">
+            {loading ? "Loading…" : `${total} open positions.`}
+          </p>
+        </div>
+        <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="run-field">Field to crawl</Label>
+            <Select value={field} onValueChange={(v) => setField(v ?? "")}>
+              <SelectTrigger id="run-field" className="w-48">
+                <SelectValue placeholder="Server default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Server default</SelectItem>
+                {fieldProfiles.map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {f}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={() => void handleRunEngine()} disabled={run.busy}>
+            {run.busy ? "Running engine…" : "Run engine"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -96,12 +163,102 @@ export default function OpportunitiesPage() {
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {notice && <p className="text-sm text-emerald-600">{notice}</p>}
 
       {!loading && items.length === 0 && (
         <div className="rounded-md border p-8 text-center text-sm text-muted-foreground">
-          No opportunities found.
+          <p className="mb-3">No opportunities yet.</p>
+          <Button onClick={() => void handleRunEngine()} disabled={run.busy}>
+            {run.busy ? "Running engine…" : "Run the engine to discover positions"}
+          </Button>
         </div>
       )}
+
+      <Dialog
+        open={run.open}
+        onOpenChange={(open) => {
+          if (!open && run.status !== "starting" && !run.busy) run.close();
+        }}
+      >
+        <DialogContent showCloseButton={run.status !== "starting" && !run.busy}>
+          <DialogHeader>
+            <DialogTitle>Engine run</DialogTitle>
+            <DialogDescription>
+              {run.status === "starting" && "Starting the data engine…"}
+              {run.status === "running" && "Aggregating opportunities from sources…"}
+              {run.status === "completed" && "Run completed."}
+              {run.status === "failed" && "Run failed."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Status</span>
+              <Badge
+                variant={
+                  run.status === "completed"
+                    ? "secondary"
+                    : run.status === "failed"
+                      ? "destructive"
+                      : "outline"
+                }
+                data-testid="run-status"
+              >
+                {run.status ?? "idle"}
+              </Badge>
+            </div>
+            {run.records != null && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Records found</span>
+                <span className="tabular-nums" data-testid="run-records">
+                  {run.records}
+                </span>
+              </div>
+            )}
+            {run.progress && run.progress.total > 0 && (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Sources</span>
+                  <span className="tabular-nums" data-testid="run-progress-count">
+                    {run.progress.completed} / {run.progress.total}
+                  </span>
+                </div>
+                <ul className="max-h-40 overflow-y-auto rounded-md border p-2 text-xs">
+                  {run.progress.sources.map((s) => (
+                    <li
+                      key={s.source}
+                      className="flex items-center justify-between gap-2 py-0.5"
+                    >
+                      <span className="truncate">{s.source}</span>
+                      <span
+                        className={
+                          s.status === "error"
+                            ? "text-destructive"
+                            : "text-emerald-600"
+                        }
+                      >
+                        {s.status === "error" ? "error" : `${s.records}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {run.error && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-destructive">
+                {run.error}
+              </p>
+            )}
+            <p className="text-muted-foreground">
+              This can take a minute or two while sources are polled.
+            </p>
+          </div>
+          <DialogFooter showCloseButton={run.status !== "starting" && !run.busy}>
+            {run.status === "completed" && (
+              <Button onClick={() => run.close()}>Done</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {items.map((o) => (
@@ -160,11 +317,12 @@ function FilterInput({
   onChange: (v: string) => void;
   options: string[];
 }) {
+  const id = `filter-${label.toLowerCase()}`;
   return (
     <div className="flex flex-col gap-1.5">
-      <Label>{label}</Label>
+      <Label htmlFor={id}>{label}</Label>
       <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
-        <SelectTrigger className="w-full">
+        <SelectTrigger id={id} className="w-full">
           <SelectValue placeholder={`All ${label.toLowerCase()}s`} />
         </SelectTrigger>
         <SelectContent>

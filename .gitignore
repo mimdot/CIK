@@ -52,3 +52,11 @@ uploads/
 
 # Agent/tooling workspaces
 .opencode/
+
+# Tauri: PyInstaller sidecar binary + generated files (rebuilt by `tauri build`)
+dashboard/src-tauri/sidecar/api/cik-api
+dashboard/src-tauri/sidecar/api/cik-api.exe
+dashboard/src-tauri/sidecar/api/*-x86_64-*
+dashboard/src-tauri/sidecar/api/*-apple-*
+dashboard/src-tauri/sidecar/api/*-pc-windows-*
+dashboard/src-tauri/gen/

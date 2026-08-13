@@ -102,15 +102,30 @@ export interface OpportunityFilters {
   country?: string;
   source?: string;
   type?: string;
+  q?: string;
   page?: number;
   limit?: number;
 }
 
+export interface SourceProgress {
+  source: string;
+  status: "done" | "error" | string;
+  records: number;
+  duration?: number;
+}
+
+export interface RunProgress {
+  total: number;
+  completed: number;
+  sources: SourceProgress[];
+}
+
 export interface PipelineStatus {
   run_id: string;
-  status: "running" | "completed" | "failed";
+  status: "running" | "queued" | "completed" | "failed" | "cancelled";
   records?: number;
   error?: string;
+  progress?: RunProgress | null;
 }
 
 export interface Health {

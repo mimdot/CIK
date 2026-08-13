@@ -2,26 +2,17 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ProfilePage from "@/app/(app)/profile/page";
 import { ToastProvider } from "@/components/ui/toast";
-import { ApiError, buildProfile, fetchProfile, updateProfile } from "@/lib/api";
+import { ApiError, buildProfile, extractCv, fetchProfile, updateProfile } from "@/lib/api";
 import type { UserProfile } from "@/types";
+// shared auth mock loaded via jest.requireActual inside the factory
 
-jest.mock("@/lib/api", () => ({
-  ApiError: class ApiError extends Error {
-    status: number;
-    constructor(message: string, status: number) {
-      super(message);
-      this.status = status;
-    }
-  },
-  getToken: jest.fn(() => "test-token"),
-  login: jest.fn(),
-  register: jest.fn(),
-  buildProfile: jest.fn(),
-  fetchProfile: jest.fn(),
-  updateProfile: jest.fn(),
-}));
+jest.mock("@/lib/api", () => {
+  const { mockAuthApi } = jest.requireActual("../test-utils/mock-auth");
+  return mockAuthApi({ login: jest.fn(), register: jest.fn(), buildProfile: jest.fn(), extractCv: jest.fn(), fetchProfile: jest.fn(), updateProfile: jest.fn() });
+});
 
 const mockBuildProfile = buildProfile as jest.Mock;
+const mockExtractCv = extractCv as jest.Mock;
 const mockFetchProfile = fetchProfile as jest.Mock;
 const mockUpdateProfile = updateProfile as jest.Mock;
 
@@ -59,6 +50,27 @@ describe("ProfilePage", () => {
     expect(
       screen.getByRole("button", { name: "Re-build from CV" }),
     ).toBeInTheDocument();
+  });
+
+  it("uploads a CV file and fills the text area with extracted text (2B)", async () => {
+    mockExtractCv.mockResolvedValue({
+      filename: "cv.txt",
+      chars: 37,
+      raw_text: "Extracted CV: astronomer, ISM, LOFAR.",
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    const input = await screen.findByLabelText("Upload CV file");
+    const file = new File(["binary-bytes"], "cv.txt", { type: "text/plain" });
+    await user.upload(input, file);
+
+    await waitFor(() => expect(mockExtractCv).toHaveBeenCalledWith(file));
+    await waitFor(() =>
+      expect(screen.getByLabelText("CV / bio text")).toHaveValue(
+        "Extracted CV: astronomer, ISM, LOFAR.",
+      ),
+    );
   });
 
   it("builds a profile and displays the extracted result", async () => {

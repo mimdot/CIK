@@ -6,6 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -17,19 +25,53 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, fetchSupervisors } from "@/lib/api";
+import { useRunJob } from "@/hooks/useRunJob";
+import { ApiError, fetchSupervisors, fetchFields, triggerSupervisorSearch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ExternalLink, Mail, Search } from "lucide-react";
 import type { Supervisor } from "@/types";
 
 type SortKey = "fit_desc" | "fit_asc" | "name";
 
+// --- client-side export (no server round-trip; exports what's on screen) -------
+const EXPORT_COLUMNS = [
+  "name", "institution", "department", "country", "fit_score", "source",
+  "topics", "methods", "email", "orcid", "profile_url",
+] as const;
+
+function csvCell(value: unknown): string {
+  const s = value == null ? "" : Array.isArray(value) ? value.join("; ") : String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function supervisorsToCsv(rows: Supervisor[]): string {
+  const header = EXPORT_COLUMNS.join(",");
+  const body = rows.map((r) =>
+    EXPORT_COLUMNS.map((c) => csvCell((r as unknown as Record<string, unknown>)[c])).join(","),
+  );
+  return [header, ...body].join("\n");
+}
+
+function downloadFile(filename: string, content: string, mime: string): void {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function SupervisorsPage() {
   const [items, setItems] = useState<Supervisor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
   const [country, setCountry] = useState("");
   const [field, setField] = useState("");
+  const [fieldProfiles, setFieldProfiles] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("fit_desc");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -40,9 +82,11 @@ export default function SupervisorsPage() {
     try {
       const data = await fetchSupervisors(country || undefined, field || undefined);
       setItems(data.items);
+      setTotalCount(data.total ?? data.items.length);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load supervisors");
       setItems([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
@@ -52,6 +96,56 @@ export default function SupervisorsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // Load field profiles for the dropdown
+  useEffect(() => {
+    fetchFields()
+      .then((data) => setFieldProfiles(data.profiles))
+      .catch(() => setFieldProfiles([]));
+  }, []);
+
+  // Online search (supervisor sync) state — mirrors the positions Run engine.
+  function onRunCompleted() {
+    void load();
+  }
+  const run = useRunJob(onRunCompleted);
+  const [formOpen, setFormOpen] = useState(false);
+  const [runCountry, setRunCountry] = useState("");
+  const [runField, setRunField] = useState("");
+
+  function openRunDialog() {
+    setRunCountry(country);
+    setRunField(field);
+    setFormOpen(true);
+  }
+
+  function startRun() {
+    // Multi-country: accept a comma-separated list. Send a bare string for a
+    // single country (back-compat) and an array for several — the API accepts
+    // either (SupervisorRunRequest.country: str | list[str]).
+    const raw = runCountry.trim() || country.trim();
+    const countries = raw.split(",").map((c) => c.trim()).filter(Boolean);
+    if (!countries.length) return;
+    setFormOpen(false);
+    void run.start(() =>
+      triggerSupervisorSearch({
+        country: countries.length === 1 ? countries[0] : countries,
+        field: runField || undefined,
+      }),
+    );
+  }
+
+  function exportSupervisors(format: "csv" | "json") {
+    if (!filtered.length) return;
+    const suffix = country ? `_${country.replace(/\s+/g, "_")}` : "";
+    if (format === "csv") {
+      downloadFile(`supervisors${suffix}.csv`, supervisorsToCsv(filtered),
+        "text/csv;charset=utf-8");
+    } else {
+      downloadFile(`supervisors${suffix}.json`,
+        JSON.stringify(filtered, null, 2), "application/json");
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -112,13 +206,20 @@ export default function SupervisorsPage() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="field">Field / topic</Label>
-          <Input
-            id="field"
-            value={field}
-            onChange={(e) => setField(e.target.value)}
-            placeholder="e.g. interstellar medium"
-          />
+          <Label htmlFor="field">Field profile</Label>
+          <Select value={field} onValueChange={(v) => setField(v ?? "")}>
+            <SelectTrigger id="field" className="w-full">
+              <SelectValue placeholder="Select field profile" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All fields</SelectItem>
+              {fieldProfiles.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {f}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -126,22 +227,165 @@ export default function SupervisorsPage() {
         <Button variant="outline" onClick={() => void load()}>
           Apply filters
         </Button>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <Label htmlFor="sort" className="shrink-0 text-sm text-muted-foreground">
-            Sort
-          </Label>
-          <Select value={sort} onValueChange={(v) => setSort((v ?? "fit_desc") as SortKey)}>
-            <SelectTrigger id="sort" className="w-full sm:w-56">
-              <SelectValue placeholder="Sort by fit" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="fit_desc">Fit (high → low)</SelectItem>
-              <SelectItem value="fit_asc">Fit (low → high)</SelectItem>
-              <SelectItem value="name">Name A→Z</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={openRunDialog} disabled={run.busy}>
+            {run.busy ? "Searching online…" : "Run online search"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => exportSupervisors("csv")}
+            disabled={!filtered.length}
+          >
+            Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => exportSupervisors("json")}
+            disabled={!filtered.length}
+          >
+            Export JSON
+          </Button>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <Label htmlFor="sort" className="shrink-0 text-sm text-muted-foreground">
+              Sort
+            </Label>
+            <Select value={sort} onValueChange={(v) => setSort((v ?? "fit_desc") as SortKey)}>
+              <SelectTrigger id="sort" className="w-full sm:w-56">
+                <SelectValue placeholder="Sort by fit" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fit_desc">Fit (high → low)</SelectItem>
+                <SelectItem value="fit_asc">Fit (low → high)</SelectItem>
+                <SelectItem value="name">Name A→Z</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
+
+      <Dialog open={formOpen} onOpenChange={(open) => setFormOpen(open)}>
+        <DialogContent showCloseButton={!run.busy}>
+          <DialogHeader>
+            <DialogTitle>Run online supervisor search</DialogTitle>
+            <DialogDescription>
+              Fetches new supervisor candidates from the literature sources
+              (OpenAlex / arXiv / ADS) and ranks them by fit to your profile.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="run-country">Country</Label>
+              <Input
+                id="run-country"
+                value={runCountry}
+                onChange={(e) => setRunCountry(e.target.value)}
+                placeholder="e.g. Germany, Netherlands"
+              />
+              <p className="text-xs text-muted-foreground">
+                One country, or several separated by commas.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="run-field">Field profile</Label>
+              <Select value={runField} onValueChange={(v) => setRunField(v ?? "")}>
+                <SelectTrigger id="run-field" className="w-full">
+                  <SelectValue placeholder="All fields" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All fields</SelectItem>
+                  {fieldProfiles.map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Astronomy &amp; physics rank best from NASA ADS when an{" "}
+              <code>ADS_API_TOKEN</code> is configured (free at{" "}
+              <a
+                href="https://ui.adsabs.harvard.edu/user/settings/token"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                ADS settings
+              </a>
+              ). Without a token the search automatically uses OpenAlex, which
+              covers every field and needs no token.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFormOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={startRun}
+              disabled={!(runCountry.trim() || country.trim())}
+            >
+              Start search
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={run.open}
+        onOpenChange={(open) => {
+          if (!open && run.status !== "starting" && !run.busy) run.close();
+        }}
+      >
+        <DialogContent showCloseButton={run.status !== "starting" && !run.busy}>
+          <DialogHeader>
+            <DialogTitle>Supervisor search</DialogTitle>
+            <DialogDescription>
+              {run.status === "starting" && "Starting the search…"}
+              {run.status === "running" && "Searching literature for candidates…"}
+              {run.status === "completed" && "Search completed."}
+              {run.status === "failed" && "Search failed."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Status</span>
+              <Badge
+                variant={
+                  run.status === "completed"
+                    ? "secondary"
+                    : run.status === "failed"
+                      ? "destructive"
+                      : "outline"
+                }
+                data-testid="run-status"
+              >
+                {run.status ?? "idle"}
+              </Badge>
+            </div>
+            {run.records != null && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Candidates found</span>
+                <span className="tabular-nums" data-testid="run-records">
+                  {run.records}
+                </span>
+              </div>
+            )}
+            {run.error && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-destructive">
+                {run.error}
+              </p>
+            )}
+            <p className="text-muted-foreground">
+              This can take a few minutes while sources are polled.
+            </p>
+          </div>
+          <DialogFooter showCloseButton={run.status !== "starting" && !run.busy}>
+            {run.status === "completed" && (
+              <Button onClick={() => run.close()}>Done</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -168,6 +412,14 @@ export default function SupervisorsPage() {
             ? "No supervisors found. Adjust the country / field filters."
             : "No supervisors match your search."}
         </div>
+      )}
+
+      {!loading && (
+        <p className="text-sm text-muted-foreground">
+          Showing {filtered.length} of {totalCount} supervisors
+          {country && ` in ${country}`}
+          {field && ` (field: ${field})`}
+        </p>
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

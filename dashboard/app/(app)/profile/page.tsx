@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ChangeEvent } from "react";
 import AuthGate from "@/components/AuthGate";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
-import { ApiError, buildProfile, fetchProfile, updateProfile } from "@/lib/api";
+import { ApiError, buildProfile, extractCv, fetchProfile, updateProfile } from "@/lib/api";
 import type { UserProfile } from "@/types";
 
 const EXPERIENCE_LEVELS = [
@@ -51,7 +51,7 @@ export default function ProfilePage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"build" | "save" | "load" | null>(null);
+  const [busy, setBusy] = useState<"build" | "save" | "load" | "upload" | null>(null);
   const { toast } = useToast();
 
   const load = useCallback(async () => {
@@ -75,6 +75,27 @@ export default function ProfilePage() {
 
   function revalidate(p: UserProfile) {
     setFieldErrors(validateProfile(p));
+  }
+
+  async function handleUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    setError(null);
+    setBusy("upload");
+    try {
+      const res = await extractCv(file);
+      setRawText(res.raw_text);
+      toast(`Extracted ${res.chars} characters from ${res.filename}`, {
+        variant: "success",
+      });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Could not read the file";
+      setError(msg);
+      toast("Could not read the file", { description: msg, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function handleBuild() {
@@ -148,8 +169,8 @@ export default function ProfilePage() {
         <div>
           <h1 className="text-2xl font-semibold">Profile builder</h1>
           <p className="text-sm text-muted-foreground">
-            Paste your CV or a short bio. We extract a structured profile with an
-            LLM, then you can adjust it before saving.
+            Upload your CV (PDF, DOCX or TXT) or paste a short bio. We extract a
+            structured profile with an LLM, then you can adjust it before saving.
           </p>
         </div>
 
@@ -162,7 +183,23 @@ export default function ProfilePage() {
             onChange={(e) => setRawText(e.target.value)}
             placeholder={"Paste your CV here…\n\ne.g. I am a PhD student in astronomy, working on interstellar medium with radio interferometry (LOFAR). I use Python and am interested in dust polarization."}
           />
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label
+              htmlFor="cv-file"
+              className={buttonVariants({ variant: "outline" })}
+              data-disabled={busy !== null ? "" : undefined}
+            >
+              {busy === "upload" ? "Reading file…" : "Upload CV (PDF, DOCX, TXT)"}
+            </label>
+            <input
+              id="cv-file"
+              type="file"
+              accept=".pdf,.docx,.txt,.md,text/plain,application/pdf"
+              className="sr-only"
+              aria-label="Upload CV file"
+              disabled={busy !== null}
+              onChange={handleUpload}
+            />
             <Button onClick={handleBuild} disabled={busy !== null}>
               {busy === "build" ? "Building…" : "Re-build from CV"}
             </Button>
@@ -170,6 +207,10 @@ export default function ProfilePage() {
               Reload profile
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Files are parsed locally on the server — never sent to a third party
+            or stored. Review and edit the extracted text before building.
+          </p>
         </div>
 
         {error && (

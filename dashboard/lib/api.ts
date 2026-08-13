@@ -28,7 +28,17 @@ import type {
   WorkerHeartbeat,
 } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Detect Tauri environment for offline mode
+function isTauri(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+}
+
+// In Tauri offline mode, the FastAPI sidecar runs on localhost:8000
+// In web mode, use the configured API URL or default to localhost:8000
+const API_BASE = isTauri()
+  ? "http://localhost:8000"
+  : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000");
 
 const TOKEN_KEY = "cik_token";
 
@@ -114,10 +124,29 @@ async function request<T>(
     data = text;
   }
   if (!res.ok) {
-    const detail =
-      (data as { detail?: string })?.detail ??
-      (typeof data === "string" ? data : `Request failed (${res.status})`);
-    throw new ApiError(String(detail), res.status);
+    // FastAPI validation errors return detail as an array of {loc, msg, ...}
+    // objects; String()-ing that array yields "[object Object]". Normalize to
+    // a human-readable message whether detail is a string, a list, or absent.
+    const rawDetail = (data as { detail?: unknown })?.detail;
+    let message: string;
+    if (typeof rawDetail === "string") {
+      message = rawDetail;
+    } else if (Array.isArray(rawDetail)) {
+      message = rawDetail
+        .map((entry) => {
+          if (entry && typeof entry === "object" && "msg" in entry) {
+            return String((entry as { msg: unknown }).msg);
+          }
+          return String(entry);
+        })
+        .filter(Boolean)
+        .join("; ");
+    } else if (typeof data === "string") {
+      message = data;
+    } else {
+      message = `Request failed (${res.status})`;
+    }
+    throw new ApiError(message || `Request failed (${res.status})`, res.status);
   }
   return data as T;
 }
@@ -139,14 +168,6 @@ export function fetchFields(): Promise<{
 }
 
 // --- auth ---------------------------------------------------------------------
-export async function register(email: string, password: string): Promise<User> {
-  return request<User>(
-    "/api/auth/register",
-    { method: "POST", body: JSON.stringify({ email, password }) },
-    false,
-  );
-}
-
 export async function login(email: string, password: string): Promise<string> {
   const data = await request<TokenResponse>(
     "/api/auth/login",
@@ -173,6 +194,25 @@ export async function buildProfile(rawText: string): Promise<UserProfile> {
   });
 }
 
+// Upload a CV file (PDF/DOCX/TXT) for local, server-side text extraction.
+// Sent as base64 JSON (no multipart dep); the file never leaves the backend
+// and is not stored. Returns the extracted text for the user to review/edit.
+export async function extractCv(
+  file: File,
+): Promise<{ filename: string; chars: number; raw_text: string }> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const CHUNK = 0x8000; // avoid arg-count limits on fromCharCode
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  const content_b64 = btoa(binary);
+  return request("/api/profile/extract-cv", {
+    method: "POST",
+    body: JSON.stringify({ filename: file.name, content_b64 }),
+  });
+}
+
 export async function updateProfile(
   patch: Partial<UserProfile>,
 ): Promise<UserProfile> {
@@ -186,10 +226,12 @@ export async function updateProfile(
 export function fetchMatches(
   minScore?: number,
   limit = 50,
+  field?: string,
 ): Promise<Paginated<Opportunity & { match_score?: number; match_explanation?: string }>> {
   const params = new URLSearchParams();
   if (minScore !== undefined) params.set("min_score", String(minScore));
   params.set("limit", String(limit));
+  if (field) params.set("field", field);
   return request<Paginated<Opportunity>>(`/api/matches?${params.toString()}`);
 }
 
@@ -254,15 +296,32 @@ export function fetchOpportunity(id: number): Promise<Opportunity> {
 export function fetchSupervisors(
   country?: string,
   field?: string,
+  q?: string,
 ): Promise<Paginated<Supervisor>> {
   const params = new URLSearchParams();
   if (country) params.set("country", country);
   if (field) params.set("field", field);
-  return request(`/api/supervisors?${params.toString()}`, {}, false);
+  if (q) params.set("q", q);
+  params.set("limit", "500");
+  return request<Paginated<Supervisor>>(`/api/supervisors?${params.toString()}`);
 }
 
 export function fetchSupervisor(id: number): Promise<Supervisor> {
   return request<Supervisor>(`/api/supervisors/${id}`, {}, false);
+}
+
+// --- supervisor search (desktop "run online search") ---------------------------
+export function triggerSupervisorSearch(
+  body: { country: string | string[]; field?: string },
+): Promise<{ status: string; run_id: string }> {
+  return request("/api/supervisors/run", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function jobStatus(runId: string): Promise<PipelineStatus> {
+  return request<PipelineStatus>(`/api/jobs/${encodeURIComponent(runId)}`);
 }
 
 // --- bookmarks ----------------------------------------------------------------
@@ -304,7 +363,7 @@ export function updateDigestPreference(
 
 // --- pipeline -----------------------------------------------------------------
 export function triggerPipeline(
-  body: { sources?: string[]; country?: string },
+  body: { sources?: string[]; country?: string; field?: string },
 ): Promise<{ status: string; run_id: string }> {
   return request("/api/pipeline/run", {
     method: "POST",

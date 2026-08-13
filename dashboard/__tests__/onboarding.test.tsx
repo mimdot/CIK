@@ -10,26 +10,16 @@ import {
   validateInvite,
 } from "@/lib/api";
 import type { UserProfile } from "@/types";
+// shared auth mock loaded via jest.requireActual inside the factory
 
 jest.mock("next/navigation", () => ({
   useRouter: jest.fn(),
 }));
 
-jest.mock("@/lib/api", () => ({
-  ApiError: class ApiError extends Error {
-    status: number;
-    constructor(message: string, status: number) {
-      super(message);
-      this.status = status;
-    }
-  },
-  getToken: jest.fn(() => "test-token"),
-  fetchProfile: jest.fn(),
-  fetchFields: jest.fn(),
-  buildProfile: jest.fn(),
-  updateProfile: jest.fn(),
-  validateInvite: jest.fn(),
-}));
+jest.mock("@/lib/api", () => {
+  const { mockAuthApi } = jest.requireActual("../test-utils/mock-auth");
+  return mockAuthApi({ fetchProfile: jest.fn(), fetchFields: jest.fn(), buildProfile: jest.fn(), updateProfile: jest.fn(), validateInvite: jest.fn() });
+});
 
 const mockFetchProfile = fetchProfile as jest.Mock;
 const mockFetchFields = fetchFields as jest.Mock;
