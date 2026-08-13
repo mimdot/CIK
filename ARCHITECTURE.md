@@ -91,7 +91,7 @@ subprocess-per-request, no direct Python import from the UI.
 
 ```
 sources.SOURCES (enabled)              ← config.yaml sources_enabled / --source
-   → fn(cfg, http)  [SEQUENTIAL loop]  ← core.http.Http (proxy, robots, retries)
+   → fn(cfg, http)  [CONCURRENT pool]  ← core.http.Http (proxy, robots, retries)
    → make_record
    → filter_records   (type gate → relevance → expiry → region)
    → apply_freshness  (+ .seen_positions.json state, NEW detection)
@@ -110,9 +110,18 @@ The **same** `pipeline.run.run()` is invoked two ways:
    invalidate caches. Progress is polled via `GET /api/pipeline/status` /
    `GET /api/jobs/{id}` (coarse `running`/`completed`/`failed` + final count).
 
-So the API path runs the crawl **off the request thread** (UI never blocks), but
-the crawl itself is **sequential across sources** and reports no per-source
-progress — see `ISSUES.md` Phase 1.
+So the API path runs the crawl **off the request thread** (UI never blocks), and
+since the 2026-08-13 pass the crawl itself is concurrent (`ThreadPoolExecutor`,
+`CIK_SOURCE_CONCURRENCY`, default 6) and streams per-source progress events.
+
+### The source layer is NOT field-aware (the core defect)
+
+`fetch_sources` decides what to crawl from **`cfg.sources_enabled`** — a single
+global dict in `config.yaml`, identical for every field. `apply_field_profile()`
+(`core/config.py:720`) overlays a profile's taxonomy, weights and supervisor
+routing, but **never touches `sources_enabled`**. So selecting *chemistry* still
+crawls the AAS Job Register, ESO and ESA, and still asks EURAXESS for its
+astronomy facets. See §6 for the full inventory.
 
 ### Supervisor finder (independent of the crawl)
 `--find-supervisors` (CLI) and `POST /api/supervisors/run` (API →
@@ -143,5 +152,89 @@ the same scorer and emails the top matches.
   curl_cffi, and the Playwright browser through it and enforces robots + polite
   delay; there is an SSRF guard blocking private/loopback fetches. Supervisor
   ADS/arXiv/OpenAlex/ORCID calls all go through this same `Http`.
+
+---
+
+## 5. Dead code, silent failure, and thread safety
+
+- **Dead / unwired (intentional):** `sources/stubs.py` (`iau`, `astrobetter` —
+  registered but disabled), `toolkit/` (emails/professors/scholarships, CLI-only,
+  no API route), the bulk re-exports in `phd_aggregator.py` (a test pins them).
+- **Duplication:** none material. One module per source; no competing
+  fetcher/parser/filter implementations. (The brief's "P0 competing versions"
+  does not exist on disk.)
+- **Silent excepts:** 140 `except Exception` outside tests, **0 bare `except:`**.
+  27 of them end in a bare `pass`. Most are deliberate graceful degradation
+  (one bad card must not sink a crawl). The ones that genuinely hide bugs are
+  listed individually in `ISSUES.md` — notably the DB-seeding swallow in
+  `core/tasks.py:145`, which is the prime suspect for the count mismatch.
+- **UI thread:** no crawling happens on it. Every surface talks HTTP to the
+  backend; the crawl runs in an rq worker or an in-process daemon thread. The
+  dashboard polls `GET /api/jobs/{id}`. The real UX defect is not blocking but
+  **absence of cooperative cancellation** — `cancel_job` only cancels jobs that
+  have not *started* (`core/tasks.py:505`); a running crawl ignores it.
+
+---
+
+## 6. Where the engine assumes astronomy (full inventory)
+
+Legend: **[BLOCKER]** makes non-astronomy searches wrong · **[TAXONOMY]** is a
+default that a field profile already overrides · **[COPY]** user-visible text.
+
+### 6.1 Source layer — the real problem
+
+| Where | What is hardcoded | Effect on a non-astronomy search |
+|---|---|---|
+| `config.yaml:52-66` `sources_enabled` | One global on/off list; `aas`, `eso`, `esa` always on | **[BLOCKER]** astronomy-only boards are crawled for every field |
+| `core/config.py:720` `apply_field_profile` | Never writes `sources_enabled` | **[BLOCKER]** a profile cannot restrict its own sources |
+| `sources/euraxess.py:32-39` | `ASTRO = [job_research_field:34/35/37]` facets | **[BLOCKER]** EURAXESS is asked for astronomy offers regardless of field |
+| `sources/findaphd.py:28-31` | `LISTING_URLS = /phds/astrophysics/, /phds/astronomy/` | **[BLOCKER]** FindAPhD only ever returns astronomy projects |
+| `sources/academicjobsonline.py:21-24` | `CATEGORY_URLS = physics/Astronomy, physics/Astrophysics` | **[BLOCKER]** AJO only ever returns astronomy posts |
+| `sources/linkedin.py:24-25` | `LINKEDIN_KEYWORDS = ["PhD astronomy", …]` | **[BLOCKER]** LinkedIn queried with astronomy keywords only |
+| `sources/aas.py`, `eso.py` | AAS Job Register RSS, ESO recruitment RSS | astronomy-only orgs; correct *for astronomy*, noise elsewhere |
+| `sources/esa.py:36` | `ESA_QUERIES = ["PhD", "science"]` | field-neutral but space-sector only |
+| `sources/uni_departments.py:23-331` | `UNIVERSITY_DEPARTMENTS` — 144 astronomy dept URLs | fallback only; profiles with a `departments:` block are respected |
+| `sources/stubs.py` | `iau`, `astrobetter` | disabled; astronomy-only by nature |
+| `seeds.txt` | hand-picked seed URLs | currently empty of real seeds (21 lines, all comments) |
+
+**Field-driven already** (they query `cfg.search_terms`, so they follow the
+profile today): `nature_careers` (6 terms), `jobs_ac_uk` (4), `jrecin` (3),
+`academictransfer` (2).
+
+### 6.2 Taxonomy / scoring defaults
+
+| Where | What | Severity |
+|---|---|---|
+| `core/config.py:102-244` | `CORE_ANCHORS` (135 astro terms), `CONTEXT_TERMS`, `SEARCH_TERMS` built-in defaults | **[TAXONOMY]** — every `fields/*.yaml` replaces them |
+| `core/config.py:355` | `FIELD_PROFILE = "astronomy"` default profile | **[TAXONOMY]** — `config.yaml` currently overrides to `computer_science` |
+| `core/config.py:439-441` | `SUPERVISOR_ADS_DB = "astronomy"`, `SUPERVISOR_ARXIV_CAT = "astro-ph*"` | **[BLOCKER for new fields]** — a profile that omits `supervisor_ads_db` routes to NASA ADS when a token is set (`supervisors/chain.py:297`) |
+| `selftest.py` | Astronomy-only offline fixtures | test-only; needs a non-astro counterpart |
+
+### 6.3 Coverage asymmetry between profiles
+
+Astronomy is far deeper than every other shipped field — this is the "raise the
+others" work, not a bug:
+
+| profile | departments | subfields | core anchors |
+|---|---|---|---|
+| astronomy | **150** | 7 | **135** |
+| engineering | 25 | 8 | 169 |
+| economics | 24 | 8 | 71 |
+| mathematics / geophysics_hydro | 22 | 8 / 4 | 109 / 49 |
+| computer_science / physics | 20 | 8 | 68 / 94 |
+| biology | 19 | 9 | 119 |
+| chemistry / geology | 18 | 8 | 78 / 125 |
+| condensed_matter | 15 | 4 | 51 |
+
+**Missing entirely:** medicine/health, psychology, social sciences, humanities,
+environmental science.
+
+### 6.4 User-visible copy
+
+| Where | Text |
+|---|---|
+| `dashboard/app/(public)/landing/page.tsx:29` | "physics, astronomy, and related fields" |
+| `dashboard/app/(public)/about/page.tsx:14` | "built and tuned for physics, astronomy…" |
+| `dashboard/app/(app)/profile/page.tsx:184`, `onboarding/page.tsx:289` | astronomy CV placeholder |
 </content>
 </invoke>
