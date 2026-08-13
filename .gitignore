@@ -8,9 +8,9 @@ __pycache__/
 venv/
 *.log
 emails/
-phd_positions_*.json
-phd_positions_*.csv
-phd_positions_*.html
+phd_positions*.json
+phd_positions*.csv
+phd_positions*.html
 
 # Secrets and personal data
 .env
