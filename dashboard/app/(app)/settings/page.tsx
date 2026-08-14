@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import AuthGate from "@/components/AuthGate";
+import { Badge } from "@/components/ui/badge";
+import { DonationPlaceholder } from "@/components/ComingSoon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,7 +20,9 @@ import {
   fetchFields,
   fetchMe,
   fetchPreferences,
+  fetchProfile,
   updateDigestPreference,
+  updateProfile,
 } from "@/lib/api";
 import type { User } from "@/types";
 
@@ -37,13 +41,16 @@ export default function SettingsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [fieldsData, meData, prefs] = await Promise.all([
+      const [fieldsData, meData, prefs, userProfile] = await Promise.all([
         fetchFields(),
         fetchMe().catch(() => null),
         fetchPreferences(),
+        // The field shown here IS the profile's field — not a second,
+        // competing setting that silently does nothing.
+        fetchProfile().catch(() => null),
       ]);
       setFields(fieldsData);
-      setProfile(fieldsData.default);
+      setProfile(userProfile?.domain || fieldsData.default);
       setMe(meData);
       setDigest(prefs.digest_enabled);
     } catch (e) {
@@ -57,6 +64,25 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  /** Save the field to the user's profile — the single place it lives. */
+  async function changeField(next: string) {
+    const previous = profile;
+    setProfile(next);
+    setSaving(true);
+    setError(null);
+    try {
+      await updateProfile({ domain: next });
+      toast(`Your field is now ${next}`, { variant: "success" });
+    } catch (e) {
+      setProfile(previous);
+      const msg = e instanceof ApiError ? e.message : "Could not save your field";
+      setError(msg);
+      toast("Could not save", { description: msg, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function toggleDigest() {
     if (saving) return;
@@ -87,8 +113,7 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Field profile and notification preferences. Digest preference is
-            stored on the server against your profile.
+            Your research field and notification preferences.
           </p>
         </div>
 
@@ -119,9 +144,11 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Field profile</CardTitle>
+            <CardTitle className="text-base">Your research field</CardTitle>
             <CardDescription>
-              Which research field drives matches and supervisor suggestions.
+              Decides which job boards are searched, which keywords are offered,
+              and which publication database finds your supervisors. Changing it
+              here changes it everywhere.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
@@ -131,7 +158,7 @@ export default function SettingsPage() {
               <>
                 <Select
                   value={profile}
-                  onValueChange={(v) => setProfile(v ?? fields.default)}
+                  onValueChange={(v) => void changeField(v ?? fields.default)}
                 >
                   <SelectTrigger className="w-full sm:w-72" aria-label="Field profile">
                     <SelectValue placeholder="Select a field" />
@@ -145,10 +172,9 @@ export default function SettingsPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Active profile:{" "}
-                  <span className="font-medium text-foreground">{profile}</span>. Pass
-                  this to the pipeline runner with{" "}
-                  <code className="rounded bg-muted px-1">--field</code>.
+                  {saving
+                    ? "Saving…"
+                    : "This is the same field shown on your Profile page."}
                 </p>
               </>
             ) : (
@@ -161,14 +187,18 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Notifications</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base">Notifications</CardTitle>
+              <Badge variant="outline">Coming soon</Badge>
+            </div>
             <CardDescription>
-              Weekly email digest of new matching positions.
+              A weekly email summarising new positions that match you. Not
+              switched on yet — your preference is remembered for when it is.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-center gap-3">
             <p className="text-sm text-muted-foreground">
-              Receive a weekly digest of new matching positions.
+              Email me a weekly digest once this is available.
             </p>
             <Button
               variant={digest ? "default" : "outline"}
@@ -176,10 +206,12 @@ export default function SettingsPage() {
               disabled={saving || loading}
               aria-pressed={digest}
             >
-              {saving ? "Saving…" : digest ? "Enabled" : "Disabled"}
+              {saving ? "Saving…" : digest ? "Yes, when ready" : "No thanks"}
             </Button>
           </CardContent>
         </Card>
+
+        <DonationPlaceholder />
       </div>
     </AuthGate>
   );

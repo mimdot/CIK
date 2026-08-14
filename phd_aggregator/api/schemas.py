@@ -97,6 +97,10 @@ class TokenResponse(BaseModel):
 class UserOut(BaseModel):
     user_id: int
     email: str
+    # Exposed so the dashboard can hide operator-only pages (Admin, API keys)
+    # from ordinary users. The backend already returns 403 on those routes;
+    # this stops them being advertised in the first place.
+    role: str = "user"
 
 
 # --- auth: password reset + email verification (Sprint 07, Track B2) ----------

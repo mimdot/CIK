@@ -86,6 +86,8 @@ export interface Fields {
 export interface User {
   user_id: number;
   email: string;
+  /** "admin" unlocks the operator-only pages (Admin, API keys). */
+  role?: string;
 }
 
 export interface TokenResponse {

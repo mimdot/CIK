@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DepartmentBrowser } from "@/components/DepartmentBrowser";
+import { TestimonialsPlaceholder } from "@/components/ComingSoon";
 import { FieldPicker } from "@/components/FieldPicker";
 import { RunFunnelSummary } from "@/components/RunFunnelSummary";
 import { useRunJob } from "@/hooks/useRunJob";
@@ -331,6 +332,7 @@ export default function OpportunitiesPage() {
               This can take a minute or two while sources are polled. You can
               cancel at any time and keep what has been found so far.
             </p>
+            {run.busy && <TestimonialsPlaceholder />}
           </div>
           <DialogFooter showCloseButton={run.status !== "starting" && !run.busy}>
             {run.busy && (

@@ -208,6 +208,45 @@ timing, and live-launch pass (Phase 8), README/CONTRIBUTING with the worked
 
 ---
 
+## D2. API keys & admin — the report you asked for (U3)
+
+You asked: *"I'm not sure why these are in my dashboard and if they are useless
+tell me to order delete them."* I checked every route before touching
+anything. **Nothing is vestigial. Both sections are backed by working code
+that is wired end to end.**
+
+### API keys — `/keys` → `/api/v1/apikeys`
+A complete developer-key system: create (with scopes and an optional expiry),
+list, revoke, rotate, and per-key daily usage counters. Keys authenticate the
+**public `/api/v1` API** with `Bearer` tokens, rate-limited at 60 req/min with
+an optional daily quota.
+
+**What it is for:** letting a *program* — not the dashboard — read your data.
+A script that pulls your matches into a spreadsheet, another app, a cron job.
+
+**What you lose if deleted:** third-party/scripted access to your own data.
+**Nothing in the dashboard itself uses these keys** (it authenticates with a
+cookie + CSRF), so removing them would not break the app for you.
+
+### Admin — `/admin` → `/api/admin/*`
+Operator tooling, already role-gated server-side (`get_admin_user`, 403 for
+non-admins): usage metrics, **source health with drift detection** (warns when
+a job board silently starts returning nothing — genuinely useful for a crawler),
+anomaly detection, dead-letter job inspection and retry, worker heartbeat, and
+LLM spend.
+
+**What you lose if deleted:** the ability to see *why* a source stopped
+working, and to retry failed jobs.
+
+### What I did (your decision: hide, don't delete)
+Both pages are now hidden from the navigation unless the signed-in user's role
+is `admin`. No code, route or capability was removed — as an admin you still
+see and use everything. To make yourself an admin:
+`python phd_aggregator.py --make-admin you@example.com`.
+
+The gap that made this necessary: `/api/auth/me` did not return the user's
+role, so the frontend had no way to know. It does now.
+
 ## E. Progress log
 
 | Step | Status | Commit | Notes |

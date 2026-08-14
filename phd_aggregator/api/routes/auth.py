@@ -213,7 +213,8 @@ def register(body: RegisterRequest, request: Request, response: Response,
     token, _ = _issue_token(EmailVerificationRepo(session), user.id)
     session.commit()
     _send_verification_email(email, token)
-    return UserOut(user_id=user.id, email=email)
+    return UserOut(user_id=user.id, email=email,
+                   role=getattr(user, "role", "user") or "user")
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -256,7 +257,8 @@ def refresh(request: Request, response: Response,
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)) -> UserOut:
-    return UserOut(user_id=user.id, email=user.email)
+    return UserOut(user_id=user.id, email=user.email,
+                   role=getattr(user, "role", "user") or "user")
 
 
 # ---------------------------------------------------------------------------

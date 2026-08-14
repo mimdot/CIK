@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { fetchMe } from "@/lib/api";
 import { Bookmark, KeyRound, LayoutDashboard, Settings, Shield, User, Users, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// `adminOnly` pages are operator tooling, not features an ordinary user needs.
+// The backend already answers 403 on those routes; hiding them stops the app
+// advertising things most people cannot use and should not have to think about.
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/profile", label: "Profile", icon: User },
@@ -12,12 +17,21 @@ const NAV_ITEMS = [
   { href: "/supervisors", label: "Supervisors", icon: Users },
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/keys", label: "API Keys", icon: KeyRound },
-  { href: "/admin", label: "Admin", icon: Shield },
+  { href: "/keys", label: "API Keys", icon: KeyRound, adminOnly: true },
+  { href: "/admin", label: "Admin", icon: Shield, adminOnly: true },
 ];
 
 export default function Nav() {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    fetchMe()
+      .then((me) => setIsAdmin(me.role === "admin"))
+      .catch(() => setIsAdmin(false));
+  }, []);
+
+  const items = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -32,7 +46,7 @@ export default function Nav() {
           aria-label="Main navigation"
           className="flex items-center gap-1 overflow-x-auto"
         >
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {items.map(({ href, label, icon: Icon }) => {
             const active =
               href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
@@ -47,8 +61,10 @@ export default function Nav() {
                 )}
               >
                 <Icon className="size-4" aria-hidden />
-                <span className="hidden sm:inline">{label}</span>
-                <span className="sm:hidden">{label}</span>
+                {/* One span: the two responsive variants rendered the SAME
+                    text, so the only effect was duplicating every nav label
+                    for screen readers. */}
+                <span>{label}</span>
               </Link>
             );
           })}

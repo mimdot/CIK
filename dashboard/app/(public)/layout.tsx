@@ -1,4 +1,5 @@
 import CookieBanner from "@/components/CookieBanner";
+import { SiteFooter } from "@/components/SiteFooter";
 import Link from "next/link";
 
 const PUBLIC_LINKS = [
@@ -43,9 +44,7 @@ export default function PublicLayout({
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
         {children}
       </main>
-      <footer className="border-t py-4 text-center text-xs text-muted-foreground">
-        Career Intelligence Kit · private beta · only functional cookies
-      </footer>
+      <SiteFooter />
       <CookieBanner />
     </div>
   );
