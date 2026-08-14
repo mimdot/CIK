@@ -209,7 +209,7 @@ export interface NameSuggestion {
 
 export interface SourceProgress {
   source: string;
-  status: "done" | "error" | string;
+  status: "done" | "error" | "skipped" | string;
   records: number;
   duration?: number;
 }
@@ -238,11 +238,24 @@ export interface RunFunnel {
   };
 }
 
+/** A position streamed from a source mid-run, before the final dedupe. */
+export interface LiveResult {
+  title: string | null;
+  institution: string | null;
+  country: string | null;
+  url: string | null;
+  source: string | null;
+  position_type: string | null;
+}
+
 export interface RunProgress {
   total: number;
   completed: number;
   sources: SourceProgress[];
   funnel?: RunFunnel | null;
+  /** Results so far, appended as each source finishes (Phase 6A). */
+  found?: LiveResult[];
+  found_count?: number;
 }
 
 export interface PipelineStatus {

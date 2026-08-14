@@ -700,3 +700,133 @@ describe("OpportunitiesPage — PhD and Postdoc are separate searches (2C)", () 
     ).toBeInTheDocument();
   });
 });
+
+describe("OpportunitiesPage — results stream in as they arrive (6A)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetchOpportunities.mockResolvedValue({ items: [], total: 0, pages: 0 });
+    mockFetchFields.mockResolvedValue({
+      default: "astronomy", profiles: ["astronomy"],
+      fields: [{ name: "astronomy", label: "Astronomy", description: "",
+                 subfields: [] }],
+    });
+    mockFetchField.mockResolvedValue({
+      name: "astronomy", label: "Astronomy", description: "", subfields: [],
+      core_anchors: [], search_terms: [],
+      sources: { dedicated: [], general: [], has_dedicated: true },
+    });
+    mockFetchFieldDepartments.mockResolvedValue({
+      field: "astronomy", total: 0, countries: [], departments: [],
+    });
+    mockFetchPositionTypes.mockResolvedValue({
+      types: [
+        { name: "phd", label: "PhD", description: "Doctoral.", enabled: true },
+        { name: "postdoc", label: "Postdoc", description: "Postdoc.",
+          enabled: true },
+      ],
+      default: ["phd", "postdoc"],
+    });
+  });
+
+  it("shows positions as each source answers, not only at the end", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "st" });
+    mockJobStatus.mockResolvedValue({
+      run_id: "st",
+      status: "running",
+      progress: {
+        total: 3,
+        completed: 2,
+        found_count: 2,
+        sources: [
+          { source: "eso", status: "done", records: 4 },
+          { source: "euraxess", status: "done", records: 6 },
+        ],
+        found: [
+          { title: "PhD in Radio Astronomy", institution: "MPIfR",
+            country: "Germany", url: "https://x/1", source: "eso",
+            position_type: "phd" },
+          { title: "PhD in Cosmology", institution: "Leiden Observatory",
+            country: "Netherlands", url: "https://x/2", source: "euraxess",
+            position_type: "phd" },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await user.click(
+      await screen.findByRole("button", { name: /Search for positions/ }),
+    );
+
+    // Results appear DURING the search — the stored list is still empty.
+    const panel = await screen.findByTestId("run-live-results");
+    expect(within(panel).getByText("PhD in Radio Astronomy")).toBeInTheDocument();
+    expect(within(panel).getByText("PhD in Cosmology")).toBeInTheDocument();
+    // ...with a running found-count beside them.
+    expect(screen.getByTestId("run-found-count")).toHaveTextContent("2");
+    expect(screen.getByTestId("run-progress-count")).toHaveTextContent("2 / 3");
+  });
+
+  it("links each streamed position to its advert", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "sl" });
+    mockJobStatus.mockResolvedValue({
+      run_id: "sl", status: "running",
+      progress: {
+        total: 1, completed: 1, found_count: 1,
+        sources: [{ source: "eso", status: "done", records: 1 }],
+        found: [{ title: "PhD in Radio Astronomy", institution: "MPIfR",
+                  country: "Germany", url: "https://example.test/job",
+                  source: "eso", position_type: "phd" }],
+      },
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await user.click(
+      await screen.findByRole("button", { name: /Search for positions/ }),
+    );
+
+    // The run dialog is modal, so the page behind it is aria-hidden — the
+    // streamed results have to be reachable INSIDE the dialog, which is where
+    // the user is looking while a search runs.
+    const panel = await screen.findByTestId("run-live-results");
+    expect(
+      within(panel).getByRole("link", { name: "PhD in Radio Astronomy" }),
+    ).toHaveAttribute("href", "https://example.test/job");
+  });
+
+  it("replaces the live list with the deduped one when the run finishes", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "sf" });
+    mockJobStatus.mockResolvedValue({
+      run_id: "sf",
+      status: "completed",
+      records: 1,
+      progress: {
+        total: 1, completed: 1, found_count: 2,
+        sources: [{ source: "eso", status: "done", records: 2 }],
+        found: [
+          { title: "Live one", institution: null, country: null,
+            url: "https://x/1", source: "eso", position_type: "phd" },
+          { title: "Live two", institution: null, country: null,
+            url: "https://x/2", source: "eso", position_type: "phd" },
+        ],
+      },
+    });
+    mockFetchOpportunities.mockResolvedValue({
+      items: [opportunity({ id: 9, title: "Final deduped result" })],
+      total: 1, pages: 1,
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await user.click(
+      await screen.findByRole("button", { name: /Search for positions/ }),
+    );
+
+    // Once finished, only the authoritative list remains — the live preview
+    // is not left on screen alongside it.
+    expect(
+      await screen.findByText("Final deduped result", {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByTestId("live-count")).not.toBeInTheDocument(),
+    );
+  });
+});

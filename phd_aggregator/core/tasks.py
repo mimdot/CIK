@@ -77,6 +77,18 @@ def _apply_progress(prog: dict, event: dict) -> None:
             "duration": event.get("duration"),
         })
         prog["completed"] = len(prog["sources"])
+        # 6A: results stream in as each source finishes, so the list fills up
+        # during the search instead of appearing all at once at the end.
+        found = event.get("found") or []
+        if found:
+            live = prog.setdefault("found", [])
+            seen = {item.get("url") for item in live if item.get("url")}
+            for item in found:
+                if item.get("url") and item["url"] in seen:
+                    continue
+                seen.add(item.get("url"))
+                live.append(item)
+            prog["found_count"] = len(live)
 
 
 def _inproc_progress_callback(job_id: str):

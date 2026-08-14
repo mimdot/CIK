@@ -126,6 +126,16 @@ export default function OpportunitiesPage() {
     );
   }
 
+  // Results streamed from the run (6A). Cleared once the authoritative,
+  // deduped list has been reloaded, so the two are never shown at once.
+  // While the run dialog is open it owns the live view (it is modal, so the
+  // page behind it is aria-hidden anyway). This section covers a run whose
+  // dialog has been dismissed, and never duplicates it.
+  const live = useMemo(
+    () => (run.busy && !run.open ? (run.progress?.found ?? []) : []),
+    [run.busy, run.open, run.progress],
+  );
+
   const countries = useMemo(
     () => [...new Set(items.map((o) => o.country).filter(Boolean) as string[])].sort(),
     [items],
@@ -221,7 +231,51 @@ export default function OpportunitiesPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
       {notice && <p className="text-sm text-emerald-600">{notice}</p>}
 
-      {!loading && items.length === 0 && (
+      {live.length > 0 && (
+        <section aria-labelledby="live-heading" className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <h2 id="live-heading" className="text-sm font-medium">
+              Arriving now
+            </h2>
+            <Badge variant="outline" data-testid="live-count">
+              {live.length} found
+            </Badge>
+            {run.busy && (
+              <span className="text-xs text-muted-foreground">
+                still searching…
+              </span>
+            )}
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {live.map((r, i) => (
+              <Card key={r.url ?? `${r.source}-${i}`} className="border-dashed">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm leading-snug">
+                    <a
+                      href={r.url ?? "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline"
+                    >
+                      {r.title}
+                    </a>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {[r.institution, r.country].filter(Boolean).join(" · ") ||
+                      r.source}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Live results, shown as each source answers. Duplicates across
+            sources are merged when the search finishes.
+          </p>
+        </section>
+      )}
+
+      {!loading && items.length === 0 && live.length === 0 && (
         <div className="rounded-md border p-8 text-center text-sm text-muted-foreground">
           <p className="mb-3">No opportunities yet.</p>
           <Button onClick={() => void handleRunEngine()} disabled={run.busy}>
@@ -309,6 +363,33 @@ export default function OpportunitiesPage() {
                 </ul>
               </div>
             )}
+            {(run.progress?.found?.length ?? 0) > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-muted-foreground">
+                  Positions found so far
+                </span>
+                <ul
+                  className="max-h-48 overflow-y-auto rounded-md border p-2 text-xs"
+                  data-testid="run-live-results"
+                >
+                  {run.progress?.found?.map((r, i) => (
+                    <li key={r.url ?? `${r.source}-${i}`} className="py-1">
+                      <a
+                        href={r.url ?? "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium hover:underline"
+                      >
+                        {r.title}
+                      </a>
+                      <span className="ml-1.5 text-muted-foreground">
+                        {[r.institution, r.country].filter(Boolean).join(" · ")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {run.progress?.funnel && (
               <RunFunnelSummary funnel={run.progress.funnel} />
             )}
@@ -316,6 +397,15 @@ export default function OpportunitiesPage() {
               <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-destructive">
                 {run.error}
               </p>
+            )}
+            {typeof run.progress?.found_count === "number" &&
+              run.progress.found_count > 0 && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Found so far</span>
+                <span className="tabular-nums font-medium" data-testid="run-found-count">
+                  {run.progress.found_count}
+                </span>
+              </div>
             )}
             {run.busy && (
               <div className="flex items-center justify-between gap-3">

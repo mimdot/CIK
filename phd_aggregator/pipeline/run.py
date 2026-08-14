@@ -29,6 +29,11 @@ from pipeline.freshness import apply_freshness, load_state, save_state
 
 # Sorting + persistence + NEW-entry detection
 # -----------------------------------------------------------------------------
+#: How many live results to stream per source. Enough to show the list filling
+#: up; not so many that a chatty source floods the progress payload.
+PREVIEW_PER_SOURCE = 8
+
+
 def sort_key(r: dict) -> tuple:
     """Relevance first (highest wins, ApplyKite-style), then soonest deadline
     (missing deadlines last), then posted date."""
@@ -480,6 +485,39 @@ def fetch_sources(cfg: Config, only_sources: Optional[list[str]] = None,
 
     cancelled = cancel if cancel is not None else NullToken()
 
+    def _preview(recs: list[dict], name: str) -> list[dict]:
+        """Which of this source's records would survive the field filter.
+
+        Streamed to the UI the moment a source finishes, so results appear as
+        they are found rather than all at once at the end.
+
+        The filter is per-record and deterministic, so running it here gives
+        the same keep/drop verdicts as the final pass. DEDUPE is the one thing
+        it cannot anticipate — that is cross-record — so a streamed item may
+        later merge with a duplicate from another source. The funnel already
+        accounts for exactly that ("N duplicate"), and the final list is
+        authoritative.
+
+        Runs on COPIES: filter_records mutates records in place, and the real
+        pass must see them untouched.
+        """
+        if on_progress is None or not recs:
+            return []
+        try:
+            import copy
+            kept = filter_records(copy.deepcopy(recs), cfg)
+            return [{
+                "title": r.get("title"),
+                "institution": r.get("institution"),
+                "country": r.get("country"),
+                "url": r.get("url"),
+                "source": r.get("source") or name,
+                "position_type": r.get("position_type"),
+            } for r in kept[:PREVIEW_PER_SOURCE]]
+        except Exception as exc:  # a preview must never break a crawl
+            log.debug("[%s] preview failed: %s", name, exc)
+            return []
+
     def _fetch_one(name, fn) -> list[dict]:
         # Cancellation is checked HERE, at the start of each source, rather
         # than by interrupting work in flight: a source already running
@@ -512,7 +550,11 @@ def fetch_sources(cfg: Config, only_sources: Optional[list[str]] = None,
         _record_source(name, raw_records=len(recs), error=False,
                        duration_s=time.time() - t0)
         _emit({"event": "source", "source": name, "status": "done",
-               "records": len(recs), "duration": round(time.time() - t0, 2)})
+               "records": len(recs), "duration": round(time.time() - t0, 2),
+               # 6A: the positions this source found that PASS the field
+               # filter, so the UI can show real results arriving instead of a
+               # bar that fills while the list stays empty.
+               "found": _preview(recs, name)})
         return recs
 
     workers = max(1, min(len(todo), _source_concurrency()))

@@ -235,3 +235,102 @@ def test_cancel_job_is_false_for_a_finished_job():
 def test_cancel_job_is_false_for_an_unknown_job():
     from core import tasks
     assert tasks.cancel_job("no-such-job") is False
+
+
+# --- results stream in as they arrive (Phase 6A) -----------------------------
+
+def test_each_source_streams_the_positions_it_found(slow_sources):
+    """The search must not look frozen: every source reports its keepers the
+    moment it finishes, so the list fills up during the run."""
+    cfg, names, calls = slow_sources
+    events: list[dict] = []
+    lock = threading.Lock()
+
+    def record(e):
+        with lock:
+            events.append(e)
+
+    run_mod.fetch_sources(cfg, on_progress=record)
+
+    source_events = [e for e in events if e.get("event") == "source"]
+    assert len(source_events) == len(names)
+    assert all("found" in e for e in source_events)
+    assert all(e["found"] for e in source_events), "each source found a keeper"
+    first = source_events[0]["found"][0]
+    assert first["title"] and first["url"] and first["source"]
+
+
+def test_streamed_results_are_already_field_filtered(slow_sources,
+                                                     monkeypatch):
+    """Streaming raw records would show positions that later vanish. The
+    preview runs the SAME per-record filter the final pass does."""
+    cfg, names, _ = slow_sources
+
+    def mixed(cfg_, http):
+        return [
+            {"title": "PhD in Radio Astronomy", "url": "https://x/keep",
+             "source": "mixed",
+             "short_description": "radio astronomy interstellar medium"},
+            {"title": "PhD in Medieval Poetry", "url": "https://x/drop",
+             "source": "mixed", "short_description": "textual criticism"},
+        ]
+
+    monkeypatch.setattr(run_mod, "SOURCES", {"mixed": mixed})
+    cfg.sources_enabled = {"mixed": True}
+    events: list[dict] = []
+    run_mod.fetch_sources(cfg, on_progress=events.append)
+
+    found = [e for e in events if e.get("event") == "source"][0]["found"]
+    assert [r["title"] for r in found] == ["PhD in Radio Astronomy"]
+
+
+def test_the_preview_does_not_disturb_the_real_records(slow_sources):
+    """filter_records mutates in place; the preview must work on copies or the
+    authoritative pass would see pre-chewed records."""
+    cfg, names, _ = slow_sources
+    raw = run_mod.fetch_sources(cfg, on_progress=lambda e: None)
+    assert raw, "sanity"
+    assert all("relevance_score" not in r for r in raw), \
+        "the preview leaked its mutations into the real record set"
+
+
+def test_no_progress_callback_means_no_preview_work(slow_sources):
+    """Nobody is watching — do not pay for filtering twice."""
+    cfg, names, _ = slow_sources
+    assert len(run_mod.fetch_sources(cfg)) == len(names)
+
+
+def test_the_job_layer_accumulates_and_dedupes_streamed_results():
+    from core.tasks import _apply_progress
+    prog: dict = {}
+    _apply_progress(prog, {"event": "start", "total": 2})
+    _apply_progress(prog, {"event": "source", "source": "a", "status": "done",
+                           "records": 2, "found": [
+                               {"title": "One", "url": "https://x/1"},
+                               {"title": "Two", "url": "https://x/2"}]})
+    _apply_progress(prog, {"event": "source", "source": "b", "status": "done",
+                           "records": 1, "found": [
+                               # same advert from another board
+                               {"title": "One", "url": "https://x/1"},
+                               {"title": "Three", "url": "https://x/3"}]})
+    assert prog["found_count"] == 3, "the cross-source duplicate merged"
+    assert [r["title"] for r in prog["found"]] == ["One", "Two", "Three"]
+
+
+def test_a_cancelled_run_keeps_what_it_streamed(slow_sources):
+    cfg, names, calls = slow_sources
+    token = cancel_mod.EventToken()
+    threading.Timer(0.12, token.cancel).start()
+    events: list[dict] = []
+    lock = threading.Lock()
+
+    def record(e):
+        with lock:
+            events.append(e)
+
+    run_mod.fetch_sources(cfg, on_progress=record, cancel=token)
+
+    streamed = [r for e in events if e.get("event") == "source"
+                for r in (e.get("found") or [])]
+    assert streamed, "partial results were streamed before the stop"
+    assert len(streamed) == len(calls)
