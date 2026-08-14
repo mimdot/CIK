@@ -64,15 +64,74 @@ threshold: 2.0
 # subfields:             # optional, for --find-supervisors --field <subfield>
 ```
 
-Then verify against real listings and tune only after looking at runs:
+### Point it at the right job boards
+
+This is the part that actually decides whether your field gets good results.
+Two things happen for free, without you writing anything:
+
+1. **Every general multi-discipline board is already searched for you** —
+   EURAXESS, jobs.ac.uk, FindAPhD, Nature Careers, AcademicTransfer,
+   AcademicJobsOnline, JREC-IN, LinkedIn, your seed URLs — using *your*
+   `search_terms`, not another field's.
+2. **Specialist boards stay out of your way.** A source declares the fields it
+   serves (`@register_source("aas", fields=("astronomy",))`), so a marine
+   biology run never touches the AAS Job Register, and an astronomy run never
+   wastes time on a chemistry-only board.
+
+You only need `source_options:` when a general board has a *subject filter*
+that has to be told which subject you are. Two boards do:
+
+```yaml
+source_options:
+  euraxess:
+    # EURAXESS ignores plain keyword search; the research-field FACET is the
+    # only thing that scopes it. IDs are listed in sources/euraxess.py
+    # (read off the live portal): Biological sciences 38, Chemistry 47,
+    # Physics 345, Computer science 78, Environmental science 195, ...
+    research_fields: [38]
+    adjacent_research_fields: [195]   # one extra PhD-scoped sweep, optional
+  academicjobsonline:
+    categories: [biology]             # -> /ajo/biology
+  findaphd:
+    disciplines: [biological-sciences]  # -> /phds/biological-sciences/
+  linkedin:
+    # Optional. Omit and phrases are built from search_terms crossed with the
+    # position types you hunt ("PhD marine biology", "Postdoc marine biology").
+    keywords: ["PhD marine biology"]
+```
+
+If your discipline has a **society board of its own** (an ACS Careers, an AAS
+Job Register), add a source for it — see Worked example 2 — declare your field
+on it, and claim it:
+
+```yaml
+sources:
+  - marine_bio_society     # must match a @register_source name
+```
+
+Unknown names are logged and ignored, never a crash. With no dedicated board
+at all, the run says so plainly and carries on with the general ones:
+
+```
+[sources] no dedicated sources for 'marine_biology' yet — using the general
+          multi-discipline boards with marine_biology's own keywords
+```
+
+### Verify it
 
 ```bash
 python phd_aggregator.py --field marine_biology --limit-per-source 30 --debug
 ```
 
-`--debug` logs every keep/drop decision. Or scaffold interactively with
-`python phd_aggregator.py --new-field marine_biology`. The dashboard's field
-dropdown picks it up automatically (it scans `fields/`).
+`--debug` logs every keep/drop decision; the run header prints exactly which
+boards were chosen and which were skipped as not relevant. Check both.
+
+Or scaffold interactively with `python phd_aggregator.py --new-field
+marine_biology`. The dashboard picks the profile up automatically (it reads
+`fields/` through `/api/fields`) — the field selector, the subfield
+multi-select and the keyword picker all populate themselves, and your
+`subfields[].keywords` become the pickable vocabulary. No frontend change is
+needed to ship a new field.
 
 ---
 

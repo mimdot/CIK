@@ -247,6 +247,67 @@ see and use everything. To make yourself an admin:
 The gap that made this necessary: `/api/auth/me` did not return the user's
 role, so the frontend had no way to know. It does now.
 
+## D3. Live verification (Phase 8) — measured, not asserted
+
+Backend + dashboard were **launched and driven for real** (uvicorn on :8100,
+Next on :3100), and two **real crawls ran through your V2Ray proxy**.
+
+### The headline: a chemistry search returns chemistry
+
+Live run, `--field chemistry --limit-per-source 4`, every record stamped
+`field: chemistry`:
+
+```
+[euraxess  ] Doctoral scholarship holder Medicinal Chemistry
+[euraxess  ] PhD (M/F) en cements chemistry
+[euraxess  ] PhD researcher photosensitizers and singlet oxygen-based chemistry
+[jobs_ac_uk] PhD Role 2026: Electrocatalysis of Sulfur Redox in the Solid State
+[linkedin  ] Doctoral Researcher / Project Researcher, Chemistry of Drug Development
+[linkedin  ] Development Chemist and Industrial PhD – is that you?
+[nature    ] Ohio Eminent Scholar in Structural Biology - Open Rank
+```
+
+**Sources actually queried (from the live logs):**
+
+| field | boards queried | astronomy boards |
+|---|---|---|
+| chemistry | academicjobsonline, academictransfer, euraxess, findaphd, jobs_ac_uk, jrecin, linkedin, nature_careers, seed_urls | **none** |
+| astronomy | the same 9 **+ aas, esa, eso** | all three, as before |
+
+Both runs logged `skipped (slow, opt-in): uni_departments`.
+
+### Other endpoints exercised live
+
+| Check | Result |
+|---|---|
+| `/api/auth/me` returns a role (nav gating) | `role='user'` ✅ |
+| `/api/fields/chemistry` | 8 subfields, **57 pickable keywords** ✅ |
+| `/api/fields/astronomy/departments?country=Germany` | 15 departments, instant ✅ |
+| `/api/profile/analyse-cv` **with no AI key** | field=chemistry, subfields organic/analytical/catalysis, country Switzerland, level phd ✅ |
+| `/api/profile/parser-support` | `{txt: true, pdf: true, docx: true}` ✅ |
+| Unknown field rejected | `422 Unknown field profile` ✅ |
+| Dashboard pages `/ /opportunities /supervisors /profile /settings` | all `200` ✅ |
+| GitHub + mailto links in the footer | present in the served HTML ✅ |
+
+### Timings
+
+| Measure | Median |
+|---|---|
+| CLI `--help` | 0.89 s |
+| CLI `--list-fields` | 1.10 s |
+| API `import api.app` (sidecar startup cost) | 1.34 s |
+| Offline `--self-test` | 1.57 s |
+| Real crawl, 12 sources concurrent, 4 records each | ~60 s |
+| Department sweep (astronomy), **excluded by default** | ~5 min of delays alone |
+
+### Not verified here
+
+The **Tauri desktop app** was not clicked through: this environment has no
+display, and its 330 MB PyInstaller sidecar is not built. Per your decision
+you are testing that surface. The parts I could check are done — the sidecar
+spec now bundles the CV parsers (it previously shipped with no PDF support at
+all), and the Rust shell compiled clean in the previous pass.
+
 ## E. Progress log
 
 | Step | Status | Commit | Notes |
@@ -262,8 +323,13 @@ role, so the frontend had no way to know. It does now.
 | **Step 6 — Cancel (S1)** | **done** | `78561ce` | `core/cancel.py`: cooperative token (threading.Event in-process, Redis key for rq). Measured: cancelled after 3 of 6 sources, **all partial records kept**, 0.46s vs 0.90s. Cancel button + elapsed timer + per-source "skipped". +19 tests. |
 | **Step 7 — slow source opt-in (S2)** | **done** | `f15f0bc` | Measured `uni_departments`: **150 pages ≈ 5 min of delays alone** for astronomy, ~20 pages elsewhere. Now OFF by default with the cost stated up front, `--include-slow-sources` / `include_slow`, plus `GET /api/fields/{name}/departments` + a browser UI so you can open departments yourself instantly. +10 tests. |
 
-Running totals: **pytest 838 passed / 1 skipped** (was 726), **jest 109 passed
-/ 15 suites** (was 97), eslint + tsc clean, `next build` OK, `--self-test`
-green, **all CI jobs green**.
+| **Step 8 — keyword picker + CV (Phase 3)** | **done** | `4a21168` | Root cause of "Could not extract profile": `extract_profile` needs an LLM key. New token-free `core/cv_extract.py` + the keyword picker as the primary path. No message tells the user to pip install any more; the sidecar spec now bundles the parsers. +30 tests. |
+| **Step 9 — supervisor quality (Phase 4)** | **done** | `656479e` | The 25 cap was `author_enrich = 25`; now 100 and settable. Off-field candidates gated out. Fit redesigned to explainable 0-100 — **calibrated: spread 70+, stdev 20-25, wrong-country ranks last**. The UI was also printing `fit*100 + "%"`, so a raw 43 showed as "Fit 4300%". +25 tests. |
+| **Step 10 — settings/admin/links (Phase 5, 6B-D)** | **done** | `b85eef1` | The settings field control was a **fake** (local state only); now writes your profile. CLI leak removed, digest marked coming-soon, admin/keys hidden behind a role, GitHub + email footer, testimonial/donation placeholders. +10 tests. |
+| **Phase 8 — live verification** | **done** | this commit | Backend + dashboard launched; two real crawls through the proxy. See §D3. |
+
+Running totals: **pytest 878 passed** (was 726), **jest 133 passed / 17
+suites** (was 97), eslint + tsc clean, `next build` OK, `--self-test` green,
+**all CI jobs green**.
 </content>
 </invoke>

@@ -162,11 +162,38 @@ computer_science, economics, engineering, geology, geophysics_hydro,
 condensed_matter, mathematics) plus a fully-commented `template.yaml`.
 
 - **CLI:** `--field <name>` (or `--new-field <name>` to scaffold one).
-- **Web/desktop:** pick the field from the dropdown; a **Run engine** with a
-  "Field to crawl" selector crawls and scores under that field live.
+- **Web/desktop:** pick your field at the top of **Opportunities**, then
+  narrow by subfield. The selection drives everything downstream.
+
+### The field decides which boards are searched
+
+Each source declares the disciplines it serves, so a run only visits boards
+that are relevant:
+
+| You select | Boards crawled |
+|---|---|
+| astronomy | the general boards **+ AAS Job Register, ESO, ESA** |
+| chemistry | the general boards; `aas`/`eso`/`esa` skipped, and logged as such |
+| physics / engineering | the general boards **+ ESA** |
+
+The general boards (EURAXESS, jobs.ac.uk, FindAPhD, Nature Careers,
+AcademicTransfer, AcademicJobsOnline, JREC-IN, LinkedIn, your seed URLs) are
+queried with **your field's own keywords** — EURAXESS gets your research-field
+facet, AcademicJobsOnline your category, LinkedIn your search phrases. A field
+with no dedicated board of its own says so in the log and still works.
+
+### The slow one is opt-in
+
+The university **department sweep** visits every department in your field's
+list at a polite 2-second delay — ~150 pages for astronomy (about five minutes
+of delays alone), ~20 for most fields. It is **off by default**. Turn it on
+with the checkbox on Opportunities, or `--include-slow-sources`. There is also
+an instant alternative: browse the department list yourself and open any of
+them directly (`GET /api/fields/<name>/departments`).
 
 Adding a profile is a single YAML file, no Python — see
-**[CONTRIBUTING.md](CONTRIBUTING.md)**.
+**[CONTRIBUTING.md](CONTRIBUTING.md)** for a fully worked example including how
+to point a new field at the right boards.
 
 ---
 
