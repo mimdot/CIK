@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ChangeEvent } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useId,
+  useState,
+  type ChangeEvent,
+  type ReactElement,
+} from "react";
 import AuthGate from "@/components/AuthGate";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -17,7 +26,17 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
-import { ApiError, buildProfile, extractCv, fetchProfile, updateProfile } from "@/lib/api";
+import {
+  analyseCv,
+  ApiError,
+  buildProfile,
+  extractCv,
+  fetchParserSupport,
+  fetchProfile,
+  updateProfile,
+} from "@/lib/api";
+import { FieldPicker } from "@/components/FieldPicker";
+import { KeywordPicker } from "@/components/KeywordPicker";
 import type { UserProfile } from "@/types";
 
 const EXPERIENCE_LEVELS = [
@@ -52,12 +71,27 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"build" | "save" | "load" | "upload" | null>(null);
+  // The keyword picker is the PRIMARY path (3C): a CV only pre-fills it.
+  const [field, setField] = useState("");
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [cvOpen, setCvOpen] = useState(false);
+  const [analysisNote, setAnalysisNote] = useState<string | null>(null);
+  const [parserSupport, setParserSupport] = useState<{
+    txt: boolean;
+    pdf: boolean;
+    docx: boolean;
+  } | null>(null);
   const { toast } = useToast();
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      setProfile(await fetchProfile());
+      const loaded = await fetchProfile();
+      setProfile(loaded);
+      // Seed the picker from whatever is already saved, so the page opens
+      // showing the user's real selection rather than an empty form.
+      setField(loaded.domain || "");
+      setKeywords(loaded.skills ?? []);
     } catch (e) {
       setProfile(null);
       if (!(e instanceof ApiError) || e.status !== 404) {
@@ -72,6 +106,13 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // Know what this installation can read BEFORE the user picks a file.
+  useEffect(() => {
+    fetchParserSupport()
+      .then(setParserSupport)
+      .catch(() => setParserSupport(null));
+  }, []);
 
   function revalidate(p: UserProfile) {
     setFieldErrors(validateProfile(p));
@@ -93,6 +134,78 @@ export default function ProfilePage() {
       const msg = err instanceof ApiError ? err.message : "Could not read the file";
       setError(msg);
       toast("Could not read the file", { description: msg, variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Read the CV and TICK the matching keywords — no AI service involved.
+   * Never a dead end: when nothing is recognised it says which case applies
+   * and leaves the picker exactly as it was.
+   */
+  async function handleAnalyse() {
+    if (!rawText.trim()) {
+      setError("Paste some CV text first, or upload a file.");
+      return;
+    }
+    setError(null);
+    setAnalysisNote(null);
+    setBusy("build");
+    try {
+      const result = await analyseCv(rawText, field || undefined);
+      if (result.field && !field) setField(result.field);
+      if (result.keywords.length) {
+        setKeywords((prev) => [...new Set([...prev, ...result.keywords])]);
+      }
+      setAnalysisNote(
+        result.found_anything
+          ? `Found ${result.keywords.length} keyword${
+              result.keywords.length === 1 ? "" : "s"
+            }${result.field ? ` and suggested the field “${result.field}”` : ""}. ` +
+            "They are ticked above — edit them, then Save."
+          : result.notes[0] ?? "Nothing recognisable was found in this text.",
+      );
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Could not read the text";
+      setError(msg);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Save just the field + keywords — the whole profile the app needs. */
+  async function handleSaveKeywords() {
+    setError(null);
+    setBusy("save");
+    try {
+      const saved = await updateProfile({
+        domain: field || undefined,
+        skills: keywords,
+      });
+      setProfile(saved);
+      revalidate(saved);
+      toast("Keywords saved", { variant: "success" });
+    } catch (e) {
+      // No profile row yet (404) — build one from the selection itself, so a
+      // brand-new user never has to go through the CV path at all.
+      if (e instanceof ApiError && e.status === 404) {
+        try {
+          const seed = [field, ...keywords].filter(Boolean).join(", ");
+          const built = await buildProfile(
+            `Research field: ${field}. Keywords: ${seed}.`,
+          );
+          setProfile(built);
+          revalidate(built);
+          toast("Profile created from your keywords", { variant: "success" });
+          return;
+        } catch {
+          /* fall through to the error below */
+        }
+      }
+      const msg = e instanceof ApiError ? e.message : "Could not save";
+      setError(msg);
+      toast("Could not save", { description: msg, variant: "destructive" });
     } finally {
       setBusy(null);
     }
@@ -167,14 +280,57 @@ export default function ProfilePage() {
     <AuthGate>
       <div className="flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-semibold">Profile builder</h1>
+          <h1 className="text-2xl font-semibold">Your research profile</h1>
           <p className="text-sm text-muted-foreground">
-            Upload your CV (PDF, DOCX or TXT) or paste a short bio. We extract a
-            structured profile with an LLM, then you can adjust it before saving.
+            Pick your field and the keywords you work on. That is all the app
+            needs — a CV is optional and only pre-fills these choices.
           </p>
         </div>
 
-        <div className="flex flex-col gap-2">
+        {/* PRIMARY PATH (3C). Picking from the curated list is more reliable
+            than parsing a CV, needs no AI service, and every term here is one
+            the matching engine actually understands. */}
+        <div className="flex flex-col gap-4 rounded-lg border bg-card p-4">
+          <FieldPicker
+            field={field}
+            onFieldChange={setField}
+            subfields={[]}
+            onSubfieldsChange={() => {}}
+            idPrefix="profile-field"
+            hint="Your field decides which keywords are offered below, and which job boards and publication databases are searched for you."
+          />
+          <KeywordPicker
+            field={field}
+            selected={keywords}
+            onChange={setKeywords}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => void handleSaveKeywords()} disabled={busy !== null}>
+              {busy === "save" ? "Saving…" : "Save my keywords"}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {keywords.length} keyword{keywords.length === 1 ? "" : "s"} selected
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 rounded-lg border p-4">
+          <button
+            type="button"
+            className="text-left text-sm font-medium underline-offset-4 hover:underline"
+            onClick={() => setCvOpen((v) => !v)}
+            aria-expanded={cvOpen}
+          >
+            {cvOpen ? "Hide" : "Optional:"} pre-fill from a CV
+          </button>
+          <p className="text-xs text-muted-foreground">
+            Reads your CV locally and ticks the matching keywords above. You
+            stay in control — nothing is saved until you press Save.
+          </p>
+          {!cvOpen && <div className="hidden" />}
+        </div>
+
+        <div className={cvOpen ? "flex flex-col gap-2" : "hidden"}>
           <Label htmlFor="cv">CV / bio text</Label>
           <Textarea
             id="cv"
@@ -200,16 +356,31 @@ export default function ProfilePage() {
               disabled={busy !== null}
               onChange={handleUpload}
             />
-            <Button onClick={handleBuild} disabled={busy !== null}>
-              {busy === "build" ? "Building…" : "Re-build from CV"}
+            <Button onClick={() => void handleAnalyse()} disabled={busy !== null}>
+              {busy === "build" ? "Reading…" : "Pre-fill my keywords"}
+            </Button>
+            <Button variant="outline" onClick={handleBuild} disabled={busy !== null}>
+              {busy === "build" ? "Building…" : "Build full profile"}
             </Button>
             <Button variant="outline" onClick={() => void load()} disabled={busy !== null}>
               Reload profile
             </Button>
           </div>
+          {analysisNote && (
+            <p className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+              {analysisNote}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Files are parsed locally on the server — never sent to a third party
-            or stored. Review and edit the extracted text before building.
+            or stored.
+            {parserSupport && !parserSupport.pdf && (
+              <span className="text-destructive">
+                {" "}
+                This installation cannot read PDF files — paste the text above
+                instead.
+              </span>
+            )}
           </p>
         </div>
 
@@ -348,10 +519,17 @@ function Field({
   error?: string;
   children: React.ReactNode;
 }) {
+  // Associate the label with its control. Without this the inputs had no
+  // accessible name at all — a screen reader announced "edit text" with no
+  // indication of which profile field it was.
+  const id = useId();
+  const control = isValidElement(children)
+    ? cloneElement(children as ReactElement<{ id?: string }>, { id })
+    : children;
   return (
     <div className="flex flex-col gap-1.5">
-      <Label>{label}</Label>
-      {children}
+      <Label htmlFor={id}>{label}</Label>
+      {control}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

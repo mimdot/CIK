@@ -21,7 +21,8 @@ from api.routes.matches import invalidate_match_cache
 from api.schemas import (BuildProfileRequest, ExtractCvRequest,
                          ExtractCvResponse, ProfileUpdate)
 from core import cache
-from core.cv import CvParseError, extract_cv_text
+from core.cv import CvParseError, extract_cv_text, parser_support
+from core.cv_extract import extract_from_text
 from core.llm import LLMRouter
 from core.profile import extract_profile
 from core.profile_schema import UserProfile
@@ -76,6 +77,38 @@ def extract_cv(body: ExtractCvRequest,
                              raw_text=text)
 
 
+@router.get("/parser-support")
+def cv_parser_support() -> dict:
+    """Which CV file types this installation can actually read.
+
+    Lets the upload control degrade to the paste path BEFORE the user picks a
+    file, instead of failing after they have chosen one.
+    """
+    return parser_support()
+
+
+@router.post("/analyse-cv")
+def analyse_cv(body: BuildProfileRequest,
+               field: str | None = None,
+               user: User = Depends(get_current_user)) -> dict:
+    """Read a CV WITHOUT any AI service and return editable suggestions.
+
+    Matches the text against the vocabulary already shipped in fields/*.yaml —
+    the same terms the relevance engine scores against — so every suggestion
+    is a term the engine understands, and nothing here needs an API key.
+
+    Never fails wholesale: an unrecognised CV comes back with empty lists and
+    a ``reason`` explaining which case applies, so the UI can say why rather
+    than showing a generic error. The result PRE-FILLS the keyword picker; the
+    picker remains the source of truth.
+    """
+    result = extract_from_text(body.raw_text, field_hint=field)
+    log.info("analysed %d chars of CV for user %s: field=%s keywords=%d",
+             len(body.raw_text or ""), user.id, result.field,
+             len(result.keywords))
+    return result.to_dict()
+
+
 @router.post("/build", response_model=dict, status_code=201)
 def build_profile(body: BuildProfileRequest,
                   user: User = Depends(get_current_user),
@@ -83,8 +116,30 @@ def build_profile(body: BuildProfileRequest,
     llm = LLMRouter()
     profile = extract_profile(body.raw_text, llm)
     if profile is None:
-        raise HTTPException(status_code=422,
-                            detail="Could not extract profile from text")
+        # The LLM path needs an API key that may not be configured — that is
+        # what produced the bare "Could not extract profile from text". Fall
+        # back to the deterministic extractor so the user always gets
+        # something editable instead of a dead end.
+        fallback = extract_from_text(body.raw_text)
+        if not fallback.found_anything:
+            raise HTTPException(
+                status_code=422,
+                detail=(fallback.notes[0] if fallback.notes else
+                        "Could not recognise anything in this text. Choose "
+                        "your field and pick keywords directly instead."))
+        log.info("LLM extraction unavailable — used the deterministic "
+                 "extractor for user %s", user.id)
+        profile = UserProfile(
+            domain=fallback.field or "",
+            subfield=(fallback.subfields[0] if fallback.subfields else None),
+            methods=[], tools=fallback.tools, skills=fallback.keywords,
+            experience_level=fallback.experience_level or "unknown",
+            target_roles=[], countries_preferred=fallback.countries,
+            constraints=[],
+            # Deliberately low: this is a keyword match, not comprehension.
+            # The user is expected to review and edit it.
+            confidence=0.4,
+            raw_text=body.raw_text)
     repo = ProfileRepo(session)
     repo.deactivate_all(user_id=user.id)
     data = profile.model_dump()

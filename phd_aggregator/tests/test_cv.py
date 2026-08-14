@@ -55,24 +55,59 @@ def _pdf_parser_present() -> bool:
     return False
 
 
-def test_pdf_without_parser_is_actionable():
-    if _pdf_parser_present():
-        pytest.skip("a PDF parser is installed — guard path not exercised")
+def _block_imports(monkeypatch, *blocked):
+    """Make the named modules un-importable, so the missing-parser guard is
+    exercised on EVERY machine — including CI, where the parsers ARE present.
+    Skipping the test there left the degradation path untested."""
+    import builtins
+    real = builtins.__import__
+
+    def fake(name, *a, **kw):
+        if name in blocked:
+            raise ImportError(f"blocked for test: {name}")
+        return real(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", fake)
+
+
+def test_pdf_without_parser_degrades_to_pasting(monkeypatch):
+    """No parser must NEVER tell the user to run pip — they may not own the
+    machine, and pasting the text works right now."""
+    _block_imports(monkeypatch, "pdfplumber", "fitz")
     with pytest.raises(CvParseError) as exc:
         extract_cv_text("cv.pdf", b"%PDF-1.4\n" + b"stuff " * 20)
     msg = str(exc.value)
-    assert "pdfplumber" in msg or "PyMuPDF" in msg
+    assert "pip install" not in msg.lower()
+    assert "paste" in msg.lower()
+    assert exc.value.reason == "no_pdf_parser"
+    assert exc.value.can_paste_instead is True
 
 
-def test_docx_without_parser_is_actionable():
-    try:
-        import docx  # noqa: F401
-        pytest.skip("python-docx installed — guard path not exercised")
-    except ImportError:
-        pass
+def test_docx_without_parser_degrades_to_pasting(monkeypatch):
+    _block_imports(monkeypatch, "docx")
     with pytest.raises(CvParseError) as exc:
         extract_cv_text("cv.docx", b"PK\x03\x04" + b"x" * 40)
-    assert "python-docx" in str(exc.value)
+    msg = str(exc.value)
+    assert "pip install" not in msg.lower()
+    assert "paste" in msg.lower()
+    assert exc.value.reason == "no_docx_parser"
+
+
+def test_no_error_message_ever_tells_the_user_to_install_something():
+    """A blanket guard over the module's user-facing copy."""
+    import inspect
+
+    import core.cv as cv_mod
+    source = inspect.getsource(cv_mod)
+    assert "pip install" not in source.lower()
+
+
+def test_parser_support_reports_what_this_install_can_read():
+    from core.cv import parser_support
+    support = parser_support()
+    assert support["txt"] is True          # always, no dependency
+    assert set(support) == {"txt", "pdf", "docx"}
+    assert all(isinstance(v, bool) for v in support.values())
 
 
 def test_docx_roundtrip_when_available():

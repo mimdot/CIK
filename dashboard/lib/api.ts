@@ -17,6 +17,7 @@ import type {
   Invite,
   InviteList,
   Opportunity,
+  CvAnalysis,
   DepartmentList,
   FieldCatalogue,
   FieldDetail,
@@ -205,6 +206,32 @@ export function fetchFieldDepartments(
     {},
     false,
   );
+}
+
+/** Which CV file types this installation can actually read. */
+export function fetchParserSupport(): Promise<{
+  txt: boolean;
+  pdf: boolean;
+  docx: boolean;
+}> {
+  return request("/api/profile/parser-support", {}, false);
+}
+
+/**
+ * Read a CV WITHOUT any AI service: matches it against the vocabulary the
+ * relevance engine already ships, and returns editable suggestions that
+ * PRE-FILL the keyword picker. Never fails wholesale — an unrecognised CV
+ * comes back with a `reason` explaining which case applies.
+ */
+export function analyseCv(
+  rawText: string,
+  field?: string,
+): Promise<CvAnalysis> {
+  const qs = field ? `?field=${encodeURIComponent(field)}` : "";
+  return request<CvAnalysis>(`/api/profile/analyse-cv${qs}`, {
+    method: "POST",
+    body: JSON.stringify({ raw_text: rawText }),
+  });
 }
 
 // --- auth ---------------------------------------------------------------------

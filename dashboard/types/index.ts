@@ -162,6 +162,21 @@ export interface DepartmentList {
   departments: Department[];
 }
 
+/** Result of the deterministic, token-free CV analysis. */
+export interface CvAnalysis {
+  field: string | null;
+  field_scores: Record<string, number>;
+  subfields: string[];
+  keywords: string[];
+  tools: string[];
+  countries: string[];
+  experience_level: string | null;
+  found_anything: boolean;
+  notes: string[];
+  /** Why nothing was found: empty_text | too_short | no_field_match | ... */
+  reason: string | null;
+}
+
 export interface SourceProgress {
   source: string;
   status: "done" | "error" | string;
