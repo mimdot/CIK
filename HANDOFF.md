@@ -1,133 +1,155 @@
-# HANDOFF — audit/repair/optimize pass (2026-08-13)
+# HANDOFF — progress report (2026-08-14)
 
-Progress report + **how to test the app** so you can report what to fix next.
-Branch **`chore/audit-repair`** → **PR: https://github.com/mimdot/CIK/pull/1**
-(all work committed & pushed). Companion docs: `ARCHITECTURE.md`, `ISSUES.md`
-(§E has the per-item progress log).
+Everything in your correction list is done. Branch **`chore/audit-repair`** →
+**PR #1** (https://github.com/mimdot/CIK/pull/1), all pushed, **CI green**.
 
-## 1. What was done (all verified & committed)
+**Tests: 726 → 945 backend, 97 → 147 dashboard.** 17 commits, 173 files.
 
-| Area | Change |
-|---|---|
-| Audit | `ARCHITECTURE.md` + `ISSUES.md` (reconciled the brief vs. the real tree) |
-| Hygiene | untracked `phd_data.db*` + generated `phd_positions.*`; gitignored the 330 MB sidecar binary, Tauri `target/`/`gen/`, build artifacts, HTTP cache |
-| **Field → run (2A)** | the selected field profile now actually drives the crawl/scoring (was always astronomy); new "Field to crawl" selector |
-| **Concurrency (P1)** | sources fetched in parallel, one isolated `Http` each; **~4.3×**; `CIK_SOURCE_CONCURRENCY` (=1 = old sequential) |
-| **HTTP cache (M2)** | persistent conditional-GET (ETag/Last-Modified → 304) for incremental repeat crawls; `--force-refresh` / `--no-http-cache` |
-| **CV upload (2B)** | `POST /api/profile/extract-cv` → local `core/cv.py` (TXT now; PDF/DOCX need libs); Profile-page upload |
-| **Streaming progress (M3)** | per-source progress in the run dialog ("N / total sources", per-source records/errors) |
-| **Supervisor polish (2C)** | multi-country search, CSV/JSON export, ADS-token hint |
-| **Lifespan (L3)** | migrated deprecated `@app.on_event` to a lifespan handler |
-| **Sidecar robustness (L1/L2)** | free-port pick + inject base URL; `CIK_PROXY` env + config discovery; **fixed a pre-existing Rust compile error** so the desktop shell builds |
-| Docs | rewrote root `README.md`, added `CONTRIBUTING.md` |
-
-**Verification:** backend `pytest` **726 passed / 1 skipped**, dashboard `jest`
-**97 passed / 15 suites**, `cargo check` clean, `tsc` clean, offline
-`--self-test` green.
-
-**Open (only item left):** CLI lazy-import startup trim (low value — the desktop
-sidecar already avoids eager `pandas`).
+Companion docs: `ISSUES.md` (findings, decisions, §D2 the API-keys/admin
+report, §D3 live verification, §D4 the last three items), `ARCHITECTURE.md`
+(§6 = the full astronomy-hardcoding inventory with file:line).
 
 ---
 
-## 2. How to test — do this first: the LIVE WEB app
+## 1. Your list, item by item
 
-Fastest to run and covers everything except the desktop shell.
+| You said | What it actually was | Status |
+|---|---|---|
+| "the engine is focused on astronomy whatever field I pick" | `fetch_sources` read **one global source list** and `apply_field_profile` never touched it; **and** 4 "general" boards had astronomy URLs/facets/keywords hardcoded inside them | **fixed at both levels** |
+| "I need a cancel option, not exit" | `cancel_job` only cancelled jobs that had **not started**; a running crawl ignored it and its results were thrown away | **fixed** — cooperative, keeps partial results |
+| "the 13th source is very time consuming" | `uni_departments`: **150 pages ≈ 5 min of delays alone** for astronomy | **opt-in, OFF by default** + instant browse-it-yourself alternative |
+| "PhD and Postdoc need separate options" | types were hardcoded dicts, so only one blended list was possible | **separate searches**; Master's/Scholarships shipped disabled |
+| "add auto-correct for countries and universities" | a 53-entry hand-written map; **no** institution normalisation at all | **full ISO-3166 (249) + fuzzy**, on input *and* scraped data |
+| "18 open positions vs 63 records" | **four** independent causes (see §2) | **fixed**, with a visible breakdown |
+| "PDF support needs a parser" | deps were already in `requirements.txt` — your API ran under a **different Python** | **fixed**; no message ever tells you to pip install |
+| "Could not extract profile from text" | `extract_profile` calls an **LLM**; no API key = dead end. **Your hunch was right.** | **fixed** — token-free extractor |
+| "think about selecting keywords instead of CV" | did not exist | **built** — the keyword picker is now the primary path |
+| "supervisors limited to 25 per field" | `author_enrich = 25` in the interactive path | **100**, and settable |
+| "non-related field results, exports too" | scoring alone could not sink an off-field researcher | **gated out**; export shares the same filtered set |
+| "the fit value is strange / not usable" | raw unbounded score, **and** the UI printed `fit*100 + "%"` → a 43 showed as **"Fit 4300%"** | **explainable 0-100**, calibrated |
+| "the Field profile setting confuses me" | it leaked `--field`, **and it was a fake control** (local state only, reset on reload) | **rewritten + made real** |
+| "weekly digest — say it's for next update" | — | **"Coming soon"** |
+| "why are API keys and Admin in my dashboard?" | **nothing vestigial** — both are complete working features | **hidden from normal users**, nothing deleted (report: `ISSUES.md` §D2) |
+| "searching looks frozen / static" | progress existed but **no results** until the end | **results stream in**, first at 0.27s of a 0.38s run |
+| "testimonials / donation for next update" | — | **placeholders added** (empty on purpose) |
+| "add my GitHub and email" | — | **footer on dashboard + public pages** |
+| "the repo is ~8GB" | **`.git` is 3.72 MiB.** The 8 GB is all gitignored build output | **nothing to do** — see §3 |
+| "fix the failing CI" | pytest was **never installed**, so your 726 tests never ran; plus a real in-place-sort bug | **all jobs green** |
 
-### 2.1 One-time setup
+---
+
+## 2. The three findings worth remembering
+
+**The 18-vs-63 count had four independent causes**, not one:
+1. nothing explained the shrink (`filter_records` computed exact drop counts, then threw them away into a log line);
+2. **`Opportunity.field` was never written** — the column existed but records were never stamped, so the database could not tell an astronomy row from a chemistry one. *This is a second, independent reason chemistry searches showed astronomy results.*
+3. the opportunity cache was one global key with a 1-hour TTL;
+4. a failed DB save was swallowed **and** skipped cache invalidation.
+
+You now see `63 found → 41 after field filter → 22 after dedupe → 18 stored`
+with the reason for every drop.
+
+**Your 8 GB repo needs no surgery.** `.git` is **3.72 MiB** — the entire
+history. The bulk is `dashboard/src-tauri` (5.9 G Rust target), `node_modules`
+(789 M) and PyInstaller `build/`+`dist/` (743 M), all already gitignored. I
+verified with `git check-ignore`: **`.gitignore` needed no changes.** No
+filter-repo, no BFG, no fresh repo. A fresh clone is under 4 MB.
+
+**FindAPhD could not be verified.** Cloudflare returns 403 for *every*
+discipline slug from your exit IP — including the two astronomy ones that have
+always shipped. Per your no-evasion rule I left it data-driven and flagged it
+in the code rather than working around the block. Switching V2Ray server
+usually helps.
+
+---
+
+## 3. How to test it
+
+### Web app (do this first)
+
 ```bash
-# Python backend deps
+# Terminal 1 — backend.  IMPORTANT: use the SAME Python that has the deps.
 cd phd_aggregator
-pip install -r requirements.txt
-pip install pdfplumber python-docx      # ONLY needed for PDF/DOCX CV upload (TXT works without)
-
-# Dashboard deps
-cd ../dashboard
-npm install
-```
-Make sure your **V2RayN proxy is running** (SOCKS `127.0.0.1:10808`) — the real
-crawl and supervisor search go through it (set in `phd_aggregator/config.yaml`,
-or export `CIK_PROXY=socks5h://127.0.0.1:10808`).
-Optional: put `ADS_API_TOKEN=...` and `OPENALEX_MAILTO=you@example.com` in
-`phd_aggregator/.env` for better astronomy/physics supervisor results.
-
-### 2.2 Start it (two terminals)
-```bash
-# Terminal 1 — backend (DB auto-creates; these envs make local dev work)
-cd phd_aggregator
-CIK_COOKIE_SECURE=0 CORS_ORIGINS=http://localhost:3000 uvicorn api.app:app --reload --port 8000
-#   -> API + docs at http://localhost:8000/docs
+python3 -m pip install -r requirements.txt -r requirements-dev.txt
+CIK_COOKIE_SECURE=0 CORS_ORIGINS=http://localhost:3000 \
+  python3 -m uvicorn api.app:app --reload --port 8000
 
 # Terminal 2 — dashboard
-cd dashboard
-NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
-#   -> open http://localhost:3000
+cd dashboard && npm install
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev   # -> localhost:3000
 ```
-> `CORS_ORIGINS=http://localhost:3000` is **required** — the dashboard sends
-> credentialed requests, so without it every API call fails with a CORS error.
 
-### 2.3 Click-through checklist (in order)
-1. **Register** (no invite needed by default). Password rule: ≥8 chars, one
-   upper, one lower, one digit. Then **log in**.
-2. **Profile** (`/profile`): (a) paste CV text → "Re-build from CV"; (b) or
-   **Upload CV** (TXT always; PDF/DOCX after the pip installs). Confirm the
-   extracted fields appear and are **editable**, then save.
-3. **Opportunities** (`/opportunities`): choose **"Field to crawl"** (e.g.
-   *biology*) → **Run engine**. Watch the dialog stream **"N / total sources"**
-   and each source's record count (or red *error*). When done, cards appear.
-4. **Matches** (home `/`): opportunities scored against your profile, each with a
-   "why it matched" explanation. Switch the **Field** filter.
-5. **Supervisors** (`/supervisors`): type a **country** (or several,
-   comma-separated) + field → **Run online search** → watch progress → ranked
-   results. Test **Export CSV** / **Export JSON**.
-6. **Re-run** the engine (step 3) once more — the second crawl reuses the HTTP
-   cache (304s), so it should be quicker.
+> The "PDF support needs a parser" message you hit was **an environment
+> split**: your venv had `pdfplumber`, the Python running the API did not.
+> `python3 -m pip` (not bare `pip`) guarantees they match. The app now also
+> tells you up front what it can read, at `/api/profile/parser-support`.
 
----
+Make sure V2RayN is running (SOCKS `127.0.0.1:10808`).
 
-## 3. How to test — the CLI (no auth; best for isolating backend issues)
+### Click-through checklist
+
+1. **Opportunities** — pick **PhD** or **Postdoc** at the top (separate
+   searches), then your **field**, then optionally **subfields**. Press
+   *Search for positions*. Watch: per-source status, elapsed time, a running
+   found-count, **positions appearing as they are found**, and a **Cancel
+   search** button. Cancel mid-run: the app stays usable and keeps what it
+   found. On completion read the `63 → 41 → 22 → 18` breakdown.
+2. **The slow sweep** — the "Also sweep university department pages" checkbox
+   is OFF and states its cost. Try "browse the department list yourself"
+   instead: instant, no crawling.
+3. **Profile** — pick field → subfields → tick keywords (searchable, collapsed
+   by default, chips, add-your-own). *This is the primary path; no AI key
+   needed.* Optionally expand "pre-fill from a CV" and upload a PDF.
+4. **Supervisors** — type `Germny` in Country and take the "Did you mean
+   Germany?" suggestion. Run a search; expand a card to see **how** the fit
+   score was reached. Export CSV and confirm it matches what is on screen.
+5. **Settings** — the field control is now real (it saves to your profile and
+   syncs everywhere). No `--field` text anywhere. Digest says "Coming soon".
+   Admin and API Keys are hidden unless you are an admin:
+   `python phd_aggregator.py --make-admin you@example.com`.
+
+### CLI
+
 ```bash
 cd phd_aggregator
-python phd_aggregator.py --self-test                 # offline, must print ALL PASSED
-python phd_aggregator.py --list-fields               # field profiles
-python phd_aggregator.py --field biology --limit-per-source 5     # real crawl (needs proxy)
-python phd_aggregator.py --field biology --limit-per-source 5 --force-refresh
-python phd_aggregator.py --find-supervisors --field astronomy --country Germany
+python3 phd_aggregator.py --self-test                      # offline, must pass
+python3 phd_aggregator.py --field chemistry --type phd --limit-per-source 5
+python3 phd_aggregator.py --field chemistry --include-slow-sources   # the slow sweep
+python3 phd_aggregator.py --find-supervisors --field chemistry --country Germany
 ```
-Outputs land next to the command: `phd_positions.csv/json` and a self-contained
-`phd_positions.html` (open it in a browser).
+
+Watch the log line naming which boards were chosen and which were skipped as
+not relevant.
+
+### Desktop app — **this part is yours**
+
+I could not click through it: no display in my environment and the 330 MB
+PyInstaller sidecar is not built. Rebuild per `TAURI_BUILD_COMMANDS.txt`.
+
+I did fix a real desktop bug: `cik-api.spec` had empty `hiddenimports`, so the
+packaged app shipped with **no PDF support at all** (the parsers are imported
+lazily, so PyInstaller could not see them). It now bundles them.
 
 ---
 
-## 4. How to test — the DESKTOP app (Tauri) — heaviest, do last
-Needs a Rust toolchain + system libs (see `TAURI_BUILD_COMMANDS.txt`) and the
-**sidecar binary must be built** (PyInstaller, `phd_aggregator/cik-api.spec`)
-and placed at `dashboard/src-tauri/sidecar/api/cik-api-<target-triple>`.
-```bash
-cd dashboard
-npm run tauri:dev        # dev run   (or: npm run tauri:build for installers)
-```
-The Rust shell now compiles (I fixed a build error) and auto-picks a free port.
-Desktop logs: the sidecar writes to `<app-data>/api.log`
-(Linux: `~/.local/share/com.careerintelligence.kit/api.log`).
+## 4. Adding a new field later
 
----
+One YAML file, no Python — `CONTRIBUTING.md` has a fully worked example
+including **how to point a new field at the right job boards**, which is the
+half that actually decides result quality.
 
-## 5. What to capture when something breaks
-For each issue, note: **(a)** surface (web / CLI / desktop), **(b)** exact steps,
-**(c)** expected vs. actual, **(d)** any error text, **(e)** was the proxy up?
-Where the errors show:
-- **Web backend:** the uvicorn terminal (crawl logs, per-source errors, tracebacks).
-- **Web frontend:** browser DevTools → Console + Network tabs (CORS/API errors).
-- **Desktop:** `<app-data>/api.log` + the Tauri window's devtools.
+## 5. What to capture if something breaks
 
-## 6. Things already known / expected (not bugs)
-- Some sources are Cloudflare-guarded (e.g. FindAPhD, AAS) and may be **skipped
-  with an error** on certain proxy exit IPs — that's the polite anti-block
-  behavior; switching V2Ray servers often helps.
-- PDF/DOCX CV upload needs `pip install pdfplumber python-docx`; TXT works without.
-- The desktop app needs the sidecar binary rebuilt (it's intentionally not in git).
-- Pages I didn't deeply touch (admin, keys, bookmarks, settings, onboarding) are
-  test-covered but not exhaustively hand-tested — likely where rough edges hide,
-  so give those extra attention and report anything odd.
-</content>
+Surface (web/CLI/desktop), exact steps, expected vs actual, any error text,
+and whether the proxy was up. Backend errors: the uvicorn terminal. Frontend:
+DevTools console + network. Desktop:
+`~/.local/share/com.careerintelligence.kit/api.log`.
+
+## 6. Known and expected (not bugs)
+
+- Cloudflare-guarded boards (FindAPhD, AAS) may be skipped on some proxy exit
+  IPs — that is the polite anti-block behaviour, no CAPTCHA solving. Switching
+  V2Ray server usually fixes it.
+- A field with no dedicated board of its own says so in the log and still
+  works via the general boards with its own keywords.
+- Master's and Scholarships are deliberately disabled — one YAML flag away.
