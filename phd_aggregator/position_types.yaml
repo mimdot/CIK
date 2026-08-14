@@ -1,0 +1,163 @@
+# position_types.yaml — the position types the app can hunt for (Phase 2C).
+# =============================================================================
+# Types are DATA, not code branches. Adding "masters" or "scholarship" to the
+# product is editing this file and flipping `enabled` — no Python restructuring,
+# no new if/elif anywhere in the pipeline.
+#
+# Order matters: the classifier tries types top-to-bottom and takes the FIRST
+# match, so the most specific/most wanted types come first. That is why `phd`
+# precedes `postdoc` (a "Post Doctoral Research Associate" must not land in the
+# PhD bucket) and why `faculty`/`staff` come last.
+#
+# Fields per type:
+#   label        what the user sees.
+#   description  one line of user-facing help.
+#   enabled      false = shipped but not offered yet ("coming soon" in the UI).
+#                A disabled type is still CLASSIFIED (so its ads are correctly
+#                labelled and kept out of the PhD/postdoc buckets) — it just
+#                cannot be selected as a search target.
+#   selectable   false = classified internally but never a user-facing choice
+#                (faculty/staff exist to catch and exclude senior ads).
+#   patterns     case-insensitive regexes matched against the TITLE first, then
+#                the description. Use lookbehinds to stop a neighbouring type
+#                stealing a match.
+#   requirement_noise
+#                phrases that mention this level as a REQUIREMENT rather than
+#                the thing on offer ("must hold a PhD" in a postdoc ad).
+#                Stripped from descriptions before desc-based classification.
+# =============================================================================
+
+phd:
+  label: PhD
+  description: Doctoral positions and studentships.
+  enabled: true
+  selectable: true
+  patterns:
+    - '\bph\.?\s?d\b'
+    - '\bdphil\b'
+    - '\bdoctorate\b'
+    # The old bug: \bdoctoral\b matched inside "Post Doctoral Research
+    # Associate" (word boundary at the space), so postdocs leaked into the PhD
+    # bucket. Hence the lookbehinds.
+    - '(?<!post-)(?<!post )\bdoctoral\b'
+    - '\bpre-?doctoral'
+    - '\bpredoc'
+    - '\bgraduate (student|researcher|position|fellowship|assistantship|programme|program)'
+    - '\bstudentship'
+    - '\bdoktorand'
+    - '\bpromovend'
+    - '\bdoctorant'
+    - 'th[eè]se de doctorat'
+    - '\bdottorato'
+    - '\bdoctorado'
+    - 'first[- ]stage researcher'
+    - 'early[- ]stage researcher'
+  requirement_noise:
+    - '(?:must|should|to) (?:have|hold)(?: been awarded)? (?:a|an|the) (?:ph\.?d|doctorate|doctoral degree)'
+    - 'ph\.?d(?: degree)? (?:is |are )?(?:required|essential|preferred|desirable)'
+    - 'hold(?:ing|s)? a (?:ph\.?d|doctorate|doctoral degree)'
+    - 'ph\.?d in hand'
+    - 'completed (?:a |their |your )?ph\.?d'
+    - 'ph\.?d \(or equivalent\)'
+    - 'after (?:your|the|their) ph\.?d'
+    - 'ph\.?d (?:degree )?or equivalent'
+    - 'newly minted .{0,20}ph\.?d'
+
+postdoc:
+  label: Postdoc
+  description: Postdoctoral research positions and research fellowships.
+  enabled: true
+  selectable: true
+  patterns:
+    - 'post-?\s?doc'
+    - 'postdoctoral'
+    - 'research (fellow|associate)\b'
+    - 'junior research'
+
+masters:
+  label: Master's
+  description: Funded Master's programmes and MSc research projects.
+  # COMING SOON. Patterns are already curated so the classifier labels these
+  # ads correctly today (keeping them out of the PhD bucket) — enabling the
+  # type is the only step left to offer it as a search target.
+  enabled: false
+  selectable: true
+  patterns:
+    - '\bm\.?sc\b'
+    - '\bmaster'']?s? (student|programme|program|position|thesis|project|degree)'
+    - '\bmsc (student|position|project|thesis)'
+    - '\bm\.?phil\b'
+    - '\bm\.?res\b'
+    - '\bmaster''s? by research'
+    - '\bmasterarbeit'
+    - '\bmasterstudent'
+  requirement_noise:
+    - '(?:must|should|to) (?:have|hold) (?:a|an) (?:m\.?sc|master''?s?)'
+    - '(?:m\.?sc|master''?s?)(?: degree)? (?:is |are )?(?:required|essential|preferred)'
+    - 'hold(?:ing|s)? (?:a|an) (?:m\.?sc|master''?s?)'
+    - '(?:m\.?sc|master''?s?) or equivalent'
+
+scholarship:
+  label: Scholarship
+  description: Scholarships, fellowships and funding calls not tied to one post.
+  # COMING SOON — see the note on `masters`.
+  enabled: false
+  selectable: true
+  patterns:
+    - '\bscholarship\b'
+    - '\bbursary\b'
+    - '\bstipend(?:ium)?\b'
+    - '\bgrant call\b'
+    - '\bcall for (?:applications|proposals)\b'
+    - '\bfunding (?:call|opportunit)'
+    - '\bmobility (?:grant|programme)'
+    - '\bstipendium'
+
+faculty:
+  label: Faculty
+  description: Professorships, lectureships and tenure-track posts.
+  enabled: true
+  # Not a user-facing search target: this type exists so senior ads are
+  # recognised and excluded from the PhD/postdoc results.
+  selectable: false
+  patterns:
+    - '\bprofessor'
+    - '\blecturer\b'
+    - 'tenure'
+    - 'faculty'
+    - 'assistant prof'
+    - 'associate prof'
+    - '\breader\b'
+    - '\bchair\b'
+    - '\bdozent'
+    - 'director general'
+
+staff:
+  label: Staff
+  description: Engineering, technical, scientist and administrative roles.
+  enabled: true
+  selectable: false
+  patterns:
+    - '\bengineer\b'
+    - '\btechnician\b'
+    - 'administrator'
+    - '\bmanager\b'
+    - 'software developer'
+    - 'data scientist'
+    - 'support officer'
+    - '\bscientist\b'
+    - '\badvis[eo]r\b'
+    - '\bintern(ship)?\b'
+    - '\bofficer\b'
+    - '\bsecretary\b'
+    - 'procurement'
+    - '\bcoordinator\b'
+    - 'junior professional'
+    - 'young researcher'
+    - 'research specialist'
+    - 'research engineer'
+    - 'scientific programmer'
+    - 'senior researcher'
+    - 'research scientist'
+    - 'visiting researcher'
+    - 'researcher (member|assistant|position)'

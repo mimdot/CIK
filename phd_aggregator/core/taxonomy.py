@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Optional
 
+from core import position_types
 from core.utils import canonical_country
 
 if TYPE_CHECKING:
@@ -86,72 +87,51 @@ def is_relevant(score: float, anchors: list[str], cfg: "Config",
 # -----------------------------------------------------------------------------
 # Position-type classifier (hardened PhD gate)
 # -----------------------------------------------------------------------------
-# Title-priority patterns. We classify primarily from the (concise) TITLE, then
-# fall back to the description. The old bug: r\"\\bdoctoral\\b\" matched inside
-# \"Post Doctoral Research Associate\" (word boundary at the space), so postdocs
-# leaked into the phd bucket — hence the (?<!post-)(?<!post ) lookbehinds.
+# BACK-COMPAT SHIMS. The registry now lives in core.position_types, backed by
+# position_types.yaml — that is where patterns are edited. These names are
+# DERIVED from it so external importers (and the phd_aggregator.py re-export
+# shim) keep working; assigning to them has no effect on classification.
 _TYPE_PATTERNS: dict[str, list[str]] = {
-    "phd": [r"\bph\.?\s?d\b", r"\bdphil\b", r"\bdoctorate\b",
-            r"(?<!post-)(?<!post )\bdoctoral\b",
-            r"\bpre-?doctoral", r"\bpredoc",
-            r"\bgraduate (student|researcher|position|fellowship|assistantship|programme|program)",
-            r"\bstudentship", r"\bdoktorand", r"\bpromovend", r"\bdoctorant",
-            r"th[eè]se de doctorat", r"\bdottorato", r"\bdoctorado",
-            r"first[- ]stage researcher", r"early[- ]stage researcher"],
-    "postdoc": [r"post-?\s?doc", r"postdoctoral",
-                r"research (fellow|associate)\b", r"junior research"],
-    "faculty": [r"\bprofessor", r"\blecturer\b", r"tenure", r"faculty",
-                r"assistant prof", r"associate prof", r"\breader\b",
-                r"\bchair\b", r"\bdozent", r"director general"],
-    "staff": [r"\bengineer\b", r"\btechnician\b", r"administrator",
-              r"\bmanager\b", r"software developer", r"data scientist",
-              r"support officer", r"\bscientist\b", r"\badvis[eo]r\b",
-              r"\bintern(ship)?\b", r"\bofficer\b", r"\bsecretary\b",
-              r"procurement", r"\bcoordinator\b",
-              r"junior professional", r"young researcher",
-              r"research specialist", r"research engineer",
-              r"scientific programmer", r"senior researcher",
-              r"research scientist", r"visiting researcher",
-              r"researcher (member|assistant|position)"],
+    entry.name: list(entry.patterns) for entry in position_types.TYPES
 }
-_TYPE_REGEX = {t: [re.compile(p, re.I) for p in pats]
-               for t, pats in _TYPE_PATTERNS.items()}
-_TYPE_PRIORITY = ["phd", "postdoc", "faculty", "staff"]
+_TYPE_REGEX = {entry.name: list(entry._rx) for entry in position_types.TYPES}
+_TYPE_PRIORITY = [entry.name for entry in position_types.TYPES]
 
-# Phrases in DESCRIPTIONS that mention a PhD as a *requirement* (postdoc ads:
-# \"must hold a PhD\") — stripped before desc-based classification so they don't
-# masquerade as PhD openings.
+# Phrases that mention a level as a REQUIREMENT rather than the thing on offer
+# ("must hold a PhD" in a postdoc ad). Now per-type in the registry; this union
+# is kept for back-compat.
 _PHD_REQUIREMENT_NOISE = re.compile(
-    r"(?:must|should|to) (?:have|hold)(?: been awarded)? (?:a|an|the) "
-    r"(?:ph\.?d|doctorate|doctoral degree)"
-    r"|ph\.?d(?: degree)? (?:is |are )?(?:required|essential|preferred|desirable)"
-    r"|hold(?:ing|s)? a (?:ph\.?d|doctorate|doctoral degree)"
-    r"|ph\.?d in hand"
-    r"|completed (?:a |their |your )?ph\.?d"
-    r"|ph\.?d \(or equivalent\)"
-    r"|after (?:your|the|their) ph\.?d"
-    r"|ph\.?d (?:degree )?or equivalent"
-    r"|newly minted .{0,20}ph\.?d",
+    "|".join(n for entry in position_types.TYPES
+             for n in entry.requirement_noise) or r"(?!x)x",
     re.I)
 
 
 def _match_type(text: str) -> Optional[str]:
+    """First type whose patterns hit, in registry order (= priority)."""
     if not text:
         return None
-    for t in _TYPE_PRIORITY:
-        if any(rx.search(text) for rx in _TYPE_REGEX[t]):
-            return t
+    for entry in position_types.TYPES:
+        if entry.matches(text):
+            return entry.name
     return None
 
 
 def classify_position_type(title: Optional[str], description: Optional[str]) -> str:
-    """Return one of phd/postdoc/faculty/staff/unknown. Title wins; otherwise
-    the (requirement-noise-stripped) description decides; otherwise 'unknown'."""
+    """Return a position-type name (phd/postdoc/…) or 'unknown'.
+
+    Title wins; otherwise the description decides, with each type's
+    "mentioned as a requirement" phrases stripped first ("must hold a PhD" in
+    a postdoc ad must not make it a PhD opening). Types come from
+    :mod:`core.position_types` — a YAML registry, so adding Master's or
+    Scholarship needs no change here.
+    """
     by_title = _match_type(title or "")
     if by_title:
         return by_title
-    desc = _PHD_REQUIREMENT_NOISE.sub(" ", description or "")
-    return _match_type(desc) or "unknown"
+    desc = description or ""
+    for entry in position_types.TYPES:
+        desc = entry.strip_requirement_noise(desc)
+    return _match_type(desc) or position_types.UNKNOWN
 
 
 def country_allowed(canon: Optional[str], cfg: "Config") -> tuple[bool, bool]:

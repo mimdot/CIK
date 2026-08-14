@@ -21,6 +21,10 @@ phd_aggregator/applicant.yaml
 phd_aggregator/*.yaml
 !phd_aggregator/applicant.example.yaml
 !phd_aggregator/config.yaml
+# Shipped data, not user data: the position-type registry (Phase 2C). The
+# blanket *.yaml rule above exists to keep applicant.yaml / vpn.txt out of
+# git, and would otherwise silently drop any new data file added here.
+!phd_aggregator/position_types.yaml
 
 # Runtime state
 phd_aggregator/.seen_positions.json
