@@ -458,7 +458,8 @@ def fetch_sources(cfg: Config, only_sources: Optional[list[str]] = None,
         enabled = resolve_sources_for_field(
             getattr(cfg, "field_profile", None), cfg.sources_enabled,
             getattr(cfg, "profile_sources", None),
-            known_sources=SOURCES)
+            known_sources=SOURCES,
+            include_slow=getattr(cfg, "include_slow_sources", False))
 
     todo: list[tuple] = []
     for name, fn in SOURCES.items():

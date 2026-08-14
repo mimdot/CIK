@@ -563,6 +563,9 @@ class Config:
     # that names the field in its own @register_source(fields=...) declaration.
     # See sources.base.resolve_sources_for_field.
     profile_sources: list = field(default_factory=list)
+    # Opt-in for measurably-slow sources (the university department sweep).
+    # OFF by default so a normal search is never held up for minutes.
+    include_slow_sources: bool = False
     # Per-source knobs from the profile's `source_options:` block, e.g. which
     # EURAXESS research-field facets or AcademicJobsOnline categories THIS
     # discipline should query. Read via Config.source_option().
@@ -1115,6 +1118,8 @@ def build_config(args: argparse.Namespace) -> Config:
         cfg.force_refresh = True
     if getattr(args, "no_http_cache", False):
         cfg.http_cache = False
+    if getattr(args, "include_slow_sources", False):
+        cfg.include_slow_sources = True
     subfields = getattr(args, "subfields", None)
     if subfields:
         apply_subfield_focus(cfg, subfields)

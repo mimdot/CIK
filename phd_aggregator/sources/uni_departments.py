@@ -329,7 +329,18 @@ _PHD_LINK_BLOCK_RE = re.compile(
     r"graduates?\s+of|life\s+at|phd\s+life|faq)\b", re.I)
 
 
-@register_source("uni_departments", label="University department sweep")
+@register_source(
+    "uni_departments",
+    label="University department sweep",
+    slow=True,
+    cost_note=(
+        "Visits every department page in your field's list one at a time, at "
+        "the polite 2s crawl delay. Measured: 150 pages for astronomy "
+        "(~5 minutes of delays alone, longer in practice over a proxy), "
+        "~20 pages for most other fields. Finds openings the job boards miss, "
+        "but it is by far the slowest source — leave it off for a quick "
+        "search, or browse the department list yourself instead."),
+)
 def source_uni_departments(cfg: Config, http: Http) -> list[dict]:
     """[HTML] Sweep the department pages listed in the ACTIVE FIELD PROFILE's
     `departments:` block (top universities for YOUR major, world-wide) and

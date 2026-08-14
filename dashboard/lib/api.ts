@@ -17,6 +17,7 @@ import type {
   Invite,
   InviteList,
   Opportunity,
+  DepartmentList,
   FieldCatalogue,
   FieldDetail,
   OpportunityFilters,
@@ -182,6 +183,25 @@ export function fetchFields(): Promise<FieldCatalogue> {
 export function fetchField(name: string): Promise<FieldDetail> {
   return request<FieldDetail>(
     `/api/fields/${encodeURIComponent(name)}`,
+    {},
+    false,
+  );
+}
+
+/**
+ * The curated department list for a field — the manual alternative to the slow
+ * exhaustive sweep. Instant: no crawling, just the list to browse and open.
+ */
+export function fetchFieldDepartments(
+  name: string,
+  opts: { country?: string; q?: string } = {},
+): Promise<DepartmentList> {
+  const params = new URLSearchParams();
+  if (opts.country) params.set("country", opts.country);
+  if (opts.q) params.set("q", opts.q);
+  const qs = params.toString();
+  return request<DepartmentList>(
+    `/api/fields/${encodeURIComponent(name)}/departments${qs ? `?${qs}` : ""}`,
     {},
     false,
   );
@@ -402,6 +422,8 @@ export function triggerPipeline(
     field?: string;
     /** Subfield ids; their keywords boost matching positions. */
     subfields?: string[];
+    /** Opt in to the slow university-department sweep. */
+    include_slow?: boolean;
   },
 ): Promise<{ status: string; run_id: string }> {
   return request("/api/pipeline/run", {

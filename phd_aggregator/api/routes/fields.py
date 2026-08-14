@@ -97,6 +97,49 @@ def list_fields() -> dict:
     return {"default": FIELD_PROFILE, "profiles": names, "fields": fields}
 
 
+@router.get("/{name}/departments")
+def get_field_departments(name: str, country: str | None = None,
+                          q: str | None = None) -> dict:
+    """The department/institute list for a field — the MANUAL alternative to
+    the exhaustive crawl.
+
+    Sweeping these pages is the slowest thing the engine does (~150 pages for
+    astronomy at a 2s crawl delay). Rather than forcing that on everyone, this
+    hands the same curated list straight to the user: filter by country, search
+    by name, open the department's own page. No crawling, instant.
+    """
+    profile = load_field_profile(name)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Unknown field {name!r}")
+
+    rows = [d for d in (profile.get("departments") or [])
+            if isinstance(d, dict) and d.get("url")]
+    if country:
+        wanted = country.strip().lower()
+        rows = [d for d in rows
+                if str(d.get("country", "")).strip().lower() == wanted]
+    if q:
+        needle = q.strip().lower()
+        rows = [d for d in rows
+                if needle in str(d.get("institution", "")).lower()
+                or needle in str(d.get("country", "")).lower()]
+
+    countries = sorted({str(d.get("country") or "Unknown")
+                        for d in (profile.get("departments") or [])
+                        if isinstance(d, dict) and d.get("url")})
+    return {
+        "field": name,
+        "total": len(rows),
+        "countries": countries,
+        "departments": [{
+            "country": str(d.get("country") or "Unknown"),
+            "institution": str(d.get("institution") or d["url"]),
+            "url": str(d["url"]),
+            "field_specific": bool(d.get("field_specific")),
+        } for d in rows],
+    }
+
+
 @router.get("/{name}")
 def get_field(name: str) -> dict:
     """One field in full, including every subfield's curated keyword list.

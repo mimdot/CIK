@@ -238,6 +238,11 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                          "(the cache is still refreshed for next time)")
     ap.add_argument("--no-http-cache", action="store_true",
                     help="disable the persistent HTTP conditional-GET cache")
+    ap.add_argument("--include-slow-sources", action="store_true",
+                    help="also run the opt-in slow sources (the university "
+                         "department sweep: ~150 pages for astronomy, ~20 for "
+                         "most fields, one every 2s). Finds openings the job "
+                         "boards miss, but adds MINUTES to a run")
     ap.add_argument("--keyword", action="append", metavar="KW",
                     help="EXTRA core anchor terms (repeatable)")
     ap.add_argument("--threshold", type=float, metavar="X",

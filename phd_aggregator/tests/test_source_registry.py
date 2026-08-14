@@ -29,10 +29,16 @@ LEGACY_ENABLED = {
     "uni_departments", "seed_urls",
 }
 ASTRONOMY_ONLY = {"aas", "eso"}
+# Opt-in since Phase 2B: the department sweep is ~150 pages for astronomy at a
+# 2s crawl delay (~5 minutes of delays alone), so it is excluded from a normal
+# run and only included when the user asks for it.
+SLOW = {"uni_departments"}
+DEFAULT_ENABLED = LEGACY_ENABLED - SLOW
 
 
-def _on(field, enabled=None):
-    resolved = resolve_sources_for_field(field, enabled or SOURCES_ENABLED)
+def _on(field, enabled=None, include_slow=False):
+    resolved = resolve_sources_for_field(field, enabled or SOURCES_ENABLED,
+                                         include_slow=include_slow)
     return {name for name, is_on in resolved.items() if is_on}
 
 
@@ -68,13 +74,16 @@ def test_multidiscipline_boards_are_general():
 # --- the resolver ------------------------------------------------------------
 
 def test_astronomy_resolves_to_the_legacy_set_unchanged():
-    """No regression: astronomy keeps every board it crawled before."""
-    assert _on("astronomy") == LEGACY_ENABLED
+    """No regression: astronomy keeps every board it crawled before, minus the
+    opt-in slow sweep — which comes back the moment the user asks for it."""
+    assert _on("astronomy") == DEFAULT_ENABLED
+    assert _on("astronomy", include_slow=True) == LEGACY_ENABLED
 
 
 def test_no_field_selected_keeps_old_behaviour():
     """field=None is a no-op — sources_enabled alone decides, as before."""
-    assert _on(None) == LEGACY_ENABLED
+    assert _on(None) == DEFAULT_ENABLED
+    assert _on(None, include_slow=True) == LEGACY_ENABLED
 
 
 @pytest.mark.parametrize("field", ["chemistry", "biology", "computer_science",
@@ -91,8 +100,8 @@ def test_zero_astronomy_only_sources_for_other_fields(field):
 def test_other_fields_still_get_every_general_board():
     """Excluding specialists must not shrink a field's general coverage."""
     chemistry = _on("chemistry")
-    assert chemistry == {n for n in general_sources() if n in LEGACY_ENABLED}
-    assert len(chemistry) == 10
+    assert chemistry == {n for n in general_sources() if n in DEFAULT_ENABLED}
+    assert len(chemistry) == 9
 
 
 def test_physics_and_engineering_keep_esa():
@@ -196,8 +205,9 @@ def test_chemistry_run_queries_zero_astronomy_only_sources(monkeypatch):
 
 
 def test_astronomy_run_still_queries_its_specialist_boards(monkeypatch):
-    """Astronomy must not be weakened — it keeps every board it had."""
-    assert _crawled_sources("astronomy", monkeypatch) == LEGACY_ENABLED
+    """Astronomy must not be weakened — it keeps every board it had, bar the
+    opt-in slow sweep."""
+    assert _crawled_sources("astronomy", monkeypatch) == DEFAULT_ENABLED
 
 
 def test_explicit_source_flag_overrides_the_field(monkeypatch):
@@ -221,3 +231,70 @@ def test_register_source_dedupes_and_falls_back_to_general():
         for name in ("_t_dupes", "_t_empty"):
             SOURCE_INFO.pop(name, None)
             SOURCES.pop(name, None)
+
+
+# --- slow sources are opt-in (Phase 2B) --------------------------------------
+
+def test_the_department_sweep_is_marked_slow_with_a_stated_cost():
+    info = SOURCE_INFO["uni_departments"]
+    assert info.slow is True
+    assert info.cost_note, "an opt-in must state its time cost up front"
+    assert "minutes" in info.cost_note.lower()
+
+
+def test_only_the_department_sweep_is_slow():
+    """If another source becomes this expensive, it must be opted in too."""
+    from sources.base import slow_sources
+    assert set(slow_sources()) == SLOW
+
+
+def test_slow_sources_are_excluded_by_default():
+    assert not (_on("astronomy") & SLOW)
+    assert not (_on("chemistry") & SLOW)
+
+
+def test_slow_sources_come_back_when_requested():
+    assert _on("astronomy", include_slow=True) & SLOW
+    assert _on("chemistry", include_slow=True) & SLOW
+
+
+def test_opting_in_does_not_resurrect_a_disabled_slow_source():
+    """The user's own off-switch still wins over the opt-in."""
+    enabled = dict(SOURCES_ENABLED, uni_departments=False)
+    assert not (_on("astronomy", enabled, include_slow=True) & SLOW)
+
+
+def test_the_skip_is_logged_with_the_flag_that_enables_it(caplog):
+    with caplog.at_level("INFO"):
+        resolve_sources_for_field("astronomy", SOURCES_ENABLED)
+    assert "slow, opt-in" in caplog.text
+    assert "--include-slow-sources" in caplog.text
+
+
+# --- the manual alternative to the slow sweep (2B) ---------------------------
+
+def test_departments_endpoint_serves_the_list_without_crawling():
+    """Browsing beats a 5-minute sweep: same curated list, returned instantly."""
+    import os
+    os.environ["CIK_TESTING"] = "1"
+    from fastapi.testclient import TestClient
+
+    from api.app import app
+    client = TestClient(app)
+
+    body = client.get("/api/fields/astronomy/departments").json()
+    assert body["total"] > 100, "astronomy ships a large department list"
+    assert body["countries"], "countries are offered as a filter"
+    first = body["departments"][0]
+    assert first["url"].startswith("http") and first["institution"]
+
+    germany = client.get(
+        "/api/fields/astronomy/departments?country=Germany").json()
+    assert 0 < germany["total"] < body["total"]
+    assert {d["country"] for d in germany["departments"]} == {"Germany"}
+
+    found = client.get(
+        "/api/fields/astronomy/departments?q=max+planck").json()
+    assert found["total"] >= 1
+
+    assert client.get("/api/fields/nope/departments").status_code == 404

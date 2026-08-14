@@ -5,6 +5,7 @@ import {
   ApiError,
   cancelJob,
   fetchField,
+  fetchFieldDepartments,
   fetchFields,
   fetchOpportunities,
   jobStatus,
@@ -28,6 +29,7 @@ jest.mock("@/lib/api", () => {
     triggerPipeline: jest.fn(),
     jobStatus: jest.fn(),
     cancelJob: jest.fn(),
+    fetchFieldDepartments: jest.fn(),
   };
 });
 
@@ -37,6 +39,7 @@ const mockFetchField = fetchField as jest.Mock;
 const mockTriggerPipeline = triggerPipeline as jest.Mock;
 const mockJobStatus = jobStatus as jest.Mock;
 const mockCancelJob = cancelJob as jest.Mock;
+const mockFetchFieldDepartments = fetchFieldDepartments as jest.Mock;
 
 function opportunity(overrides: Partial<Opportunity>): Opportunity {
   return {
@@ -80,6 +83,9 @@ describe("OpportunitiesPage", () => {
             { id: "ecology", label: "Ecology", keyword_count: 4 },
           ] },
       ],
+    });
+    mockFetchFieldDepartments.mockResolvedValue({
+      field: "astronomy", total: 0, countries: [], departments: [],
     });
     mockFetchField.mockImplementation(async (name: string) => ({
       name,
@@ -240,6 +246,72 @@ describe("OpportunitiesPage", () => {
     );
     expect(screen.getByText("eso")).toBeInTheDocument();
     expect(screen.getByText("aas")).toBeInTheDocument();
+  });
+
+  it("leaves the slow department sweep OFF by default, with its cost stated (2B)", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "s1" });
+    mockJobStatus.mockResolvedValue({ run_id: "s1", status: "running" });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+
+    const box = screen.getByLabelText("Also sweep university department pages");
+    expect(box).not.toBeChecked();
+    // The time price must be visible before the user opts in, not after.
+    expect(screen.getByText(/several minutes/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+    await waitFor(() =>
+      expect(mockTriggerPipeline).toHaveBeenCalledWith(
+        expect.not.objectContaining({ include_slow: true }),
+      ),
+    );
+  });
+
+  it("opts in to the department sweep when asked (2B)", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "s2" });
+    mockJobStatus.mockResolvedValue({ run_id: "s2", status: "running" });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+
+    await user.click(
+      screen.getByLabelText("Also sweep university department pages"),
+    );
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+    await waitFor(() =>
+      expect(mockTriggerPipeline).toHaveBeenCalledWith(
+        expect.objectContaining({ include_slow: true }),
+      ),
+    );
+  });
+
+  it("offers browsing the departments manually instead (2B)", async () => {
+    mockFetchFieldDepartments.mockResolvedValue({
+      field: "astronomy",
+      total: 2,
+      countries: ["Germany", "United Kingdom"],
+      departments: [
+        { country: "Germany", institution: "MPIfR Bonn",
+          url: "https://mpifr-bonn.mpg.de/joboffers", field_specific: true },
+        { country: "United Kingdom", institution: "Institute of Astronomy",
+          url: "https://ast.cam.ac.uk/", field_specific: true },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+
+    await user.click(screen.getByLabelText("Research field"));
+    await user.click(await screen.findByRole("option", { name: "Astronomy" }));
+    await user.click(
+      screen.getByRole("button", { name: /browse the department list yourself/i }),
+    );
+
+    // The list is handed over directly — no crawl, nothing to wait for.
+    const link = await screen.findByRole("link", { name: "MPIfR Bonn" });
+    expect(link).toHaveAttribute("href", "https://mpifr-bonn.mpg.de/joboffers");
+    expect(screen.getByText(/2 departments/)).toBeInTheDocument();
   });
 
   it("cancels a running search and keeps the partial results (2A)", async () => {

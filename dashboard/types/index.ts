@@ -148,6 +148,20 @@ export interface FieldDetail extends FieldSummary {
   };
 }
 
+export interface Department {
+  country: string;
+  institution: string;
+  url: string;
+  field_specific: boolean;
+}
+
+export interface DepartmentList {
+  field: string;
+  total: number;
+  countries: string[];
+  departments: Department[];
+}
+
 export interface SourceProgress {
   source: string;
   status: "done" | "error" | string;

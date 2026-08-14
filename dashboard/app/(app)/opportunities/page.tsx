@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DepartmentBrowser } from "@/components/DepartmentBrowser";
 import { FieldPicker } from "@/components/FieldPicker";
 import { RunFunnelSummary } from "@/components/RunFunnelSummary";
 import { useRunJob } from "@/hooks/useRunJob";
@@ -52,6 +53,9 @@ export default function OpportunitiesPage() {
   // always belong to the discipline that is selected.
   const [field, setField] = useState("");
   const [subfields, setSubfields] = useState<string[]>([]);
+  // The exhaustive department sweep is opt-in (2B) — it adds minutes.
+  const [includeSlow, setIncludeSlow] = useState(false);
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,6 +116,7 @@ export default function OpportunitiesPage() {
         country: scope || undefined,
         field: field || undefined,
         subfields: subfields.length ? subfields : undefined,
+        include_slow: includeSlow || undefined,
       }),
     );
   }
@@ -155,6 +160,46 @@ export default function OpportunitiesPage() {
         idPrefix="run-field"
         hint="Sets which job boards are searched, with your field's own keywords. Subfields push matching positions to the top."
       />
+
+      {/* 2B — the exhaustive department sweep is OFF unless asked for, and
+          says what it costs. The instant manual alternative sits beside it. */}
+      <div className="rounded-lg border bg-card p-4 text-sm">
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={includeSlow}
+            onChange={(e) => setIncludeSlow(e.target.checked)}
+            className="mt-0.5 size-4"
+            aria-label="Also sweep university department pages"
+          />
+          <span>
+            <span className="font-medium">
+              Also sweep university department pages
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              Off by default. Visits every department in your field&apos;s list
+              one at a time at a polite 2-second delay — about 150 pages for
+              astronomy and 20 for most fields, so it adds{" "}
+              <strong>several minutes</strong> to a search. It finds openings
+              the job boards miss.
+            </span>
+          </span>
+        </label>
+        <button
+          type="button"
+          className="mt-2 text-xs font-medium underline-offset-4 hover:underline"
+          onClick={() => setBrowseOpen((v) => !v)}
+          aria-expanded={browseOpen}
+        >
+          {browseOpen ? "Hide" : "Or browse"} the department list yourself
+          (instant)
+        </button>
+        {browseOpen && (
+          <div className="mt-3">
+            <DepartmentBrowser field={field} />
+          </div>
+        )}
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <FilterInput label="Country" value={country} onChange={setCountry} options={countries} />

@@ -166,6 +166,10 @@ class PipelineRunRequest(BaseModel):
                           "catalysis). Their keywords BOOST matching "
                           "positions rather than hard-filtering them — job "
                           "ads are short and often omit subfield vocabulary.")
+    include_slow: bool = Field(
+        False, description="also run the opt-in slow sources (the university "
+                           "department sweep). Adds minutes to a run; off by "
+                           "default.")
 
 
 class SupervisorRunRequest(BaseModel):

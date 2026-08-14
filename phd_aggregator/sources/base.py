@@ -39,6 +39,11 @@ class SourceInfo:
     fields: tuple[str, ...] = (ANY_FIELD,)
     label: str = ""
     note: str = ""
+    # Measurably slower than the rest — excluded from a run unless the user
+    # asks for it. `cost_note` is shown next to the opt-in so the time price
+    # is stated up front rather than discovered.
+    slow: bool = False
+    cost_note: str = ""
 
     @property
     def is_general(self) -> bool:
@@ -65,12 +70,15 @@ SOURCE_INFO: dict[str, SourceInfo] = {}
 
 
 def register_source(name: str, *, fields: Iterable[str] = (ANY_FIELD,),
-                    label: str = "", note: str = ""):
+                    label: str = "", note: str = "", slow: bool = False,
+                    cost_note: str = ""):
     """Register a crawler source under ``name``.
 
     ``fields`` declares which disciplines the board serves — omit it for a
     general multi-discipline board, or pass e.g. ``fields=("astronomy",)`` for
     a specialist. See :func:`resolve_sources_for_field`.
+
+    ``slow=True`` keeps the source OUT of a normal run; the caller must opt in.
     """
     field_tuple = tuple(dict.fromkeys(str(f).strip() for f in fields
                                       if str(f).strip())) or (ANY_FIELD,)
@@ -78,9 +86,15 @@ def register_source(name: str, *, fields: Iterable[str] = (ANY_FIELD,),
     def deco(fn: Callable[[Config, Http], list[dict]]):
         SOURCES[name] = fn
         SOURCE_INFO[name] = SourceInfo(name=name, fn=fn, fields=field_tuple,
-                                       label=label or name, note=note)
+                                       label=label or name, note=note,
+                                       slow=slow, cost_note=cost_note)
         return fn
     return deco
+
+
+def slow_sources() -> list[str]:
+    """Names of the opt-in, measurably-slow sources."""
+    return [n for n, info in SOURCE_INFO.items() if info.slow]
 
 
 def general_sources() -> list[str]:
@@ -105,6 +119,7 @@ def resolve_sources_for_field(field_name: Optional[str],
                               sources_enabled: dict[str, bool],
                               profile_sources: Optional[list[str]] = None,
                               known_sources: Optional[Iterable[str]] = None,
+                              include_slow: bool = False,
                               ) -> dict[str, bool]:
     """Decide which sources a run for ``field_name`` should actually crawl.
 
@@ -142,11 +157,21 @@ def resolve_sources_for_field(field_name: Optional[str],
     # as it did before this registry existed. Never silently drop a source.
     names = list(known_sources) if known_sources is not None else list(SOURCES)
     resolved: dict[str, bool] = {}
+    skipped_slow: list[str] = []
     for name in dict.fromkeys(names):
         info = SOURCE_INFO.get(name)
         relevant = name in claimed or (info.serves(field_name) if info
                                        else True)
+        if relevant and info is not None and info.slow and not include_slow:
+            # Opt-in only: an exhaustive sweep must never be the thing that
+            # makes a normal search feel broken.
+            relevant = False
+            if sources_enabled.get(name, False):
+                skipped_slow.append(name)
         resolved[name] = bool(relevant and sources_enabled.get(name, False))
+    if skipped_slow:
+        log.info("[sources] skipped (slow, opt-in): %s — enable with "
+                 "--include-slow-sources", ", ".join(sorted(skipped_slow)))
 
     if field_name is not None:
         dedicated = [n for n in (set(specialist_sources_for_field(field_name))
