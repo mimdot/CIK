@@ -20,6 +20,7 @@ from core.config import Config
 from core.http import Http
 from core.records import OUTPUT_FIELDS
 from core.utils import dedupe_key
+from core.cancel import NullToken
 from sources.base import SOURCES, log, resolve_sources_for_field
 from pipeline.dedupe import dedupe_records
 from pipeline.filter import filter_records
@@ -427,7 +428,7 @@ def _source_concurrency() -> int:
 
 def fetch_sources(cfg: Config, only_sources: Optional[list[str]] = None,
                   limit_per_source: Optional[int] = None,
-                  on_progress=None) -> list[dict]:
+                  on_progress=None, cancel=None) -> list[dict]:
     """Fetch every enabled source and return the concatenated raw records.
 
     Sources are fetched CONCURRENTLY (thread pool), each in its own isolated
@@ -476,7 +477,18 @@ def fetch_sources(cfg: Config, only_sources: Optional[list[str]] = None,
 
     _emit({"event": "start", "total": len(todo)})
 
+    cancelled = cancel if cancel is not None else NullToken()
+
     def _fetch_one(name, fn) -> list[dict]:
+        # Cancellation is checked HERE, at the start of each source, rather
+        # than by interrupting work in flight: a source already running
+        # finishes its current request and keeps its records. Sources that
+        # have not begun simply never begin.
+        if cancelled.is_cancelled():
+            log.info("skip %s (run cancelled)", name)
+            _emit({"event": "source", "source": name, "status": "skipped",
+                   "records": 0, "duration": 0.0})
+            return []
         t0 = time.time()
         worker_http = Http(cfg, detect=False)
         try:
@@ -529,7 +541,7 @@ def run(cfg: Config, only_sources: Optional[list[str]] = None,
         limit_per_source: Optional[int] = None,
         injected_raw: Optional[list[dict]] = None,
         profile=None, on_progress=None,
-        funnel: Optional[dict] = None) -> list[dict]:
+        funnel: Optional[dict] = None, cancel=None) -> list[dict]:
     """Fetch enabled sources, filter, freshness-check, dedupe, detect NEW,
     write, summarise. `injected_raw` bypasses network fetching (--self-test).
     When a UserProfile is supplied (Track C3), every kept opportunity is scored
@@ -554,7 +566,7 @@ def run(cfg: Config, only_sources: Optional[list[str]] = None,
         try:
             raw = fetch_sources(cfg, only_sources=only_sources,
                                 limit_per_source=limit_per_source,
-                                on_progress=on_progress)
+                                on_progress=on_progress, cancel=cancel)
         finally:
             http.close()
 
@@ -583,6 +595,10 @@ def run(cfg: Config, only_sources: Optional[list[str]] = None,
     if funnel is not None:
         funnel.update({
             "field": getattr(cfg, "field_profile", None),
+            # Partial results are kept and stored exactly like a full run's;
+            # the flag lets the UI say so rather than implying this was
+            # everything there was to find.
+            "cancelled": bool(cancel is not None and cancel.is_cancelled()),
             "found": len(raw),
             "after_field_filter": after_filter,
             "after_freshness": after_freshness,

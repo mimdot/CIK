@@ -32,7 +32,7 @@ from typing import Optional
 
 from sqlalchemy import select
 
-from core import cache, email
+from core import cache, cancel as cancel_mod, email
 from core.config import build_config
 from pipeline.run import run as pipeline_run
 
@@ -119,11 +119,31 @@ def _rq_progress_callback():
     return cb
 
 
+def _rq_cancel_token():
+    """Redis-backed cancellation token for the current rq job, if any.
+
+    Inside a worker the job runs in a different PROCESS from the API, so an
+    in-process Event is invisible. Falls back to a no-op token outside rq.
+    """
+    try:
+        from rq import get_current_job
+        job = get_current_job()
+    except Exception:
+        job = None
+    if job is None:
+        return cancel_mod.NullToken()
+    client = _redis()
+    if client is None:  # pragma: no cover - rq implies Redis
+        return cancel_mod.NullToken()
+    return cancel_mod.RedisToken(client, job.id)
+
+
 def run_pipeline_job(country: str | None = None,
                      sources: list[str] | None = None,
                      field: str | None = None,
                      on_progress=None,
-                     subfields: list[str] | None = None) -> int:
+                     subfields: list[str] | None = None,
+                     cancel=None) -> int:
     """Execute the aggregation pipeline and return the number of records.
 
     The return value (an ``int`` record count) is stored as the rq *result* for
@@ -149,9 +169,13 @@ def run_pipeline_job(country: str | None = None,
     # stream progress into its meta so the API can poll per-source status.
     if on_progress is None:
         on_progress = _rq_progress_callback()
+    # In an rq worker nobody hands us a token — build the Redis-backed one so
+    # the API process (a DIFFERENT process) can still stop this run.
+    if cancel is None:
+        cancel = _rq_cancel_token()
     funnel: dict = {}
     records = pipeline_run(cfg, only_sources=sources, on_progress=on_progress,
-                           funnel=funnel)
+                           funnel=funnel, cancel=cancel)
     # The pipeline writes JSON/CSV/HTML; the dashboard reads the ``opportunities``
     # table, so re-seed it from the JSON just written (idempotent upsert). A
     # seeding failure must not fail the job — the run already succeeded — but it
@@ -192,18 +216,22 @@ def _fallback_run(job_id: str, country: str | None,
                   sources: list[str] | None, field: str | None = None,
                   attempt: int = 1, subfields: list[str] | None = None) -> None:
     is_final: Optional[bool] = None
+    token = cancel_mod.get(job_id) or cancel_mod.register(job_id)
     try:
         records = run_pipeline_job(country, sources, field,
                                    on_progress=_inproc_progress_callback(job_id),
-                                   subfields=subfields)
+                                   subfields=subfields, cancel=token)
         with _in_memory_jobs_lock:
-            if _in_memory_jobs.get(job_id, {}).get("status") != "cancelled":
-                prev = _in_memory_jobs.get(job_id, {})
-                _in_memory_jobs[job_id] = {"job_id": job_id,
-                                           "status": "completed",
-                                           "records": records,
-                                           "attempts": attempt,
-                                           "progress": prev.get("progress")}
+            prev = _in_memory_jobs.get(job_id, {})
+            # A cancelled run still SUCCEEDED — it just stopped early. Its
+            # partial results are already filtered, deduped and stored, so
+            # report the count rather than discarding the work.
+            _in_memory_jobs[job_id] = {
+                "job_id": job_id,
+                "status": ("cancelled" if token.is_cancelled() else "completed"),
+                "records": records,
+                "attempts": attempt,
+                "progress": prev.get("progress")}
         is_final = True
     except Exception as exc:
         log.warning("pipeline job %s failed (attempt %s/%s): %s",
@@ -228,6 +256,9 @@ def _fallback_run(job_id: str, country: str | None,
             is_final = True
     finally:
         if is_final:
+            # Retries reuse the token (a cancel during attempt 1 must still
+            # apply to attempt 2), so only drop it on a terminal state.
+            cancel_mod.release(job_id)
             _fallback_slots.release()
 
 
@@ -538,7 +569,14 @@ def worker_heartbeat() -> dict:
 
 
 def cancel_job(job_id: str) -> bool:
-    """Try to cancel a job that has not started yet; True if cancelled."""
+    """Stop a job — queued OR already running. True if the request landed.
+
+    A RUNNING crawl is cancelled cooperatively (see :mod:`core.cancel`): the
+    source in flight finishes its current request, sources not yet started are
+    skipped, and everything collected so far is still filtered, deduped and
+    stored. The user keeps the partial results and the app stays usable —
+    nothing is killed, no process is signalled, no restart is needed.
+    """
     client = _redis()
     if client is not None:
         from rq.job import Job
@@ -546,16 +584,29 @@ def cancel_job(job_id: str) -> bool:
             job = Job.fetch(job_id, connection=client)
         except Exception:
             return False
-        if job.get_status() == "queued":
-            job.cancel()
+        status = job.get_status()
+        if status == "queued":
+            job.cancel()          # never started: drop it outright
             return True
+        if status == "started":
+            # Running in another process — raise the flag its token polls.
+            return cancel_mod.request_cancel_redis(client, job_id)
         return False
     with _in_memory_jobs_lock:
         info = _in_memory_jobs.get(job_id)
         if info is None or info["status"] != "running":
             return False
-        info["status"] = "cancelled"
+    # Signal the worker thread. The status is NOT forced here: the run itself
+    # records "cancelled" once it has finished storing its partial results, so
+    # a poll can never report a terminal state before the data is saved.
+    if cancel_mod.request_cancel(job_id):
         return True
+    with _in_memory_jobs_lock:
+        info = _in_memory_jobs.get(job_id)
+        if info is not None and info["status"] == "running":
+            info["status"] = "cancelled"   # no live token (e.g. between retries)
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------

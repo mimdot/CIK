@@ -60,11 +60,17 @@ def get_job(job_id: str) -> dict:
 
 @jobs_router.delete("/{job_id}")
 def delete_job(job_id: str) -> dict:
-    """Cancel a queued job. Returns 200 on success, 409 if it already ran."""
+    """Cancel a job — queued or already running.
+
+    A running crawl stops cooperatively: the source in flight finishes its
+    current request, the rest are skipped, and everything found so far is
+    still filtered, deduped and stored. Returns 200 once the request has
+    landed (the run reports ``cancelled`` when it has finished saving),
+    409 only if the job had already finished.
+    """
     if tasks.cancel_job(job_id):
-        return {"status": "cancelled", "job_id": job_id}
+        return {"status": "cancelling", "job_id": job_id}
     info = tasks.get_job_status(job_id)
     if info is None:
         raise HTTPException(status_code=404, detail="Unknown job_id")
-    raise HTTPException(status_code=409,
-                        detail="Job already started or finished")
+    raise HTTPException(status_code=409, detail="Job has already finished")

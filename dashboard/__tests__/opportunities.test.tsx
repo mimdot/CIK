@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import OpportunitiesPage from "@/app/(app)/opportunities/page";
 import {
   ApiError,
+  cancelJob,
   fetchField,
   fetchFields,
   fetchOpportunities,
@@ -26,6 +27,7 @@ jest.mock("@/lib/api", () => {
     fetchField: jest.fn(),
     triggerPipeline: jest.fn(),
     jobStatus: jest.fn(),
+    cancelJob: jest.fn(),
   };
 });
 
@@ -34,6 +36,7 @@ const mockFetchFields = fetchFields as jest.Mock;
 const mockFetchField = fetchField as jest.Mock;
 const mockTriggerPipeline = triggerPipeline as jest.Mock;
 const mockJobStatus = jobStatus as jest.Mock;
+const mockCancelJob = cancelJob as jest.Mock;
 
 function opportunity(overrides: Partial<Opportunity>): Opportunity {
   return {
@@ -237,6 +240,101 @@ describe("OpportunitiesPage", () => {
     );
     expect(screen.getByText("eso")).toBeInTheDocument();
     expect(screen.getByText("aas")).toBeInTheDocument();
+  });
+
+  it("cancels a running search and keeps the partial results (2A)", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "cx" });
+    // running -> (cancel pressed) -> cancelled, with partial results.
+    mockJobStatus
+      .mockResolvedValueOnce({
+        run_id: "cx",
+        status: "running",
+        progress: {
+          total: 3,
+          completed: 1,
+          sources: [{ source: "eso", status: "done", records: 4 }],
+        },
+      })
+      .mockResolvedValue({
+        run_id: "cx",
+        status: "cancelled",
+        records: 4,
+        progress: {
+          total: 3,
+          completed: 3,
+          sources: [
+            { source: "eso", status: "done", records: 4 },
+            { source: "aas", status: "skipped", records: 0 },
+            { source: "euraxess", status: "skipped", records: 0 },
+          ],
+          funnel: {
+            cancelled: true,
+            found: 4,
+            after_field_filter: 4,
+            after_freshness: 4,
+            after_dedupe: 4,
+            stored: 4,
+            dropped: {
+              position_type: 0, off_field: 0, expired: 0,
+              country: 0, stale: 0, duplicate: 0,
+            },
+          },
+        },
+      });
+    mockCancelJob.mockResolvedValue({ status: "cancelling" });
+
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+
+    await user.click(await screen.findByRole("button", { name: "Cancel search" }));
+    expect(mockCancelJob).toHaveBeenCalledWith("cx");
+
+    // The app must NOT close, crash or need a restart — it lands in a usable
+    // idle state with the partial results kept. Waits past one poll interval
+    // (POLL_MS = 2s), which is when the run reports back.
+    expect(
+      await screen.findByText(/Search stopped/, {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("run-status")).toHaveTextContent("cancelled");
+    expect(screen.getAllByText("skipped").length).toBe(2);
+
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(screen.queryByText(/Search stopped/)).not.toBeInTheDocument(),
+    );
+    // ...and the list reloaded, so what was found is on screen.
+    expect(screen.getByText("PhD in radio astronomy")).toBeInTheDocument();
+  });
+
+  it("shows elapsed time so a search never looks frozen (6A)", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "el" });
+    mockJobStatus.mockResolvedValue({ run_id: "el", status: "running" });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+
+    expect(await screen.findByTestId("run-elapsed")).toBeInTheDocument();
+  });
+
+  it("does not surface a 409 when the run finished before Cancel landed", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "rc" });
+    mockJobStatus.mockResolvedValue({ run_id: "rc", status: "running" });
+    mockCancelJob.mockRejectedValue(
+      new ApiError("Job has already finished", 409),
+    );
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+    await user.click(await screen.findByRole("button", { name: "Cancel search" }));
+
+    await waitFor(() => expect(mockCancelJob).toHaveBeenCalled());
+    expect(
+      screen.queryByText(/Job has already finished/),
+    ).not.toBeInTheDocument();
   });
 
   it("explains the headline number with the run funnel (18-vs-63)", async () => {

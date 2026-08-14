@@ -1705,13 +1705,48 @@ def test_jobs_get_unknown_404(client):
 
 
 def test_jobs_cancel_running(client):
+    """No live token (job record only) — the status is set directly."""
     from core import tasks as tasks_module
     tasks_module._in_memory_jobs["cancelme"] = {"job_id": "cancelme",
                                                 "status": "running"}
     resp = client.delete("/api/jobs/cancelme")
     assert resp.status_code == 200
-    assert resp.json()["status"] == "cancelled"
+    # "cancelling", not "cancelled": a real run finishes storing its partial
+    # results before it reports a terminal state, so a poll can never see
+    # "cancelled" while data is still being written.
+    assert resp.json()["status"] == "cancelling"
     assert tasks_module.get_job_status("cancelme")["status"] == "cancelled"
+
+
+def test_jobs_cancel_signals_a_live_run(client):
+    """With a live token the request must reach the worker, not just flip a
+    label — that is the difference between a real Cancel and a cosmetic one."""
+    from core import cancel as cancel_mod
+    from core import tasks as tasks_module
+    token = cancel_mod.register("livejob")
+    tasks_module._in_memory_jobs["livejob"] = {"job_id": "livejob",
+                                               "status": "running"}
+    try:
+        assert token.is_cancelled() is False
+        resp = client.delete("/api/jobs/livejob")
+        assert resp.status_code == 200
+        assert token.is_cancelled() is True
+        # Still "running" until the crawl has stored what it found.
+        assert tasks_module.get_job_status("livejob")["status"] == "running"
+    finally:
+        cancel_mod.release("livejob")
+        tasks_module._in_memory_jobs.pop("livejob", None)
+
+
+def test_jobs_cancel_finished_job_409(client):
+    from core import tasks as tasks_module
+    tasks_module._in_memory_jobs["donejob"] = {"job_id": "donejob",
+                                               "status": "completed",
+                                               "records": 5}
+    try:
+        assert client.delete("/api/jobs/donejob").status_code == 409
+    finally:
+        tasks_module._in_memory_jobs.pop("donejob", None)
 
 
 def test_jobs_cancel_unknown_404(client):

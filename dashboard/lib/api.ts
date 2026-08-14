@@ -344,6 +344,19 @@ export function jobStatus(runId: string): Promise<PipelineStatus> {
   return request<PipelineStatus>(`/api/jobs/${encodeURIComponent(runId)}`);
 }
 
+/**
+ * Stop a running search. Sources still in flight finish their current request
+ * and everything already found is kept — the app stays usable, nothing is
+ * killed, no restart is needed. Resolves once the request has landed; the run
+ * reports "cancelled" when it has finished saving its partial results.
+ */
+export function cancelJob(runId: string): Promise<{ status: string }> {
+  return request<{ status: string }>(
+    `/api/jobs/${encodeURIComponent(runId)}`,
+    { method: "DELETE" },
+  );
+}
+
 // --- bookmarks ----------------------------------------------------------------
 export function fetchBookmarks(): Promise<Paginated<Bookmark>> {
   return request<Paginated<Bookmark>>("/api/bookmarks");

@@ -28,6 +28,12 @@ import type { Opportunity } from "@/types";
 
 const PAGE_SIZE = 12;
 
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+}
+
 export default function OpportunitiesPage() {
   const [items, setItems] = useState<Opportunity[]>([]);
   const [total, setTotal] = useState(0);
@@ -92,6 +98,8 @@ export default function OpportunitiesPage() {
     );
     void load();
   }
+  // Cancelling reloads through the same path, so partial results appear in the
+  // list exactly like a full run's.
   const run = useRunJob(onRunCompleted);
 
   function handleRunEngine() {
@@ -184,8 +192,12 @@ export default function OpportunitiesPage() {
             <DialogTitle>Engine run</DialogTitle>
             <DialogDescription>
               {run.status === "starting" && "Starting the data engine…"}
-              {run.status === "running" && "Aggregating opportunities from sources…"}
+              {run.status === "running" &&
+                (run.cancelling
+                  ? "Stopping — finishing the source in flight…"
+                  : "Aggregating opportunities from sources…")}
               {run.status === "completed" && "Run completed."}
+              {run.status === "cancelled" && "Search cancelled."}
               {run.status === "failed" && "Run failed."}
             </DialogDescription>
           </DialogHeader>
@@ -232,10 +244,16 @@ export default function OpportunitiesPage() {
                         className={
                           s.status === "error"
                             ? "text-destructive"
-                            : "text-emerald-600"
+                            : s.status === "skipped"
+                              ? "text-muted-foreground"
+                              : "text-emerald-600"
                         }
                       >
-                        {s.status === "error" ? "error" : `${s.records}`}
+                        {s.status === "error"
+                          ? "error"
+                          : s.status === "skipped"
+                            ? "skipped"
+                            : `${s.records}`}
                       </span>
                     </li>
                   ))}
@@ -250,12 +268,36 @@ export default function OpportunitiesPage() {
                 {run.error}
               </p>
             )}
+            {run.busy && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Elapsed</span>
+                <span className="tabular-nums" data-testid="run-elapsed">
+                  {formatElapsed(run.elapsed)}
+                </span>
+              </div>
+            )}
+            {run.status === "cancelled" && (
+              <p className="rounded-md border bg-muted/50 p-2 text-muted-foreground">
+                Search stopped. The positions found before you cancelled have
+                been kept and are listed below.
+              </p>
+            )}
             <p className="text-muted-foreground">
-              This can take a minute or two while sources are polled.
+              This can take a minute or two while sources are polled. You can
+              cancel at any time and keep what has been found so far.
             </p>
           </div>
           <DialogFooter showCloseButton={run.status !== "starting" && !run.busy}>
-            {run.status === "completed" && (
+            {run.busy && (
+              <Button
+                variant="outline"
+                onClick={() => void run.cancel()}
+                disabled={run.cancelling || run.status === "starting"}
+              >
+                {run.cancelling ? "Stopping…" : "Cancel search"}
+              </Button>
+            )}
+            {(run.status === "completed" || run.status === "cancelled") && (
               <Button onClick={() => run.close()}>Done</Button>
             )}
           </DialogFooter>

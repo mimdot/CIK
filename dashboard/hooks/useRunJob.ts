@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, jobStatus } from "@/lib/api";
+import { ApiError, cancelJob, jobStatus } from "@/lib/api";
 import type { RunProgress } from "@/types";
 
 export interface RunJobState {
@@ -11,6 +11,10 @@ export interface RunJobState {
   records: number | null;
   error: string | null;
   progress: RunProgress | null;
+  /** True from the moment Cancel is pressed until the run reports back. */
+  cancelling: boolean;
+  /** Seconds since the run started — proof the search is not frozen. */
+  elapsed: number;
 }
 
 const POLL_MS = 2000;
@@ -26,46 +30,74 @@ const POLL_MS = 2000;
 export function useRunJob(
   onCompleted?: (records: number | null) => void | Promise<void>,
 ) {
-  const [state, setState] = useState<RunJobState>({
+  const IDLE: RunJobState = {
     open: false,
     busy: false,
     status: null,
     records: null,
     error: null,
     progress: null,
-  });
+    cancelling: false,
+    elapsed: 0,
+  };
+  const [state, setState] = useState<RunJobState>(IDLE);
   const [runId, setRunId] = useState<string | null>(null);
+  const startedAt = useRef<number | null>(null);
   const onCompletedRef = useRef(onCompleted);
   onCompletedRef.current = onCompleted;
 
   const start = useCallback(
     async (trigger: () => Promise<{ run_id: string }>) => {
       setRunId(null);
-      setState({ open: true, busy: true, status: "starting", records: null, error: null, progress: null });
+      startedAt.current = Date.now();
+      setState({ ...IDLE, open: true, busy: true, status: "starting" });
       try {
         const res = await trigger();
         setRunId(res.run_id);
       } catch (e) {
-        setState({
-          open: true,
+        setState((s) => ({
+          ...s,
           busy: false,
           status: "failed",
-          records: null,
           error: e instanceof ApiError ? e.message : "Could not start the run",
-          progress: null,
-        });
+        }));
       }
     },
+    // IDLE is a stable literal; excluding it keeps start() referentially stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
+  /**
+   * Stop an in-progress run. The backend cancels cooperatively, so partial
+   * results are still filtered, deduped and saved; the dialog stays open and
+   * usable and the page reloads with whatever was found.
+   */
+  const cancel = useCallback(async () => {
+    if (!runId) return;
+    setState((s) => ({ ...s, cancelling: true }));
+    try {
+      await cancelJob(runId);
+    } catch (e) {
+      // 409 = it finished on its own in the meantime; that is not an error
+      // worth showing, the next poll will report the real outcome.
+      if (!(e instanceof ApiError && e.status === 409)) {
+        setState((s) => ({
+          ...s,
+          cancelling: false,
+          error: e instanceof ApiError ? e.message : "Could not cancel the run",
+        }));
+      }
+    }
+  }, [runId]);
+
   useEffect(() => {
     if (!state.open || !runId) return;
-    let cancelled = false;
+    let stopped = false;
     const tick = async () => {
       try {
         const status = await jobStatus(runId);
-        if (cancelled) return;
+        if (stopped) return;
         // The job backend may report queued/deferred while en route to
         // running; treat every non-terminal task state as "running".
         const phase =
@@ -79,36 +111,60 @@ export function useRunJob(
           error: status.error ?? s.error,
           progress: status.progress ?? s.progress,
         }));
-        if (status.status === "completed") {
-          setState((s) => ({ ...s, status: "completed", busy: false }));
+        if (status.status === "completed" || status.status === "cancelled") {
+          // A cancelled run is a SUCCESSFUL one that stopped early: its
+          // partial results are already saved, so reload the page data just
+          // as for a full run. The UI returns to a usable idle state.
+          setState((s) => ({
+            ...s,
+            status: status.status,
+            busy: false,
+            cancelling: false,
+          }));
           void onCompletedRef.current?.(status.records ?? null);
         } else if (status.status === "failed") {
-          setState((s) => ({ ...s, status: "failed", busy: false }));
+          setState((s) => ({
+            ...s, status: "failed", busy: false, cancelling: false,
+          }));
         } else {
           setTimeout(() => {
-            if (!cancelled) void tick();
+            if (!stopped) void tick();
           }, POLL_MS);
         }
       } catch (e) {
-        if (cancelled) return;
+        if (stopped) return;
         setState((s) => ({
           ...s,
           error:
             e instanceof ApiError ? e.message : "Could not check run status",
           busy: false,
+          cancelling: false,
           status: s.status === "starting" ? "failed" : s.status,
         }));
       }
     };
     void tick();
     return () => {
-      cancelled = true;
+      stopped = true;
     };
   }, [state.open, runId]);
+
+  // Elapsed-time ticker: visible proof the search is working, not frozen.
+  useEffect(() => {
+    if (!state.busy || startedAt.current === null) return;
+    const id = setInterval(() => {
+      if (startedAt.current === null) return;
+      setState((s) => ({
+        ...s,
+        elapsed: Math.floor((Date.now() - startedAt.current!) / 1000),
+      }));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [state.busy]);
 
   const close = useCallback(() => {
     setState((s) => ({ ...s, open: false }));
   }, []);
 
-  return { ...state, start, close };
+  return { ...state, start, cancel, close };
 }
