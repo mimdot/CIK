@@ -316,15 +316,39 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
 
 
 def do_list_sources(cfg: Config) -> None:
-    print("Registered sources (enabled per current config):")
+    """List sources with what a run would ACTUALLY do with each.
+
+    "on" alone used to be the whole story. It no longer is: a source is
+    skipped when it does not serve the selected field, and the slow ones are
+    skipped unless asked for — so printing "on" next to a board that will not
+    be crawled is a lie the user has no way to check.
+    """
+    from sources.base import SOURCE_INFO, resolve_sources_for_field
+
+    field = getattr(cfg, "field_profile", None)
+    resolved = resolve_sources_for_field(
+        field, cfg.sources_enabled, getattr(cfg, "profile_sources", None),
+        known_sources=SOURCES,
+        include_slow=getattr(cfg, "include_slow_sources", False))
+
+    print(f"Registered sources (for field {field!r}):")
     for name in SOURCES:
-        status = "on " if cfg.sources_enabled.get(name, False) else "off"
+        info = SOURCE_INFO.get(name)
+        if not cfg.sources_enabled.get(name, False):
+            status, why = "off", "disabled in config"
+        elif resolved.get(name):
+            status, why = "on ", ""
+        elif info is not None and info.slow:
+            status, why = "opt", "slow — add --include-slow-sources"
+        else:
+            status, why = "---", f"not relevant to {field}"
         doc = (SOURCES[name].__doc__ or "").strip().splitlines()
         tag = ""
         if doc:
             m = re.search(r"\[(FEED|HTML|JS|STUB|HTML/JS|FEED/HTML|FEED/JS)\]", doc[0])
             tag = m.group(0) if m else ""
-        print(f"  [{status}] {name:<20} {tag}")
+        print(f"  [{status}] {name:<20} {tag:<7} {why}")
+    print("\n  on = will be crawled | opt = opt-in | --- = wrong field | off = disabled")
     print(f"\nPlaywright: {_HAVE_PLAYWRIGHT}  |  curl_cffi: {_HAVE_CURL_CFFI}"
           f"  |  HTML parser: {_HTML_PARSER}")
 

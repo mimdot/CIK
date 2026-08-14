@@ -86,49 +86,150 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev   # -> localhost:3000
 
 Make sure V2RayN is running (SOCKS `127.0.0.1:10808`).
 
-### Click-through checklist
+### Click-through checklist — what to look for, and what is WRONG
 
-1. **Opportunities** — pick **PhD** or **Postdoc** at the top (separate
-   searches), then your **field**, then optionally **subfields**. Press
-   *Search for positions*. Watch: per-source status, elapsed time, a running
-   found-count, **positions appearing as they are found**, and a **Cancel
-   search** button. Cancel mid-run: the app stays usable and keeps what it
-   found. On completion read the `63 → 41 → 22 → 18` breakdown.
-2. **The slow sweep** — the "Also sweep university department pages" checkbox
-   is OFF and states its cost. Try "browse the department list yourself"
-   instead: instant, no crawling.
-3. **Profile** — pick field → subfields → tick keywords (searchable, collapsed
-   by default, chips, add-your-own). *This is the primary path; no AI key
-   needed.* Optionally expand "pre-fill from a CV" and upload a PDF.
-4. **Supervisors** — type `Germny` in Country and take the "Did you mean
-   Germany?" suggestion. Run a search; expand a card to see **how** the fit
-   score was reached. Export CSV and confirm it matches what is on screen.
-5. **Settings** — the field control is now real (it saves to your profile and
-   syncs everywhere). No `--field` text anywhere. Digest says "Coming soon".
-   Admin and API Keys are hidden unless you are an admin:
-   `python phd_aggregator.py --make-admin you@example.com`.
+Work down the list. Each row says what you should see; anything else is a bug
+worth reporting.
+
+**1. Opportunities — the position type (2C)**
+- [ ] Tabs at the very top: **PhD**, **Postdoc**, and **Master's** /
+      **Scholarship** greyed out with a "Coming soon" chip.
+- [ ] Clicking a greyed tab does nothing. PhD is selected by default.
+- [ ] Switching to **Postdoc** changes the headline to
+      "N open postdoc positions" and reloads the list.
+- ✗ WRONG: one blended list, or Master's being clickable.
+
+**2. Opportunities — the field and subfields (1A/1B)**
+- [ ] Choose **Chemistry**. A note appears: *"No board is dedicated to
+      Chemistry yet…"* — that is correct and expected.
+- [ ] Click **Narrow by subfield** — groups are collapsed until you ask.
+      Tick two; they appear as removable chips.
+- [ ] Switch the field to Astronomy: **the subfield chips clear**.
+- ✗ WRONG: subfields surviving a field change (they mean different things).
+
+**3. Opportunities — running a search (2A/6A)**
+- [ ] Press **Search for positions**. The dialog shows, live:
+      per-source status (done / error / skipped), **elapsed time**,
+      **"Found so far"**, and **positions listed as they arrive** — not a
+      frozen bar.
+- [ ] Press **Cancel search** mid-run. It says *"Stopping — finishing the
+      source in flight…"*, then *"Search stopped. The positions found before
+      you cancelled have been kept."*
+- [ ] The app is still usable; the kept results are in the list.
+- [ ] On a full run, read the breakdown: `63 found → 41 after field filter →
+      22 after dedupe → 18 stored`, with reasons underneath.
+- ✗ WRONG: the app closing, needing a restart, or losing what it found.
+
+**4. Opportunities — the slow sweep (2B)**
+- [ ] The "Also sweep university department pages" checkbox is **OFF** and
+      says it adds **several minutes**.
+- [ ] Click **"Or browse the department list yourself (instant)"** — filter by
+      country, search by name, open one. No crawling, no waiting.
+
+**5. Profile — keywords first, CV optional (3A/3B/3C)**
+- [ ] The page leads with **field → keywords**, not with a CV box.
+- [ ] Keyword groups are collapsed; search filters across them and
+      auto-expands matches; "All" selects a whole subfield; chips are
+      removable; "Add your own" works. **No AI key is needed for any of this.**
+- [ ] Expand *"Optional: pre-fill from a CV"*, paste some CV text, press
+      **Pre-fill my keywords** — matching keywords get ticked above.
+- [ ] Upload a **PDF**. It should read. If this installation cannot, it says
+      so plainly and points you at pasting — it must **never** tell you to run
+      `pip install`.
+- [ ] Paste nonsense and pre-fill: you get a *reason* ("No research field
+      could be recognised…"), never a bare "Could not extract profile".
+
+**6. Supervisors — auto-correct, fit, export (2D/4A/4B/4C)**
+- [ ] Type `Germny` in **Country** → *"Did you mean Germany?"*. It **suggests**;
+      it must not silently rewrite what you typed.
+- [ ] Try `UK`, `Holland`, `Kazakhstan`, and a nonsense word (which should warn).
+- [ ] Run a search. Scores are **`Fit 72 / 100`**, never a percentage over 100.
+- [ ] Expand a card: it explains *how* the score was reached
+      ("29 pts — matches your terms: …; 20 pts — senior author on 5 of 9…").
+- [ ] **Export CSV** and open it: exactly the rows on screen, explanations
+      included.
+- ✗ WRONG: "Fit 4300%", a bare number with no explanation, or an export
+  containing rows you filtered out.
+
+**7. Settings (5A/5B/5C)**
+- [ ] The field control shows **your saved field**, and changing it saves.
+- [ ] Search the page for `--field` or "pipeline runner" — **nothing**.
+- [ ] Digest is labelled **Coming soon**.
+- [ ] **Admin** and **API Keys** are absent from the navigation. To see them:
+      `python3 phd_aggregator.py --make-admin you@example.com`, then reload.
+
+**8. Footer (6D)** — GitHub and your email appear on every page, dashboard and
+public, and both are clickable.
 
 ### CLI
 
+Fastest confidence check — needs no network, takes two seconds:
+
 ```bash
 cd phd_aggregator
-python3 phd_aggregator.py --self-test                      # offline, must pass
-python3 phd_aggregator.py --field chemistry --type phd --limit-per-source 5
-python3 phd_aggregator.py --field chemistry --include-slow-sources   # the slow sweep
+python3 phd_aggregator.py --self-test     # must end: >>> SELF-TEST: ALL PASSED
+```
+
+See exactly which boards a run WILL use, before running it:
+
+```bash
+python3 phd_aggregator.py --field chemistry --list-sources
+```
+
+```
+[---] aas                  not relevant to chemistry     <- the headline fix
+[---] eso                  not relevant to chemistry
+[on ] euraxess
+[opt] uni_departments      slow — add --include-slow-sources
+```
+
+Then run real searches:
+
+```bash
+# PhD only, then postdocs only — the two must not mix
+python3 phd_aggregator.py --field chemistry --type phd     --limit-per-source 5
+python3 phd_aggregator.py --field chemistry --type postdoc --limit-per-source 5
+
+# opt in to the slow department sweep (adds minutes)
+python3 phd_aggregator.py --field chemistry --include-slow-sources
+
+# supervisors
 python3 phd_aggregator.py --find-supervisors --field chemistry --country Germany
 ```
 
-Watch the log line naming which boards were chosen and which were skipped as
-not relevant.
+Open the resulting `phd_positions.csv` and check the `field` and
+`position_type` columns are all what you asked for.
+
+Run the test suite yourself:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest tests/ -q        # expect: 960 passed
+```
 
 ### Desktop app — **this part is yours**
 
-I could not click through it: no display in my environment and the 330 MB
-PyInstaller sidecar is not built. Rebuild per `TAURI_BUILD_COMMANDS.txt`.
+I could not click through it: no display in my environment. Build it with:
 
-I did fix a real desktop bug: `cik-api.spec` had empty `hiddenimports`, so the
-packaged app shipped with **no PDF support at all** (the parsers are imported
-lazily, so PyInstaller could not see them). It now bundles them.
+```bash
+cd phd_aggregator
+python3 -m pip install -r requirements.txt pyinstaller
+python3 -m PyInstaller cik-api.spec --noconfirm      # -> dist/cik-api, ~159 MB
+cp dist/cik-api ../dashboard/src-tauri/sidecar/api/cik-api-$(rustc -vV | sed -n 's/host: //p')
+cd ../dashboard && npm run tauri:build               # or tauri:dev to just run it
+```
+
+**The sidecar is now 159 MB, down from 346 MB.** If your build comes out much
+larger, the excludes in `cik-api.spec` did not apply — tell me.
+
+Two real desktop bugs were fixed along the way, both worth confirming:
+- `cik-api.spec` had empty `hiddenimports`, so the packaged app shipped with
+  **no PDF support at all** (the parsers are imported lazily, so PyInstaller
+  could not see them). **Check: upload a PDF in the desktop app.**
+- The sidecar now picks a free port instead of assuming 8000, so a clash no
+  longer gives you a white screen.
+
+Desktop logs: `~/.local/share/com.careerintelligence.kit/api.log`.
 
 ---
 
