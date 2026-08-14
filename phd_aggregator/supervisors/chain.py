@@ -16,6 +16,7 @@ from typing import Optional
 
 from core.config import (ADS_TOKEN_ENV, SUPERVISOR_ORCID_EMAILS,
                          SUPERVISOR_SENIOR_WEIGHT, Config, _find_config_path)
+from core.csvout import write_csv
 from core.utils import canonical_country
 from supervisors.ads import ads_supervisor_docs
 from supervisors.aggregate import aggregate_supervisors
@@ -360,8 +361,6 @@ def find_supervisors(cfg: Config, http) -> int:
     ADS only indexes astronomy + physics; OpenAlex (no token) covers EVERY
     major, so e.g. --field economics --country Germany now works out of the
     box."""
-    import pandas as pd
-
     if not cfg.geo_filter_active or not cfg.countries:
         log.error("--find-supervisors needs --country <name> "
                   "(e.g. --country Germany)")
@@ -473,7 +472,7 @@ def find_supervisors(cfg: Config, http) -> int:
             "last_author_papers", "topics", "representative_papers",
             "author_search", "orcid", "orcid_link", "public_email",
             "email_source"]
-    pd.DataFrame(ranked)[cols].to_csv(csv_path, index=False)
+    write_csv(csv_path, ranked, columns=cols)
     with open(json_path, "w", encoding="utf-8") as fh:
         json.dump(ranked, fh, indent=2, ensure_ascii=False)
     html_path = os.path.join(out_dir, stem + ".html")

@@ -13,10 +13,15 @@
 
 -r requirements.txt
 
-pytest>=8.0                # the test runner (tests/ — 726 tests)
+pytest>=8.0                # the test runner
+pandas>=2.0                # TEST-ONLY since the CSV writer moved to stdlib
+                           #   (core.csvout). tests/test_csvout.py compares
+                           #   byte-for-byte against it to prove parity, and
+                           #   test_pipeline_run reads output CSVs with it.
+                           #   The shipped app and the desktop bundle do NOT
+                           #   need pandas — that is the point.
 
 # NOTE: every other test-only import (httpx for the FastAPI TestClient,
-# python-docx for the CV parser tests, pandas, bs4, sqlalchemy, requests) is
-# already a runtime dependency in requirements.txt, so nothing else is needed
-# here. Keep it that way: a package belongs in requirements.txt if the shipped
+# python-docx for the CV parser tests, bs4, sqlalchemy, requests) is already a
+# runtime dependency in requirements.txt, so nothing else is needed here. Keep it that way: a package belongs in requirements.txt if the shipped
 # app imports it, and here only if the tests do.

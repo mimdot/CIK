@@ -14,7 +14,7 @@ import time
 from typing import Optional
 from urllib.parse import quote
 
-import pandas as pd
+from core.csvout import write_csv
 
 from core.config import Config
 from core.deps import _HAVE_FEEDPARSER, feedparser
@@ -205,7 +205,7 @@ def find_professors(cfg: Config, http: Optional[Http] = None) -> None:
                      "ads_search": ads_link(a["name"])})
 
     csv_path = os.path.join(out_dir, "professors.csv")
-    pd.DataFrame(rows).to_csv(csv_path, index=False)
+    write_csv(csv_path, rows)
 
     md = ["# Professors & researchers in your fields",
           "",

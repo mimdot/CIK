@@ -18,6 +18,7 @@ from typing import Optional
 
 from core.config import Config
 from core.http import Http
+from core.csvout import write_csv
 from core.records import OUTPUT_FIELDS
 from core.utils import dedupe_key
 from core.cancel import NullToken
@@ -88,8 +89,6 @@ def _record_source(name: str, raw_records: int, error: bool,
 # Outputs: CSV + JSON + self-contained HTML dashboard (Task E)
 # -----------------------------------------------------------------------------
 def write_outputs(records: list[dict], cfg: Config) -> None:
-    import pandas as pd  # local import: only needed for CSV writing
-
     # Track B6/C3: when a profile was active, extend the schema with the match
     # columns. Baseline runs are byte-for-byte identical to before.
     fields = list(OUTPUT_FIELDS)
@@ -113,7 +112,7 @@ def write_outputs(records: list[dict], cfg: Config) -> None:
             if isinstance(c.get(f), list):
                 c[f] = "; ".join(c[f])
         csv_rows.append(c)
-    pd.DataFrame(csv_rows, columns=fields).to_csv(cfg.csv_path, index=False)
+    write_csv(cfg.csv_path, csv_rows, columns=fields)
 
     written = [cfg.csv_path, cfg.json_path]
     if cfg.write_html:

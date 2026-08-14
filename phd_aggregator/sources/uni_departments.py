@@ -8,9 +8,8 @@ from __future__ import annotations
 import re
 from urllib.parse import urljoin
 
-import pandas as pd
-
 from core.config import Config
+from core.csvout import write_csv
 from core.http import Http
 from core.records import make_record
 from core.utils import canonical_country, normalize_url
@@ -409,7 +408,7 @@ def source_uni_departments(cfg: Config, http: Http) -> list[dict]:
 
     dir_path = cfg.stem + "_universities.csv"
     try:
-        pd.DataFrame(directory_rows).to_csv(dir_path, index=False)
+        write_csv(dir_path, directory_rows)
         log.info("[uni_departments] directory of %d departments -> %s",
                  len(directory_rows), dir_path)
     except Exception as exc:

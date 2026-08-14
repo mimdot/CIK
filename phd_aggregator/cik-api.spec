@@ -39,6 +39,51 @@ for module in CV_PARSERS:
         hiddenimports.append(module)
 
 
+# SIZE. The desktop bundle was 330 MB, and three optional dependencies were
+# most of it. Each is excluded here and each degrades gracefully at runtime —
+# verified, not assumed:
+#
+#   playwright  142 MB  headless-browser fallback for JS/Cloudflare pages.
+#                       core.deps sets _HAVE_PLAYWRIGHT=False when absent and
+#                       the fetch chain falls back to requests + curl_cffi.
+#                       (FindAPhD, its main consumer, is Cloudflare-403 from
+#                       most proxy exits anyway.)
+#   litellm     111 MB  the LLM profile extractor. Phase 3 replaced it as the
+#                       primary path with core.cv_extract (deterministic, no
+#                       API key), and core.llm imports it lazily behind a
+#                       clear error.
+#   pandas +     103 MB only ever used to write CSVs, now done by core.csvout
+#   numpy               on the standard library, plus one date-parsing
+#                       fallback in core.utils that is already try/excepted.
+#
+# A user who installs from requirements.txt still gets all three — this only
+# trims what is BUNDLED into the downloadable app.
+EXCLUDES = [
+    "playwright", "litellm",
+    "pandas", "numpy", "numpy.f2py",
+
+    # TRANSITIVE PASSENGERS. Excluding a package does not drop the things it
+    # dragged into the graph, and these were the real weight — measured from
+    # the build, not guessed. NOTHING in this codebase imports any of them.
+    "pyarrow",          # 144 MB (!) — a pandas extra, the single biggest item
+    "openai",           #   6 MB — litellm's client
+    "hf_xet",           #  12 MB — litellm -> huggingface
+    "huggingface_hub", "tokenizers", "transformers",
+    "aiohttp",          #   6 MB — async HTTP for the above; we use requests/httpx
+    "tiktoken", "tiktoken_ext",      # 3 MB — the OpenAI tokenizer
+    "regex",                         # 3 MB — only here for tiktoken
+
+    # Not used by the DESKTOP build specifically. A server install still gets
+    # these from requirements.txt; the Tauri shell always runs on SQLite.
+    "psycopg2", "psycopg2-binary",   # 8 MB — PostgreSQL driver
+    "uvloop",                        # 16 MB — uvicorn speed extra; it falls
+                                     # back to asyncio, and this serves one user
+
+    # Never reachable from a headless API.
+    "matplotlib", "scipy", "IPython", "tkinter", "PyQt5", "PySide6",
+    "pytest", "_pytest",
+]
+
 a = Analysis(
     ['api/run.py'],
     pathex=[SPECPATH],
@@ -48,7 +93,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=EXCLUDES,
     noarchive=False,
     optimize=0,
 )
@@ -63,7 +108,11 @@ exe = EXE(
     name='cik-api',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    # Strip debug symbols from the bundled shared objects. Saves tens of MB
+    # on Linux/macOS and costs nothing: this is a shipped binary, and a
+    # traceback still names the Python frames, which is what we debug from.
+    strip=True,
+    # UPX compresses further if it is installed; harmless when it is not.
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,

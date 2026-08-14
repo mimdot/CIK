@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import os
 
-import pandas as pd
+from core.csvout import write_csv
 
 from core.config import Config
 
@@ -177,7 +177,7 @@ def write_scholarships(cfg: Config) -> None:
     """Write scholarships.md + scholarships.csv (curated, profile-matched)."""
     out_dir = os.path.dirname(os.path.abspath(cfg.stem))
     csv_path = os.path.join(out_dir, "scholarships.csv")
-    pd.DataFrame(SCHOLARSHIPS).to_csv(csv_path, index=False)
+    write_csv(csv_path, SCHOLARSHIPS)
 
     by_region: dict[str, list[dict]] = {}
     for s in SCHOLARSHIPS:

@@ -17,7 +17,7 @@ easy reconfiguration for other career levels or fields via the CONFIG block.
 
 ------------------------------------------------------------------------------
 INSTALL (minimal deps):
-    pip install requests beautifulsoup4 feedparser pandas
+    pip install requests beautifulsoup4 feedparser
     pip install "requests[socks]"    # required if PROXY is a socks5:// URL
     pip install pyyaml               # optional, enables config.yaml + fields/*.yaml
     pip install lxml                 # optional, faster/robuster HTML parsing
@@ -117,15 +117,18 @@ try:
     import requests
     from requests.adapters import HTTPAdapter
     from urllib3.util.retry import Retry
-    import pandas as pd
     from bs4 import BeautifulSoup
 except ImportError as exc:  # pragma: no cover - environment guard
     sys.stderr.write(
         "Missing dependency: %s\n"
         "Install with:\n"
-        "    pip install requests beautifulsoup4 feedparser pandas\n" % exc
+        "    pip install requests beautifulsoup4 feedparser\n" % exc
     )
     raise
+
+# pandas is NO LONGER REQUIRED. CSV writing moved to core.csvout (stdlib), so
+# pandas + numpy — 103 MB of the desktop bundle — is now only an optional
+# nicety for one date-parsing fallback in core.utils. Imported lazily there.
 
 
 from core.deps import _HAVE_CURL_CFFI, _HAVE_PLAYWRIGHT, _HTML_PARSER, curl_requests, feedparser  # noqa: F401

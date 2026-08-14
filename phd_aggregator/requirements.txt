@@ -3,7 +3,13 @@ requests>=2.31
 requests[socks]           # SOCKS proxy support (socks5h:// URLs)
 beautifulsoup4>=4.12
 feedparser>=6.0
-pandas>=2.0
+
+# Optional — was REQUIRED until CSV writing moved to core.csvout (stdlib).
+# Now used only for one date-parsing fallback in core.utils, behind a
+# try/except. pandas + numpy is ~103 MB, so the desktop bundle excludes it
+# entirely (see cik-api.spec); install it only if you want that last-resort
+# date parser.
+# pandas>=2.0
 
 # Recommended (the tool runs without them, with reduced capability)
 pyyaml>=6.0               # config.yaml + fields/*.yaml profiles (Task: adapt to YOUR field)
