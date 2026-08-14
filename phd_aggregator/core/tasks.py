@@ -122,7 +122,8 @@ def _rq_progress_callback():
 def run_pipeline_job(country: str | None = None,
                      sources: list[str] | None = None,
                      field: str | None = None,
-                     on_progress=None) -> int:
+                     on_progress=None,
+                     subfields: list[str] | None = None) -> int:
     """Execute the aggregation pipeline and return the number of records.
 
     The return value (an ``int`` record count) is stored as the rq *result* for
@@ -138,6 +139,9 @@ def run_pipeline_job(country: str | None = None,
     args = argparse.Namespace(
         country=[country] if country else None,
         field=field or None,
+        # Selected subfields BOOST matching positions (their keywords join
+        # context_terms) rather than gating them — see apply_subfield_focus.
+        subfields=list(subfields or []),
         no_config=True,
     )
     cfg = build_config(args)
@@ -186,11 +190,12 @@ def _redis():
 
 def _fallback_run(job_id: str, country: str | None,
                   sources: list[str] | None, field: str | None = None,
-                  attempt: int = 1) -> None:
+                  attempt: int = 1, subfields: list[str] | None = None) -> None:
     is_final: Optional[bool] = None
     try:
         records = run_pipeline_job(country, sources, field,
-                                   on_progress=_inproc_progress_callback(job_id))
+                                   on_progress=_inproc_progress_callback(job_id),
+                                   subfields=subfields)
         with _in_memory_jobs_lock:
             if _in_memory_jobs.get(job_id, {}).get("status") != "cancelled":
                 prev = _in_memory_jobs.get(job_id, {})
@@ -209,7 +214,8 @@ def _fallback_run(job_id: str, country: str | None,
             # finishes it when a terminal state is reached.
             time.sleep(RETRY_BACKOFF_S)
             threading.Thread(target=_fallback_run,
-                             args=(job_id, country, sources, field, attempt + 1),
+                             args=(job_id, country, sources, field,
+                                   attempt + 1, subfields),
                              daemon=True).start()
             is_final = False
         else:
@@ -225,21 +231,23 @@ def _fallback_run(job_id: str, country: str | None,
             _fallback_slots.release()
 
 
-def _enqueue_fallback(country, sources, field=None) -> str:
+def _enqueue_fallback(country, sources, field=None,
+                      subfields=None) -> str:
     job_id = uuid.uuid4().hex[:12]
     if not _fallback_slots.acquire(blocking=False):
         raise RuntimeError("Too many concurrent pipeline runs — try again later")
     with _in_memory_jobs_lock:
         _in_memory_jobs[job_id] = {"job_id": job_id, "status": "running",
                                    "country": country, "sources": sources,
-                                   "field": field,
+                                   "field": field, "subfields": subfields,
                                    "created_at": time.time(), "attempts": 1}
     threading.Thread(target=_fallback_run,
-                     args=(job_id, country, sources, field), daemon=True).start()
+                     args=(job_id, country, sources, field, 1, subfields),
+                     daemon=True).start()
     return job_id
 
 
-def _enqueue_rq(country, sources, field=None) -> str:
+def _enqueue_rq(country, sources, field=None, subfields=None) -> str:
     from rq import Queue
     client = _redis()
     q = Queue(connection=client)
@@ -252,7 +260,11 @@ def _enqueue_rq(country, sources, field=None) -> str:
                           interval=[RETRY_BACKOFF_S] * MAX_PIPELINE_RETRIES)
         except Exception:
             retry = None
-    job = q.enqueue(run_pipeline_job, country, sources, field,
+    # Explicit args=/kwargs= — run_pipeline_job's 4th positional is
+    # on_progress, so subfields must travel as a keyword.
+    job = q.enqueue(run_pipeline_job,
+                    args=(country, sources, field),
+                    kwargs={"subfields": list(subfields or [])},
                     job_id=job_id,
                     retry=retry,
                     result_ttl=3600, failure_ttl=86400)
@@ -261,16 +273,18 @@ def _enqueue_rq(country, sources, field=None) -> str:
 
 def enqueue_pipeline_job(country: str | None = None,
                          sources: list[str] | None = None,
-                         field: str | None = None) -> str:
+                         field: str | None = None,
+                         subfields: list[str] | None = None) -> str:
     """Start a pipeline run; returns the job id.
 
     ``field`` names the field profile to crawl/score under (e.g. ``biology``);
-    ``None`` keeps the server default taxonomy.
+    ``None`` keeps the server default taxonomy. ``subfields`` are ids within
+    that profile whose keywords boost matching positions.
     """
     client = _redis()
     if client is not None:
-        return _enqueue_rq(country, sources, field)
-    return _enqueue_fallback(country, sources, field)
+        return _enqueue_rq(country, sources, field, subfields)
+    return _enqueue_fallback(country, sources, field, subfields)
 
 
 # ---------------------------------------------------------------------------

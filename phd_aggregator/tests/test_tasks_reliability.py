@@ -33,7 +33,7 @@ def _wait_for(job_id, statuses, deadline=6.0):
 def test_transient_failure_is_retried_then_succeeds(monkeypatch, no_redis):
     calls = {"n": 0}
 
-    def flaky(country=None, sources=None, field=None, on_progress=None):
+    def flaky(country=None, sources=None, field=None, on_progress=None, **_kw):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("transient network error")
@@ -50,7 +50,7 @@ def test_transient_failure_is_retried_then_succeeds(monkeypatch, no_redis):
 
 
 def test_persistent_failure_lands_in_dead_letters(monkeypatch, no_redis):
-    def always_fails(country=None, sources=None, field=None, on_progress=None):
+    def always_fails(country=None, sources=None, field=None, on_progress=None, **_kw):
         raise ValueError("boom")
 
     monkeypatch.setattr(tasks, "run_pipeline_job", always_fails)
@@ -67,7 +67,7 @@ def test_persistent_failure_lands_in_dead_letters(monkeypatch, no_redis):
 def test_retry_job_requeues_failed_fallback(monkeypatch, no_redis):
     fail_first = {"n": 0}
 
-    def run(country=None, sources=None, field=None, on_progress=None):
+    def run(country=None, sources=None, field=None, on_progress=None, **_kw):
         fail_first["n"] += 1
         if fail_first["n"] <= 3:
             raise OSError("transient")
@@ -82,7 +82,7 @@ def test_retry_job_requeues_failed_fallback(monkeypatch, no_redis):
     # now enable success and manually requeue the dead letter
     monkeypatch.setattr(tasks, "run_pipeline_job",
                         lambda country=None, sources=None, field=None,
-                        on_progress=None: 7)
+                        on_progress=None, **_kw: 7)
     new_id = tasks.retry_job(job_id)
     assert new_id and new_id != job_id
     info = _wait_for(new_id, {"completed", "failed"})

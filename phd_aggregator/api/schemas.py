@@ -161,13 +161,22 @@ class PipelineRunRequest(BaseModel):
     field: Optional[str] = Field(
         None, description="field profile to crawl and score under (e.g. "
                           "astronomy, biology); omit for the server default")
+    subfields: Optional[list[str]] = Field(
+        None, description="subfield ids within the field (e.g. organic, "
+                          "catalysis). Their keywords BOOST matching "
+                          "positions rather than hard-filtering them — job "
+                          "ads are short and often omit subfield vocabulary.")
 
 
 class SupervisorRunRequest(BaseModel):
     """Trigger a supervisor search for one or more countries, optionally
-    restricted to a single field profile (e.g. ``astronomy``)."""
+    restricted to a field profile and its subfields."""
     country: Union[str, list[str]]
     field: Optional[str] = None
+    subfields: Optional[list[str]] = Field(
+        None, description="subfield ids to focus on. Unlike position search "
+                          "these are a real topic filter — publication data "
+                          "is rich enough to support one.")
 
 
 class PipelineRunOut(BaseModel):

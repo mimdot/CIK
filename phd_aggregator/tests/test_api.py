@@ -359,7 +359,7 @@ def test_dead_letters_retry_and_heartbeat(db_session, client, monkeypatch):
     monkeypatch.setattr(tasks, "MAX_PIPELINE_RETRIES", 0)
     tasks._in_memory_jobs.clear()
 
-    def always_fail(country=None, sources=None, field=None, on_progress=None):
+    def always_fail(country=None, sources=None, field=None, on_progress=None, **_kw):
         raise RuntimeError("disk full")
     monkeypatch.setattr(tasks, "run_pipeline_job", always_fail)
     job_id = tasks.enqueue_pipeline_job(country="DE")
@@ -376,7 +376,7 @@ def test_dead_letters_retry_and_heartbeat(db_session, client, monkeypatch):
 
     monkeypatch.setattr(tasks, "run_pipeline_job",
                         lambda country=None, sources=None, field=None,
-                        on_progress=None: 4)
+                        on_progress=None, **_kw: 4)
     resp = client.post(f"/api/admin/tasks/{job_id}/retry", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["retried"] is True
@@ -1514,11 +1514,12 @@ def test_preferences_stored_per_profile(client, db_session, auth, monkeypatch):
 def fake_run(monkeypatch):
     from core import tasks as tasks_module
 
-    def fake_run(country=None, sources=None, field=None, on_progress=None):
+    def fake_run(country=None, sources=None, field=None,
+                 on_progress=None, **_kw):
         return [{"title": "fake record"}]
     monkeypatch.setattr(tasks_module, "run_pipeline_job",
                         lambda country=None, sources=None, field=None,
-                        on_progress=None: 1)
+                        on_progress=None, **_kw: 1)
     return fake_run
 
 
@@ -1661,7 +1662,7 @@ def test_pipeline_status_completed_with_records(client, fake_run):
 def test_pipeline_status_failed(client, monkeypatch):
     from core import tasks as tasks_module
 
-    def broken_run(country=None, sources=None, field=None, on_progress=None):
+    def broken_run(country=None, sources=None, field=None, on_progress=None, **_kw):
         raise RuntimeError("boom")
     monkeypatch.setattr(tasks_module, "run_pipeline_job", broken_run)
     run_id = client.post("/api/pipeline/run", json={}).json()["run_id"]

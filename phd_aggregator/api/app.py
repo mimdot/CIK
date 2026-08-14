@@ -35,9 +35,9 @@ from api.deps import _get_engine
 from api.metrics import metrics
 from core import observe
 from api.routes import (account, admin, apikeys, assistant, auth, bookmarks,
-                        email as email_router, invites, matches,
-                        opportunities, pipeline, preferences, profile,
-                        supervisors)
+                        email as email_router, fields as fields_router,
+                        invites, matches, opportunities, pipeline, preferences,
+                        profile, supervisors)
 from api.routes.pipeline import jobs_router
 from api.routes.v1 import router as v1_router
 from core.config import FIELD_PROFILE, list_field_profiles
@@ -278,10 +278,9 @@ def _llm_configured() -> bool:
     return False
 
 
-@app.get("/api/fields", tags=["meta"])
-def list_fields() -> dict:
-    """Public list of available field profiles (for the settings dropdown)."""
-    return {"default": FIELD_PROFILE, "profiles": sorted(list_field_profiles())}
+# NOTE: GET /api/fields now lives in api.routes.fields, which returns the same
+# {"default", "profiles"} keys plus the richer per-field records the
+# field/subfield pickers need. Registered with the other routers below.
 
 
 # --- /api/v1 error envelope (Sprint 08, Track B3) ------------------------------
@@ -323,6 +322,7 @@ app.include_router(matches.router)
 app.include_router(supervisors.router)
 app.include_router(bookmarks.router)
 app.include_router(preferences.router)
+app.include_router(fields_router.router)
 app.include_router(pipeline.router)
 app.include_router(jobs_router)
 app.include_router(invites.router)

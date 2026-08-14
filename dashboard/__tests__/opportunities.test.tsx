@@ -1,7 +1,14 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import OpportunitiesPage from "@/app/(app)/opportunities/page";
-import { ApiError, fetchFields, fetchOpportunities, jobStatus, triggerPipeline } from "@/lib/api";
+import {
+  ApiError,
+  fetchField,
+  fetchFields,
+  fetchOpportunities,
+  jobStatus,
+  triggerPipeline,
+} from "@/lib/api";
 import type { Opportunity } from "@/types";
 
 jest.mock("@/lib/api", () => {
@@ -16,6 +23,7 @@ jest.mock("@/lib/api", () => {
     ApiError: MockApiError,
     fetchOpportunities: jest.fn(),
     fetchFields: jest.fn(),
+    fetchField: jest.fn(),
     triggerPipeline: jest.fn(),
     jobStatus: jest.fn(),
   };
@@ -23,6 +31,7 @@ jest.mock("@/lib/api", () => {
 
 const mockFetchOpportunities = fetchOpportunities as jest.Mock;
 const mockFetchFields = fetchFields as jest.Mock;
+const mockFetchField = fetchField as jest.Mock;
 const mockTriggerPipeline = triggerPipeline as jest.Mock;
 const mockJobStatus = jobStatus as jest.Mock;
 
@@ -58,7 +67,35 @@ describe("OpportunitiesPage", () => {
     mockFetchFields.mockResolvedValue({
       default: "astronomy",
       profiles: ["astronomy", "biology"],
+      fields: [
+        { name: "astronomy", label: "Astronomy", description: "",
+          subfields: [{ id: "ism", label: "Interstellar medium",
+                        keyword_count: 5 }] },
+        { name: "biology", label: "Biology", description: "",
+          subfields: [
+            { id: "genetics", label: "Genetics", keyword_count: 6 },
+            { id: "ecology", label: "Ecology", keyword_count: 4 },
+          ] },
+      ],
     });
+    mockFetchField.mockImplementation(async (name: string) => ({
+      name,
+      label: name === "biology" ? "Biology" : "Astronomy",
+      description: "",
+      subfields:
+        name === "biology"
+          ? [
+              { id: "genetics", label: "Genetics", keyword_count: 6,
+                keywords: ["genomics", "crispr"] },
+              { id: "ecology", label: "Ecology", keyword_count: 4,
+                keywords: ["biodiversity"] },
+            ]
+          : [{ id: "ism", label: "Interstellar medium", keyword_count: 5,
+               keywords: ["interstellar medium"] }],
+      core_anchors: [],
+      search_terms: [],
+      sources: { dedicated: [], general: [], has_dedicated: name !== "biology" },
+    }));
   });
 
   it("renders opportunity cards with filters", async () => {
@@ -82,15 +119,97 @@ describe("OpportunitiesPage", () => {
     render(<OpportunitiesPage />);
     await screen.findByText("PhD in radio astronomy");
 
-    await user.click(screen.getByLabelText("Field to crawl"));
-    await user.click(await screen.findByRole("option", { name: "biology" }));
-    await user.click(screen.getByRole("button", { name: "Run engine" }));
+    await user.click(screen.getByLabelText("Research field"));
+    await user.click(await screen.findByRole("option", { name: "Biology" }));
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
 
     await waitFor(() =>
       expect(mockTriggerPipeline).toHaveBeenCalledWith({
         country: undefined,
         field: "biology",
       }),
+    );
+  });
+
+  it("scopes the search to the selected subfields (1B)", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "sf" });
+    mockJobStatus.mockResolvedValue({ run_id: "sf", status: "running" });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+
+    await user.click(screen.getByLabelText("Research field"));
+    await user.click(await screen.findByRole("option", { name: "Biology" }));
+
+    // Subfields are collapsed by default so the page never gets cluttered.
+    expect(screen.queryByLabelText("Genetics")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /Narrow by subfield/ }));
+    await user.click(await screen.findByLabelText("Genetics"));
+
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+    await waitFor(() =>
+      expect(mockTriggerPipeline).toHaveBeenCalledWith({
+        country: undefined,
+        field: "biology",
+        subfields: ["genetics"],
+      }),
+    );
+  });
+
+  it("clears subfields when the field changes (stale-scope bleed)", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "sc" });
+    mockJobStatus.mockResolvedValue({ run_id: "sc", status: "running" });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+
+    await user.click(screen.getByLabelText("Research field"));
+    await user.click(await screen.findByRole("option", { name: "Biology" }));
+    await user.click(await screen.findByRole("button", { name: /Narrow by subfield/ }));
+    await user.click(await screen.findByLabelText("Ecology"));
+
+    // Switching field must drop them — a subfield id only means something
+    // inside its own field, so carrying it over would silently scope the new
+    // search by the old field's vocabulary.
+    await user.click(screen.getByLabelText("Research field"));
+    await user.click(await screen.findByRole("option", { name: "Astronomy" }));
+
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+    await waitFor(() =>
+      expect(mockTriggerPipeline).toHaveBeenCalledWith({
+        country: undefined,
+        field: "astronomy",
+      }),
+    );
+  });
+
+  it("says so when a field has no dedicated job board yet", async () => {
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+
+    await user.click(screen.getByLabelText("Research field"));
+    await user.click(await screen.findByRole("option", { name: "Biology" }));
+
+    expect(
+      await screen.findByText(/No board is dedicated to Biology yet/),
+    ).toBeInTheDocument();
+  });
+
+  it("lists only the selected field's stored rows", async () => {
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+
+    await user.click(screen.getByLabelText("Research field"));
+    await user.click(await screen.findByRole("option", { name: "Biology" }));
+
+    // The list request carries the field, so astronomy rows stored by an
+    // earlier run cannot appear under biology.
+    await waitFor(() =>
+      expect(mockFetchOpportunities).toHaveBeenCalledWith(
+        expect.objectContaining({ field: "biology" }),
+      ),
     );
   });
 
@@ -111,7 +230,7 @@ describe("OpportunitiesPage", () => {
     const user = userEvent.setup();
     render(<OpportunitiesPage />);
     await screen.findByText("PhD in radio astronomy");
-    await user.click(screen.getByRole("button", { name: "Run engine" }));
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
 
     expect(await screen.findByTestId("run-progress-count")).toHaveTextContent(
       "2 / 3",
@@ -151,7 +270,7 @@ describe("OpportunitiesPage", () => {
     const user = userEvent.setup();
     render(<OpportunitiesPage />);
     await screen.findByText("PhD in radio astronomy");
-    await user.click(screen.getByRole("button", { name: "Run engine" }));
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
 
     // Every stage of the shrink is visible, not just the endpoints, so the
     // user can see 63 become 18 step by step.
@@ -192,7 +311,7 @@ describe("OpportunitiesPage", () => {
     const user = userEvent.setup();
     render(<OpportunitiesPage />);
     await screen.findByText("PhD in radio astronomy");
-    await user.click(screen.getByRole("button", { name: "Run engine" }));
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
 
     // A silently swallowed seeding failure is exactly how the UI count and the
     // engine count drift apart. It must be said out loud.
@@ -214,7 +333,7 @@ describe("OpportunitiesPage", () => {
 
     await user.click(screen.getByLabelText("Country"));
     await user.click(await screen.findByRole("option", { name: "Germany" }));
-    await user.click(screen.getByRole("button", { name: "Run engine" }));
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
 
     await waitFor(() =>
       expect(mockTriggerPipeline).toHaveBeenCalledWith({
@@ -246,7 +365,7 @@ describe("OpportunitiesPage", () => {
     render(<OpportunitiesPage />);
     await screen.findByText("PhD in radio astronomy");
 
-    await user.click(screen.getByRole("button", { name: "Run engine" }));
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
 
     await waitFor(() =>
       expect(mockTriggerPipeline).toHaveBeenCalledWith({ country: undefined }),
@@ -260,7 +379,7 @@ describe("OpportunitiesPage", () => {
     render(<OpportunitiesPage />);
     await screen.findByText("PhD in radio astronomy");
 
-    await user.click(screen.getByRole("button", { name: "Run engine" }));
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
 
     expect(await screen.findByText("Rate limited")).toBeInTheDocument();
     expect(screen.getByTestId("run-status")).toHaveTextContent("failed");

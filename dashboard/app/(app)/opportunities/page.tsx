@@ -20,9 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FieldPicker } from "@/components/FieldPicker";
 import { RunFunnelSummary } from "@/components/RunFunnelSummary";
 import { useRunJob } from "@/hooks/useRunJob";
-import { ApiError, fetchFields, fetchOpportunities, triggerPipeline } from "@/lib/api";
+import { ApiError, fetchOpportunities, triggerPipeline } from "@/lib/api";
 import type { Opportunity } from "@/types";
 
 const PAGE_SIZE = 12;
@@ -40,10 +41,11 @@ export default function OpportunitiesPage() {
   const [source, setSource] = useState("");
   const [type, setType] = useState("");
 
-  // Field profile to crawl/score under when running the engine (empty = server
-  // default). Populated from GET /api/fields so the list is data, not code.
+  // The field (and optionally subfields) this page is scoped to. Drives BOTH
+  // what a run crawls and which stored rows are listed, so the results shown
+  // always belong to the discipline that is selected.
   const [field, setField] = useState("");
-  const [fieldProfiles, setFieldProfiles] = useState<string[]>([]);
+  const [subfields, setSubfields] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,14 +79,7 @@ export default function OpportunitiesPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [country, source, type]);
-
-  // Field profiles for the run-scope dropdown.
-  useEffect(() => {
-    fetchFields()
-      .then((data) => setFieldProfiles(data.profiles))
-      .catch(() => setFieldProfiles([]));
-  }, []);
+  }, [country, source, type, field]);
 
   // Run-engine state (Phase 1: easy to run the engine from the UI).
   // The notice deliberately does NOT quote a second, differently-derived
@@ -108,6 +103,7 @@ export default function OpportunitiesPage() {
       triggerPipeline({
         country: scope || undefined,
         field: field || undefined,
+        subfields: subfields.length ? subfields : undefined,
       }),
     );
   }
@@ -138,28 +134,19 @@ export default function OpportunitiesPage() {
                 }.`}
           </p>
         </div>
-        <div className="flex items-end gap-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="run-field">Field to crawl</Label>
-            <Select value={field} onValueChange={(v) => setField(v ?? "")}>
-              <SelectTrigger id="run-field" className="w-48">
-                <SelectValue placeholder="Server default" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Server default</SelectItem>
-                {fieldProfiles.map((f) => (
-                  <SelectItem key={f} value={f}>
-                    {f}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={() => void handleRunEngine()} disabled={run.busy}>
-            {run.busy ? "Running engine…" : "Run engine"}
-          </Button>
-        </div>
+        <Button onClick={() => void handleRunEngine()} disabled={run.busy}>
+          {run.busy ? "Searching…" : "Search for positions"}
+        </Button>
       </div>
+
+      <FieldPicker
+        field={field}
+        onFieldChange={setField}
+        subfields={subfields}
+        onSubfieldsChange={setSubfields}
+        idPrefix="run-field"
+        hint="Sets which job boards are searched, with your field's own keywords. Subfields push matching positions to the top."
+      />
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <FilterInput label="Country" value={country} onChange={setCountry} options={countries} />

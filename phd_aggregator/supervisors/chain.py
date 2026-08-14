@@ -282,19 +282,59 @@ def write_supervisors_html(rows: list[dict], path: str, label: str,
         fh.write(doc)
 
 
+# Field profiles whose literature NASA ADS actually indexes. ADS is an
+# ASTRONOMY database (with a physics collection); it is not a general
+# bibliography and must never be the fallback for a discipline it does not
+# cover. Anything else routes to OpenAlex, which covers every field, needs no
+# token, and carries per-author affiliation + country.
+ADS_INDEXED_PROFILES = frozenset({"astronomy", "physics", "condensed_matter",
+                                  "geophysics_hydro"})
+
+
+def _ads_is_appropriate(cfg: Config) -> bool:
+    """True only when NASA ADS genuinely indexes this field's literature.
+
+    Guards against the old failure mode: SUPERVISOR_ADS_DB defaults to
+    "astronomy", so a profile that simply did not mention supervisor_ads_db —
+    every NEW field, and template.yaml — routed its supervisor search to an
+    astronomy database as soon as an ADS token was present.
+
+    An ADS collection the profile named ITSELF is always honoured (that is a
+    deliberate statement about where the field's literature lives). Only the
+    inherited default is second-guessed, and then by profile name.
+    """
+    if cfg.supervisor_ads_db not in ("astronomy", "physics"):
+        return False        # profile named a non-ADS collection: believe it
+    if getattr(cfg, "supervisor_ads_db_explicit", False):
+        return True         # profile named an ADS collection: believe it
+    # Inherited default. Trust it only for fields ADS actually covers; with no
+    # profile at all this is the built-in astronomy taxonomy, so ADS is right.
+    profile = (getattr(cfg, "field_profile", "") or "").strip().lower()
+    return not profile or profile in ADS_INDEXED_PROFILES
+
+
 def _supervisor_chain(cfg: Config, token: bool) -> list[str]:
     """Ordered list of literature sources to try for --find-supervisors, in
-    preference order. `auto` picks ADS for astronomy/physics (it indexes them
-    best and needs a token) and OpenAlex for every other major."""
+    preference order. `auto` picks ADS only for the fields ADS actually
+    indexes, and OpenAlex — the all-discipline backbone — for everything else.
+    """
     requested = (cfg.supervisor_source or "auto").strip().lower()
     if requested == "arxiv":
         return ["arxiv"]
     if requested == "ads":
+        # An explicit request is honoured, but only where ADS has the
+        # literature; elsewhere it would return an empty or off-field list.
+        if not _ads_is_appropriate(cfg):
+            log.warning("[supervisors] profile %r asks for NASA ADS, which "
+                        "indexes astronomy and physics only — using OpenAlex "
+                        "(all disciplines, no token) instead",
+                        getattr(cfg, "field_profile", None))
+            return ["openalex", "arxiv"]
         return (["ads", "openalex"] if token else ["openalex", "arxiv"])
     if requested == "openalex":
         return ["openalex"]
-    # auto: astronomy/physics -> ADS first; everything else -> OpenAlex
-    if token and cfg.supervisor_ads_db in ("astronomy", "physics"):
+    # auto: ADS for the fields it indexes; OpenAlex for every other major.
+    if token and _ads_is_appropriate(cfg):
         return ["ads", "openalex"]
     return ["openalex", "arxiv"]
 

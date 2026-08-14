@@ -109,6 +109,45 @@ export interface OpportunityFilters {
   limit?: number;
 }
 
+// --- field catalogue ----------------------------------------------------------
+export interface Subfield {
+  id: string;
+  label: string;
+  keyword_count: number;
+  /** Only present on GET /api/fields/{name}. */
+  keywords?: string[];
+}
+
+export interface FieldSummary {
+  name: string;
+  label: string;
+  description: string;
+  subfields: Subfield[];
+}
+
+export interface FieldCatalogue {
+  default: string;
+  /** Bare names, kept for the older dropdowns. */
+  profiles: string[];
+  fields: FieldSummary[];
+}
+
+export interface FieldSourceRef {
+  name: string;
+  label: string;
+}
+
+export interface FieldDetail extends FieldSummary {
+  core_anchors: string[];
+  search_terms: string[];
+  sources: {
+    dedicated: FieldSourceRef[];
+    general: FieldSourceRef[];
+    /** False = no discipline-specific board yet; general boards are used. */
+    has_dedicated: boolean;
+  };
+}
+
 export interface SourceProgress {
   source: string;
   status: "done" | "error" | string;

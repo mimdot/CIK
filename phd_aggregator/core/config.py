@@ -549,6 +549,9 @@ class Config:
     field_profile: str = FIELD_PROFILE
     subfield: Optional[str] = None          # e.g. "ism" for --find-supervisors
     subfields: dict = field(default_factory=lambda: dict(SUBFIELDS))
+    # Subfield ids the user picked for THIS run (multi-select). Boosts position
+    # scoring; filters supervisor topics. See apply_subfield_focus().
+    selected_subfields: list = field(default_factory=list)
     # per-profile university department registry for source_uni_departments
     # (list of {country, institution, url, field_specific}); empty + explicit
     # = disable the source, absent = fall back to the built-in astronomy
@@ -581,6 +584,10 @@ class Config:
     supervisor_years_back: int = SUPERVISOR_YEARS_BACK
     supervisor_min_papers: int = SUPERVISOR_MIN_PAPERS
     supervisor_ads_db: str = SUPERVISOR_ADS_DB
+    # True when the field profile named an ADS collection itself, rather than
+    # inheriting the astronomy default. supervisors.chain uses this to avoid
+    # routing a NEW field's supervisor search to an astronomy database.
+    supervisor_ads_db_explicit: bool = False
     supervisor_arxiv_cat: str = SUPERVISOR_ARXIV_CAT
     supervisor_source: str = SUPERVISOR_SOURCE   # auto | openalex | ads | arxiv
     # Author-direct (OpenAlex) tuning, per-major:
@@ -771,6 +778,8 @@ def apply_field_profile(cfg: Config, profile: dict) -> None:
                            ("supervisor_source", "supervisor_source")):
         if isinstance(profile.get(yaml_key), str):
             setattr(cfg, attr, profile[yaml_key])
+            if yaml_key == "supervisor_ads_db":
+                cfg.supervisor_ads_db_explicit = True
             log.info("field profile: %s=%r", yaml_key, profile[yaml_key])
     # --- author-direct supervisor finder (OpenAlex topics), per major ---------
     fid = _oa_field_id(profile.get("supervisor_field"))
@@ -1106,8 +1115,49 @@ def build_config(args: argparse.Namespace) -> Config:
         cfg.force_refresh = True
     if getattr(args, "no_http_cache", False):
         cfg.http_cache = False
+    subfields = getattr(args, "subfields", None)
+    if subfields:
+        apply_subfield_focus(cfg, subfields)
     compile_taxonomy(cfg)
     return cfg
+
+
+def apply_subfield_focus(cfg: Config, subfield_ids: list[str]) -> list[str]:
+    """Narrow a run to some subfields of the active profile — by BOOSTING.
+
+    Selected subfield keywords are appended to ``context_terms``, which by
+    definition raise a post's score but can never qualify one on their own.
+    That is deliberate: job ads are short and frequently describe a project
+    without ever naming its subfield, so a hard filter would throw away good
+    positions. Supervisor search does apply these as a real topic filter —
+    publication records carry enough text to support one.
+
+    Returns the subfield ids that actually matched the profile; unknown ids are
+    reported and skipped rather than silently narrowing the search to nothing.
+    """
+    known = cfg.subfields if isinstance(cfg.subfields, dict) else {}
+    wanted = [str(s).strip() for s in subfield_ids if str(s).strip()]
+    matched, unknown, keywords = [], [], []
+    for sid in wanted:
+        entry = known.get(sid)
+        if not isinstance(entry, dict):
+            unknown.append(sid)
+            continue
+        matched.append(sid)
+        keywords.extend(str(k) for k in (entry.get("keywords") or [])
+                        if str(k).strip())
+    if unknown:
+        log.warning("subfield(s) %s not found in profile %r — ignored "
+                    "(available: %s)", ", ".join(unknown), cfg.field_profile,
+                    ", ".join(sorted(known)) or "none")
+    if keywords:
+        existing = set(cfg.context_terms)
+        cfg.context_terms = list(cfg.context_terms) + [
+            k for k in dict.fromkeys(keywords) if k not in existing]
+        log.info("subfield focus %s: +%d boost terms", ", ".join(matched),
+                 len(cfg.context_terms) - len(existing))
+    cfg.selected_subfields = matched
+    return matched
 
 
 # Canonical country -> recognised variants (extend freely).

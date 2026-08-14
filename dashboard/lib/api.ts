@@ -17,6 +17,8 @@ import type {
   Invite,
   InviteList,
   Opportunity,
+  FieldCatalogue,
+  FieldDetail,
   OpportunityFilters,
   Paginated,
   PipelineStatus,
@@ -167,12 +169,19 @@ export function fetchHealth(): Promise<Health> {
   return request<Health>("/health", {}, false);
 }
 
-export function fetchFields(): Promise<{
-  default: string;
-  profiles: string[];
-}> {
-  return request<{ default: string; profiles: string[] }>(
-    "/api/fields",
+export function fetchFields(): Promise<FieldCatalogue> {
+  return request<FieldCatalogue>("/api/fields", {}, false);
+}
+
+/**
+ * One field in full, including every subfield's curated keyword list. Backs
+ * the subfield multi-select and the keyword picker — the keywords are the same
+ * vocabulary the relevance engine scores against, so a picked term cannot fail
+ * to match the way a free-text guess can.
+ */
+export function fetchField(name: string): Promise<FieldDetail> {
+  return request<FieldDetail>(
+    `/api/fields/${encodeURIComponent(name)}`,
     {},
     false,
   );
@@ -374,7 +383,13 @@ export function updateDigestPreference(
 
 // --- pipeline -----------------------------------------------------------------
 export function triggerPipeline(
-  body: { sources?: string[]; country?: string; field?: string },
+  body: {
+    sources?: string[];
+    country?: string;
+    field?: string;
+    /** Subfield ids; their keywords boost matching positions. */
+    subfields?: string[];
+  },
 ): Promise<{ status: string; run_id: string }> {
   return request("/api/pipeline/run", {
     method: "POST",

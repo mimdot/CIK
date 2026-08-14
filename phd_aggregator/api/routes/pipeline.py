@@ -33,7 +33,8 @@ def trigger_run(body: PipelineRunRequest) -> PipelineRunOut:
     try:
         run_id = tasks.enqueue_pipeline_job(country=body.country,
                                             sources=body.sources,
-                                            field=body.field)
+                                            field=body.field,
+                                            subfields=body.subfields)
     except RuntimeError as exc:
         raise HTTPException(status_code=429, detail=str(exc))
     return PipelineRunOut(status="started", run_id=run_id)
