@@ -42,7 +42,7 @@ function supervisor(overrides: Partial<Supervisor>): Supervisor {
     topics: ["interstellar medium", "magnetic fields", "polarization"],
     methods: ["radio interferometry"],
     recent_papers: ["Faraday rotation in the ISM", "Polarization survey"],
-    fit_score: 0.85,
+    fit_score: 85,
     confidence: 0.9,
     ...overrides,
   };
@@ -55,7 +55,7 @@ const SUPERVISORS: Supervisor[] = [
     institution: "MPIfR",
     country: "Germany",
     topics: ["interstellar medium", "magnetic fields"],
-    fit_score: 0.85,
+    fit_score: 85,
   }),
   supervisor({
     id: 2,
@@ -63,7 +63,7 @@ const SUPERVISORS: Supervisor[] = [
     institution: "Leiden Observatory",
     country: "Netherlands",
     topics: ["galaxy formation", "cosmology"],
-    fit_score: 0.6,
+    fit_score: 60,
     orcid: null,
     profile_url: null,
   }),
@@ -84,7 +84,7 @@ describe("SupervisorsPage", () => {
     const scores = screen
       .getAllByTestId("fit-score")
       .map((el) => el.textContent);
-    expect(scores).toEqual(["Fit 85%", "Fit 60%"]);
+    expect(scores).toEqual(["Fit 85 / 100", "Fit 60 / 100"]);
   });
 
   it("sorts by fit ascending", async () => {
@@ -100,7 +100,7 @@ describe("SupervisorsPage", () => {
       const scores = screen
         .getAllByTestId("fit-score")
         .map((el) => el.textContent);
-      expect(scores).toEqual(["Fit 60%", "Fit 85%"]);
+      expect(scores).toEqual(["Fit 60 / 100", "Fit 85 / 100"]);
     });
   });
 
@@ -288,5 +288,85 @@ describe("SupervisorsPage", () => {
         expect.objectContaining({ country: ["Germany", "Netherlands"] }),
       ),
     );
+  });
+});
+
+describe("SupervisorsPage — explainable fit + export parity (Phase 4)", () => {
+  const EXPLAINED = supervisor({
+    id: 3,
+    name: "Dr. Explained",
+    fit_score: 72,
+    fit_explanation:
+      "29 pts — matches your terms: interstellar medium; 19 pts — 9 recent " +
+      "papers in the window; 20 pts — senior author on 5 of 9; 15 pts — " +
+      "confirmed in Germany",
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetchFields.mockResolvedValue({
+      default: "astronomy",
+      profiles: ["astronomy"],
+    });
+  });
+
+  it("never shows a bare number — expanding reveals the reasoning", async () => {
+    mockFetchSupervisors.mockResolvedValue({ items: [EXPLAINED], total: 1 });
+    const user = userEvent.setup();
+    render(<SupervisorsPage />);
+    await screen.findByText("Dr. Explained");
+
+    // The badge is on the 0-100 scale (it used to multiply by 100 and print
+    // an unbounded raw score as a percentage — "Fit 4300%").
+    expect(screen.getByTestId("fit-score")).toHaveTextContent("Fit 72 / 100");
+    expect(screen.queryByTestId("fit-explanation")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show details" }));
+    expect(screen.getByTestId("fit-explanation")).toHaveTextContent(
+      /matches your terms: interstellar medium/,
+    );
+    expect(screen.getByTestId("fit-explanation")).toHaveTextContent(
+      /senior author on 5 of 9/,
+    );
+  });
+
+  it("exports exactly the rows on screen, reasoning included (4B)", async () => {
+    mockFetchSupervisors.mockResolvedValue({
+      items: [...SUPERVISORS, EXPLAINED],
+      total: 3,
+    });
+    let csv = "";
+    const RealBlob = global.Blob;
+    jest
+      .spyOn(global, "Blob")
+      .mockImplementation((parts?: BlobPart[], opts?: BlobPropertyBag) => {
+        csv = (parts ?? []).join("");
+        return new RealBlob(parts, opts);
+      });
+    const createObjectURL = jest.fn(() => "blob:mock");
+    Object.assign(URL, { createObjectURL, revokeObjectURL: jest.fn() });
+    jest
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+
+    const user = userEvent.setup();
+    render(<SupervisorsPage />);
+    await screen.findByText("Dr. Lena Kraft");
+
+    // Narrow the view, then export: the file must contain the FILTERED set,
+    // not everything the API returned. The export path shares the same
+    // `filtered` array the cards render from, so the two cannot diverge.
+    await user.type(screen.getByLabelText("Search"), "Explained");
+    await waitFor(() =>
+      expect(screen.queryByText("Dr. Lena Kraft")).not.toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: /Export CSV/ }));
+
+    expect(csv).toContain("Dr. Explained");
+    expect(csv).not.toContain("Dr. Lena Kraft");
+    expect(csv).not.toContain("Prof. Omar Haddad");
+    expect(csv).toContain("fit_explanation");
+    expect(csv).toContain("senior author on 5 of 9");
+    jest.restoreAllMocks();
   });
 });

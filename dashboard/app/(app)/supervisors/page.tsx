@@ -35,7 +35,8 @@ type SortKey = "fit_desc" | "fit_asc" | "name";
 
 // --- client-side export (no server round-trip; exports what's on screen) -------
 const EXPORT_COLUMNS = [
-  "name", "institution", "department", "country", "fit_score", "source",
+  "name", "institution", "department", "country", "fit_score",
+  "fit_explanation", "source",
   "topics", "methods", "email", "orcid", "profile_url",
 ] as const;
 
@@ -442,12 +443,30 @@ export default function SupervisorsPage() {
               <CardContent className="mt-auto flex flex-col gap-2 pt-0">
                 <div className="flex flex-wrap items-center gap-2">
                   {s.fit_score != null && (
-                    <Badge data-testid="fit-score">
-                      Fit {Math.round(s.fit_score * 100)}%
+                    // fit_score is ALREADY 0-100. It used to be multiplied by
+                    // 100 and shown as a percentage, so an unbounded raw score
+                    // of 43 rendered as "Fit 4300%" — a large part of why the
+                    // value looked nonsensical.
+                    <Badge
+                      data-testid="fit-score"
+                      title={s.fit_explanation ?? undefined}
+                    >
+                      Fit {Math.round(s.fit_score)} / 100
                     </Badge>
                   )}
                   {s.source && <Badge variant="outline">{s.source}</Badge>}
                 </div>
+
+                {/* Never a bare number: expanding a card shows how the score
+                    was arrived at, component by component. */}
+                {isOpen && s.fit_explanation && (
+                  <p
+                    className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground"
+                    data-testid="fit-explanation"
+                  >
+                    {s.fit_explanation}
+                  </p>
+                )}
 
                 {s.topics.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">

@@ -189,6 +189,9 @@ class Supervisor(Base):
     methods: Mapped[Optional[str]] = mapped_column(Text)          # JSON list
     recent_papers: Mapped[Optional[str]] = mapped_column(Text)    # JSON list
     fit_score: Mapped[Optional[float]] = mapped_column(Float)
+    # How that 0-100 fit was arrived at, in plain words. A bare score is not
+    # actionable; this is what a click on the number shows.
+    fit_explanation: Mapped[Optional[str]] = mapped_column(Text)
     confidence: Mapped[Optional[float]] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow,

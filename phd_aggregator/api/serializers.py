@@ -69,6 +69,7 @@ def supervisor_out(sup: Supervisor) -> dict:
         "methods": _json_list(sup.methods),
         "recent_papers": _json_list(sup.recent_papers),
         "fit_score": sup.fit_score,
+        "fit_explanation": sup.fit_explanation,
         "confidence": sup.confidence,
     }
 

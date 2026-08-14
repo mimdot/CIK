@@ -331,7 +331,8 @@ def enqueue_pipeline_job(country: str | None = None,
 # ---------------------------------------------------------------------------
 def run_supervisor_sync_job(countries: list[str],
                             field: str | None = None,
-                            quick: bool = True) -> int:
+                            quick: bool = True,
+                            limit: int | None = None) -> int:
     """Aggregate + upsert supervisor candidates; returns the number upserted.
 
     rq/thread worker entrypoint for :func:`enqueue_supervisor_job`. Runs the
@@ -343,16 +344,18 @@ def run_supervisor_sync_job(countries: list[str],
     from db.init import resolve_db_url
 
     upserted, _ = sync_supervisors(countries, field=field,
-                                   db_url=resolve_db_url(), quick=quick)
+                                   db_url=resolve_db_url(), quick=quick,
+                                   limit=limit)
     return upserted
 
 
 def _fallback_supervisor_run(job_id: str, countries: list[str],
                              field: str | None, quick: bool,
-                             attempt: int = 1) -> None:
+                             attempt: int = 1,
+                             limit: int | None = None) -> None:
     is_final: Optional[bool] = None
     try:
-        records = run_supervisor_sync_job(countries, field, quick)
+        records = run_supervisor_sync_job(countries, field, quick, limit)
         with _in_memory_jobs_lock:
             if _in_memory_jobs.get(job_id, {}).get("status") != "cancelled":
                 _in_memory_jobs[job_id] = {"job_id": job_id,
@@ -384,7 +387,8 @@ def _fallback_supervisor_run(job_id: str, countries: list[str],
 
 def enqueue_supervisor_job(countries: list[str],
                            field: str | None = None,
-                           quick: bool = True) -> str:
+                           quick: bool = True,
+                           limit: int | None = None) -> str:
     """Start a supervisor search sync; returns the job id (poll with
     :func:`get_job_status`, same as pipeline jobs)."""
     countries = [c.strip() for c in countries if c and c.strip()]
@@ -395,7 +399,9 @@ def enqueue_supervisor_job(countries: list[str],
         from rq import Queue
         q = Queue(connection=client)
         job_id = uuid.uuid4().hex[:12]
-        job = q.enqueue(run_supervisor_sync_job, countries, field, quick,
+        job = q.enqueue(run_supervisor_sync_job,
+                        args=(countries, field, quick),
+                        kwargs={"limit": limit},
                         job_id=job_id,
                         result_ttl=3600, failure_ttl=86400)
         return job.id
@@ -409,7 +415,8 @@ def enqueue_supervisor_job(countries: list[str],
                                    "field": field,
                                    "created_at": time.time(), "attempts": 1}
     threading.Thread(target=_fallback_supervisor_run,
-                     args=(job_id, countries, field, quick), daemon=True).start()
+                     args=(job_id, countries, field, quick, 1, limit),
+                     daemon=True).start()
     return job_id
 
 

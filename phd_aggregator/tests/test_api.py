@@ -1245,7 +1245,7 @@ def test_supervisors_run_requires_auth_401(client):
 def test_supervisors_run_enqueues_job(client, auth, monkeypatch):
     from core import tasks
     monkeypatch.setattr(tasks, "enqueue_supervisor_job",
-                        lambda countries, field=None: "abc123")
+                        lambda countries, field=None, **_kw: "abc123")
     resp = client.post("/api/supervisors/run", headers=auth,
                        json={"country": "Germany", "field": "astronomy"})
     assert resp.status_code == 202
@@ -1258,7 +1258,7 @@ def test_supervisors_run_accepts_country_list(client, auth, monkeypatch):
     from core import tasks
     captured = {}
 
-    def fake_enqueue(countries, field=None):
+    def fake_enqueue(countries, field=None, **_kw):
         captured["countries"] = countries
         captured["field"] = field
         return "xyz789"
@@ -1286,7 +1286,7 @@ def test_supervisors_run_empty_country_422(client, auth):
 def test_supervisors_run_too_many_429(client, auth, monkeypatch):
     from core import tasks
 
-    def boom(countries, field=None):
+    def boom(countries, field=None, **_kw):
         raise RuntimeError("too many concurrent runs")
 
     monkeypatch.setattr(tasks, "enqueue_supervisor_job", boom)
@@ -1306,7 +1306,7 @@ def test_supervisor_sync_job_roundtrip(monkeypatch):
 
     monkeypatch.setattr(
         tasks, "run_supervisor_sync_job",
-        lambda countries, field=None, quick=True: 12)
+        lambda countries, field=None, quick=True, *a, **kw: 12)
     job_id = tasks.enqueue_supervisor_job(["Germany"], field="astronomy")
     deadline = time.time() + 5
     info = None

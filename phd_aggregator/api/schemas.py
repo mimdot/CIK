@@ -181,6 +181,11 @@ class SupervisorRunRequest(BaseModel):
         None, description="subfield ids to focus on. Unlike position search "
                           "these are a real topic filter — publication data "
                           "is rich enough to support one.")
+    limit: Optional[int] = Field(
+        None, ge=10, le=500,
+        description="how many candidates to consider per field+country. The "
+                    "old hard-wired 25 was far too tight; the default is now "
+                    "100. Higher means slower.")
 
 
 class PipelineRunOut(BaseModel):

@@ -72,7 +72,8 @@ def run_supervisor_search(body: SupervisorRunRequest,
             raise HTTPException(status_code=422,
                                 detail=f"Unknown field profile: {body.field}")
     try:
-        run_id = tasks.enqueue_supervisor_job(countries, field=body.field)
+        run_id = tasks.enqueue_supervisor_job(countries, field=body.field,
+                                              limit=body.limit)
     except RuntimeError as exc:
         raise HTTPException(status_code=429, detail=str(exc))
     except ValueError as exc:

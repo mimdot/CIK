@@ -64,7 +64,10 @@ export interface Supervisor {
   topics: string[];
   methods: string[];
   recent_papers?: string[];
+  /** 0-100 (NOT a fraction). See supervisors/fit.py for the components. */
   fit_score?: number | null;
+  /** How that score was arrived at, component by component. */
+  fit_explanation?: string | null;
   confidence?: number | null;
 }
 

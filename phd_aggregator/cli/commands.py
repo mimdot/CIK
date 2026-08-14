@@ -32,6 +32,7 @@ from core.profile import extract_profile
 from core.profile_schema import UserProfile
 from db.init import DEFAULT_DB_URL, count_opportunities, init_db, seed_from_json
 from db.repositories import ProfileRepo, SupervisorRepo
+from supervisors.fit import compute_fit, passes_relevance_gate
 from core import cache as core_cache
 
 log = logging.getLogger("phd_aggregator")
@@ -166,11 +167,16 @@ def sync_supervisors_cmd(
         return 1
 
 
+#: Candidates enriched per field+country in an interactive run. Was 25.
+DEFAULT_SUPERVISOR_LIMIT = 100
+
+
 def sync_supervisors(
     countries: list[str],
     field: Optional[str] = None,
     db_url: str = DEFAULT_DB_URL,
     quick: bool = False,
+    limit: Optional[int] = None,
 ) -> tuple[int, int]:
     """
     Sweep all field profiles (or a specific one with ``field``), run the
@@ -211,9 +217,12 @@ def sync_supervisors(
     total_upserted = 0
     total_candidates = 0
 
-    # Interactive (UI) runs are lighter so a user gets results, not a wait.
+    # Interactive (UI) runs are lighter so a user gets results, not a wait —
+    # but 25 candidates per field was far too tight a cap and is what produced
+    # "the number of supervisor results is limited or low - just 25 for each
+    # field". The interactive default is now 100, overridable per call.
     pool_pages = 2 if quick else 3
-    author_enrich = 25 if quick else 80
+    author_enrich = (limit or DEFAULT_SUPERVISOR_LIMIT) if quick else 80
     recent_works = 10 if quick else 25
 
     for profile_name in profiles:
@@ -281,8 +290,23 @@ def sync_supervisors(
                                     label, country)
                         continue
 
+                    # Phase 4B: drop researchers whose recent work does not
+                    # touch the requested topics at all. Output and seniority
+                    # alone used to carry an off-field candidate into the
+                    # results ("I saw non-related field results").
+                    before_gate = len(ranked)
+                    ranked = [r for r in ranked
+                              if passes_relevance_gate(r, keywords)]
+                    if before_gate != len(ranked):
+                        log.info("[sync] %s / %s: dropped %d off-field "
+                                 "candidate(s) with no topic overlap",
+                                 label, country, before_gate - len(ranked))
+
                     # Map ranked candidates to Supervisor data and upsert
                     for r in ranked:
+                        fit = compute_fit(
+                            r, keywords, wanted_country=P.canonical_country(country),
+                            senior_signal=cfg.supervisor_senior_signal)
                         topics = _topics_to_json(r.get("topics"))
                         sup_data = {
                             "source": src,
@@ -299,8 +323,12 @@ def sync_supervisors(
                             # provides a separate methods breakdown.
                             "methods": topics,
                             "recent_papers": _papers_to_json(r.get("representative_papers")),
-                            "fit_score": r.get("score"),
-                            "confidence": min(1.0, (r.get("papers", 0) / 20.0) * (r.get("score", 0) / 100.0)),
+                            # Explainable 0-100 fit (Phase 4C) — replaces the
+                            # unbounded raw ranking score, which meant nothing
+                            # on its own and was not comparable across fields.
+                            "fit_score": fit["fit_score"],
+                            "fit_explanation": fit["fit_explanation"],
+                            "confidence": round(fit["fit_score"] / 100.0, 3),
                         }
                         try:
                             repo.upsert(sup_data)
