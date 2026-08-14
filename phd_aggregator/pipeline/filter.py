@@ -14,6 +14,7 @@ from typing import Iterable, Optional
 from core.config import Config
 from core.taxonomy import classify_position_type, country_allowed, \
     is_relevant, score_relevance
+from core.normalize import normalize_institution
 from core.utils import canonical_country, guess_country
 
 log = logging.getLogger("phd_aggregator")
@@ -108,6 +109,10 @@ def filter_records(records: Iterable[dict], cfg: Config,
                 drop_geo += 1
                 continue
             r["country"] = canon or "Unknown"
+            # Normalise the institution too, so "MIT", "M.I.T." and the full
+            # name group and dedupe as one employer rather than three.
+            if r.get("institution"):
+                r["institution"] = normalize_institution(r["institution"])
 
             kept.append(r)
         except Exception as exc:

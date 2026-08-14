@@ -17,6 +17,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from core import position_types
+from core.normalize import suggest_country, suggest_institution
 from core.config import (FIELD_PROFILE, SOURCES_ENABLED, list_field_profiles,
                          load_field_profile)
 from sources.base import (SOURCE_INFO, general_sources,
@@ -118,6 +119,34 @@ def position_type_catalogue() -> dict:
         ],
         "default": [t.name for t in position_types.offered_types()],
     }
+
+
+@router.get("/normalize", tags=["meta"])
+def normalize_names(country: str | None = None,
+                    institution: str | None = None) -> dict:
+    """Auto-correct a country or institution the user typed (Phase 2D).
+
+    Resolves against the full ISO-3166 list (249 countries, every alpha-2/3
+    code, plus colloquial aliases) and a curated institution table, tolerating
+    misspellings. Returns the canonical form, HOW it was reached and a
+    confidence, so the UI can say "did you mean Germany?" instead of silently
+    rewriting what someone typed — or searching for a country that does not
+    exist.
+    """
+    out: dict = {}
+    if country is not None:
+        hit = suggest_country(country)
+        out["country"] = None if hit is None else {
+            "input": country, "value": hit.value, "how": hit.how,
+            "score": hit.score, "corrected": hit.is_correction,
+        }
+    if institution is not None:
+        hit = suggest_institution(institution)
+        out["institution"] = None if hit is None else {
+            "input": institution, "value": hit.value, "how": hit.how,
+            "score": hit.score, "corrected": hit.is_correction,
+        }
+    return out
 
 
 @router.get("/{name}/departments")

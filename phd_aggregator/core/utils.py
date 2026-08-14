@@ -157,10 +157,22 @@ def canonical_country(value: Optional[str]) -> Optional[str]:
         return ISO2_COUNTRY[text.upper()]
     lowered = text.lower()
     # Read _ALIAS_LOOKUP module-qualified: rebuild_alias_lookup() reassigns it.
+    # The hand-written map wins so any user-added country_aliases keep working.
     for variant, canon in _core_config._ALIAS_LOOKUP:
         if lowered == variant:
             return canon
-    return guess_country(lowered)  # fuzzy substring match as a fallback
+    # Phase 2D: the full ISO-3166 table (249 countries, every code, plus
+    # colloquial aliases and misspelling tolerance). The old path knew 53
+    # countries and nothing else; anything outside that list silently became
+    # "Unknown" and grouped wrongly.
+    try:
+        from core.normalize import normalize_country
+        resolved = normalize_country(text)
+        if resolved:
+            return resolved
+    except Exception:  # normalisation must never break a crawl
+        pass
+    return guess_country(lowered)  # fuzzy substring match as a last resort
 
 
 # Major university/research cities that job boards cite WITHOUT a country

@@ -196,6 +196,17 @@ export interface PositionTypeCatalogue {
   default: string[];
 }
 
+/** Auto-correct result for a typed country or institution (Phase 2D). */
+export interface NameSuggestion {
+  input: string;
+  value: string;
+  /** exact | alias | code | fuzzy */
+  how: string;
+  score: number;
+  /** true when the input was not already the canonical form. */
+  corrected: boolean;
+}
+
 export interface SourceProgress {
   source: string;
   status: "done" | "error" | string;

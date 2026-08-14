@@ -157,12 +157,31 @@ def test_apply_field_profile_ignores_bad_values():
 # country-alias tables stay consistent across the core/monolith boundary
 # ---------------------------------------------------------------------------
 def test_country_aliases_propagate_to_canonical_country():
+    """A user-added alias from config.yaml reaches canonical_country.
+
+    Uses a nonsense alias on purpose: since Phase 2D, canonical_country falls
+    through to the full ISO-3166 table plus a shipped colloquial-alias list, so
+    a real-world abbreviation like "brd" now resolves on its own and could no
+    longer prove that the config.yaml path was what did the work.
+    """
     _core_config.reset_country_aliases()
     try:
         cfg = P.build_config(_no_config())
-        assert P.canonical_country("brd") is None
-        P.apply_config_yaml(cfg, {"country_aliases": {"Germany": ["brd"]}})
+        assert P.canonical_country("zzland") is None
+        P.apply_config_yaml(cfg, {"country_aliases": {"Germany": ["zzland"]}})
+        assert P.canonical_country("zzland") == "Germany"
+    finally:
+        _core_config.reset_country_aliases()
+
+
+def test_shipped_aliases_resolve_without_any_config():
+    """The Phase 2D promise: real countries work out of the box."""
+    _core_config.reset_country_aliases()
+    try:
+        P.build_config(_no_config())
         assert P.canonical_country("brd") == "Germany"
+        assert P.canonical_country("Kazakhstan") == "Kazakhstan"
+        assert P.canonical_country("KZ") == "Kazakhstan"
     finally:
         _core_config.reset_country_aliases()
 

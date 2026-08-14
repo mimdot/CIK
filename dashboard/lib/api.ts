@@ -21,6 +21,7 @@ import type {
   DepartmentList,
   FieldCatalogue,
   FieldDetail,
+  NameSuggestion,
   PositionTypeCatalogue,
   OpportunityFilters,
   Paginated,
@@ -242,6 +243,21 @@ export function analyseCv(
  */
 export function fetchPositionTypes(): Promise<PositionTypeCatalogue> {
   return request<PositionTypeCatalogue>("/api/fields/position-types", {}, false);
+}
+
+/**
+ * Auto-correct a country or institution the user typed. Resolves against the
+ * full ISO-3166 list and a curated institution table, tolerating misspellings
+ * and abbreviations, so the UI can offer "did you mean Germany?" rather than
+ * searching for a country that does not exist.
+ */
+export function normalizeName(
+  params: { country?: string; institution?: string },
+): Promise<{ country?: NameSuggestion | null; institution?: NameSuggestion | null }> {
+  const qs = new URLSearchParams();
+  if (params.country) qs.set("country", params.country);
+  if (params.institution) qs.set("institution", params.institution);
+  return request(`/api/fields/normalize?${qs.toString()}`, {}, false);
 }
 
 // --- auth ---------------------------------------------------------------------

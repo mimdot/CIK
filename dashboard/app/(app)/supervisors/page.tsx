@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CountryInput } from "@/components/CountryInput";
 import { useRunJob } from "@/hooks/useRunJob";
 import { ApiError, fetchSupervisors, fetchFields, triggerSupervisorSearch } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -202,15 +203,7 @@ export default function SupervisorsPage() {
             />
           </div>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="country">Country</Label>
-          <Input
-            id="country"
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            placeholder="e.g. Germany"
-          />
-        </div>
+        <CountryInput id="country" value={country} onChange={setCountry} />
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="field">Field profile</Label>
           <Select value={field} onValueChange={(v) => setField(v ?? "")}>
@@ -280,11 +273,10 @@ export default function SupervisorsPage() {
           </DialogHeader>
           <div className="grid gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="run-country">Country</Label>
-              <Input
+              <CountryInput
                 id="run-country"
                 value={runCountry}
-                onChange={(e) => setRunCountry(e.target.value)}
+                onChange={setRunCountry}
                 placeholder="e.g. Germany, Netherlands"
               />
               <p className="text-xs text-muted-foreground">
