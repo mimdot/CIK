@@ -210,8 +210,21 @@ timing, and live-launch pass (Phase 8), README/CONTRIBUTING with the worked
 
 ## E. Progress log
 
-| Step | Status | Notes |
-|---|---|---|
-| Phase 0 audit (this file + `ARCHITECTURE.md` §5-6) | **done** | Baseline: self-test PASS, pytest 726/1 skipped, 88 s. |
+| Step | Status | Commit | Notes |
+|---|---|---|---|
+| Phase 0 audit (this file + `ARCHITECTURE.md` §5-6) | **done** | `87aaa00` | Baseline: self-test PASS, pytest 726/1 skipped, 88 s. |
+| **Step 1 — CI green (R2, R3)** | **done** | `b93c91c`, `13b7d69` | Backend: added `requirements-dev.txt` (pytest was never installed, so the suite never ran). Dashboard: the memoization error was a real in-place `sort()` + a hoisted consumer declared above its `useMemo`; fixed the code, not the rule. Also bumped nanoid (GHSA-2v37-7h3g-55p8, disclosed between runs). **All CI jobs green.** |
+| Step 1b — repo hygiene (R1) | **done (no action needed)** | — | `git check-ignore` says everything is already ignored; `.gitignore` needed no change. See §A1. |
+| **Step 2 — field registry (F1, F3)** | **done** | `24ace65` (refactor), `6a5a1cb` (behavior) | `SourceInfo`/`SOURCE_INFO`, `register_source(fields=...)`, `resolve_sources_for_field`, `sources:` in profiles. astronomy → the same 13 boards; chemistry → 10, `aas`/`esa`/`eso` skipped. +24 tests. |
+| **Step 3 — de-astronomise 4 sources (F2)** | **done** | `c80e02f` | EURAXESS facets, AJO categories, FindAPhD slugs, LinkedIn keywords all profile-driven via `source_options:`. EURAXESS + AJO values **verified live through the proxy**; FindAPhD Cloudflare-blocked from this exit IP and flagged unverified. Astronomy's queries bit-identical. +34 tests. |
+| **Step 4 — count mismatch + cache keying (S5, F7)** | **done** | `de540cb` | Four causes found and fixed: no explanation of the shrink; stored rows never stamped with their field; a single global cache key; a silently swallowed save failure. UI now shows `63 found → 41 after field filter → 22 after dedupe → 18 stored` with drop reasons. +12 tests. |
+
+| **Step 5 — field + subfield UI, supervisor routing (F6, F8, 1B, 1C)** | **done** | `d170bdf` | New `/api/fields` + `/api/fields/{name}` catalogue; `FieldPicker` replaces the small dropdown (collapsed subfields, chips, select-all); subfields BOOST rather than gate positions; ADS no longer the accidental default for unindexed fields (`supervisor_ads_db_explicit`). +25 tests. |
+| **Step 6 — Cancel (S1)** | **done** | `78561ce` | `core/cancel.py`: cooperative token (threading.Event in-process, Redis key for rq). Measured: cancelled after 3 of 6 sources, **all partial records kept**, 0.46s vs 0.90s. Cancel button + elapsed timer + per-source "skipped". +19 tests. |
+| **Step 7 — slow source opt-in (S2)** | **done** | `f15f0bc` | Measured `uni_departments`: **150 pages ≈ 5 min of delays alone** for astronomy, ~20 pages elsewhere. Now OFF by default with the cost stated up front, `--include-slow-sources` / `include_slow`, plus `GET /api/fields/{name}/departments` + a browser UI so you can open departments yourself instantly. +10 tests. |
+
+Running totals: **pytest 838 passed / 1 skipped** (was 726), **jest 109 passed
+/ 15 suites** (was 97), eslint + tsc clean, `next build` OK, `--self-test`
+green, **all CI jobs green**.
 </content>
 </invoke>
