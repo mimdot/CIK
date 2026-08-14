@@ -6,6 +6,7 @@ import {
   cancelJob,
   fetchField,
   fetchFieldDepartments,
+  fetchPositionTypes,
   fetchFields,
   fetchOpportunities,
   jobStatus,
@@ -30,6 +31,7 @@ jest.mock("@/lib/api", () => {
     jobStatus: jest.fn(),
     cancelJob: jest.fn(),
     fetchFieldDepartments: jest.fn(),
+    fetchPositionTypes: jest.fn(),
   };
 });
 
@@ -40,6 +42,7 @@ const mockTriggerPipeline = triggerPipeline as jest.Mock;
 const mockJobStatus = jobStatus as jest.Mock;
 const mockCancelJob = cancelJob as jest.Mock;
 const mockFetchFieldDepartments = fetchFieldDepartments as jest.Mock;
+const mockFetchPositionTypes = fetchPositionTypes as jest.Mock;
 
 function opportunity(overrides: Partial<Opportunity>): Opportunity {
   return {
@@ -87,6 +90,19 @@ describe("OpportunitiesPage", () => {
     mockFetchFieldDepartments.mockResolvedValue({
       field: "astronomy", total: 0, countries: [], departments: [],
     });
+    mockFetchPositionTypes.mockResolvedValue({
+      types: [
+        { name: "phd", label: "PhD", description: "Doctoral positions.",
+          enabled: true },
+        { name: "postdoc", label: "Postdoc", description: "Postdoc roles.",
+          enabled: true },
+        { name: "masters", label: "Master's", description: "Master's.",
+          enabled: false },
+        { name: "scholarship", label: "Scholarship", description: "Funding.",
+          enabled: false },
+      ],
+      default: ["phd", "postdoc"],
+    });
     mockFetchField.mockImplementation(async (name: string) => ({
       name,
       label: name === "biology" ? "Biology" : "Astronomy",
@@ -114,7 +130,7 @@ describe("OpportunitiesPage", () => {
       await screen.findByText("PhD in radio astronomy"),
     ).toBeInTheDocument();
     expect(screen.getByText("Postdoc in cosmology")).toBeInTheDocument();
-    expect(screen.getByText("2 open positions.")).toBeInTheDocument();
+    expect(screen.getByText("2 open PhD positions.")).toBeInTheDocument();
   });
 
   it("runs the engine under the selected field profile (H1/2A)", async () => {
@@ -136,6 +152,7 @@ describe("OpportunitiesPage", () => {
       expect(mockTriggerPipeline).toHaveBeenCalledWith({
         country: undefined,
         field: "biology",
+        position_types: ["phd"],
       }),
     );
   });
@@ -161,6 +178,7 @@ describe("OpportunitiesPage", () => {
         country: undefined,
         field: "biology",
         subfields: ["genetics"],
+        position_types: ["phd"],
       }),
     );
   });
@@ -188,6 +206,7 @@ describe("OpportunitiesPage", () => {
       expect(mockTriggerPipeline).toHaveBeenCalledWith({
         country: undefined,
         field: "astronomy",
+        position_types: ["phd"],
       }),
     );
   });
@@ -508,6 +527,7 @@ describe("OpportunitiesPage", () => {
     await waitFor(() =>
       expect(mockTriggerPipeline).toHaveBeenCalledWith({
         country: "Germany",
+        position_types: ["phd"],
       }),
     );
 
@@ -538,7 +558,9 @@ describe("OpportunitiesPage", () => {
     await user.click(screen.getByRole("button", { name: "Search for positions" }));
 
     await waitFor(() =>
-      expect(mockTriggerPipeline).toHaveBeenCalledWith({ country: undefined }),
+      expect(mockTriggerPipeline).toHaveBeenCalledWith(
+        expect.objectContaining({ country: undefined, position_types: ["phd"] }),
+      ),
     );
     expect(await screen.findByText("Aggregating opportunities from sources…")).toBeInTheDocument();
   });
@@ -569,5 +591,112 @@ describe("OpportunitiesPage", () => {
     mockFetchOpportunities.mockRejectedValue(new ApiError("Bad gateway", 502));
     render(<OpportunitiesPage />);
     expect(await screen.findByText("Bad gateway")).toBeInTheDocument();
+  });
+});
+
+describe("OpportunitiesPage — PhD and Postdoc are separate searches (2C)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetchOpportunities.mockResolvedValue({
+      items: OPPORTUNITIES, total: 2, pages: 1,
+    });
+    mockFetchFields.mockResolvedValue({
+      default: "astronomy", profiles: ["astronomy"],
+      fields: [{ name: "astronomy", label: "Astronomy", description: "",
+                 subfields: [] }],
+    });
+    mockFetchField.mockResolvedValue({
+      name: "astronomy", label: "Astronomy", description: "", subfields: [],
+      core_anchors: [], search_terms: [],
+      sources: { dedicated: [], general: [], has_dedicated: true },
+    });
+    mockFetchFieldDepartments.mockResolvedValue({
+      field: "astronomy", total: 0, countries: [], departments: [],
+    });
+    mockFetchPositionTypes.mockResolvedValue({
+      types: [
+        { name: "phd", label: "PhD", description: "Doctoral positions.",
+          enabled: true },
+        { name: "postdoc", label: "Postdoc", description: "Postdoc roles.",
+          enabled: true },
+        { name: "masters", label: "Master's", description: "Master's.",
+          enabled: false },
+        { name: "scholarship", label: "Scholarship", description: "Funding.",
+          enabled: false },
+      ],
+      default: ["phd", "postdoc"],
+    });
+  });
+
+  it("defaults to PhD and searches only PhD", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "t1" });
+    mockJobStatus.mockResolvedValue({ run_id: "t1", status: "running" });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+
+    expect(screen.getByRole("tab", { name: /^PhD/ })).toHaveAttribute(
+      "aria-selected", "true",
+    );
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+    await waitFor(() =>
+      expect(mockTriggerPipeline).toHaveBeenCalledWith(
+        expect.objectContaining({ position_types: ["phd"] }),
+      ),
+    );
+  });
+
+  it("switching to Postdoc searches postdocs only — not a blended list", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "t2" });
+    mockJobStatus.mockResolvedValue({ run_id: "t2", status: "running" });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+
+    await user.click(screen.getByRole("tab", { name: /^Postdoc/ }));
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+
+    await waitFor(() =>
+      expect(mockTriggerPipeline).toHaveBeenCalledWith(
+        expect.objectContaining({ position_types: ["postdoc"] }),
+      ),
+    );
+    // ...and the stored list is scoped the same way, so the two never mix.
+    await waitFor(() =>
+      expect(mockFetchOpportunities).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "postdoc" }),
+      ),
+    );
+  });
+
+  it("shows Master's and Scholarships as disabled 'coming soon'", async () => {
+    render(<OpportunitiesPage />);
+    const masters = await screen.findByRole("tab", { name: /Master/ });
+    const scholarship = screen.getByRole("tab", { name: /Scholarship/ });
+    expect(masters).toBeDisabled();
+    expect(scholarship).toBeDisabled();
+    expect(screen.getAllByText("Coming soon")).toHaveLength(2);
+  });
+
+  it("a coming-soon type cannot be selected", async () => {
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    const masters = await screen.findByRole("tab", { name: /Master/ });
+    await user.click(masters).catch(() => {});
+
+    expect(screen.getByRole("tab", { name: /^PhD/ })).toHaveAttribute(
+      "aria-selected", "true",
+    );
+  });
+
+  it("names the position type in the headline count", async () => {
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    expect(await screen.findByText("2 open PhD positions.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /^Postdoc/ }));
+    expect(
+      await screen.findByText("2 open postdoc positions."),
+    ).toBeInTheDocument();
   });
 });

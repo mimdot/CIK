@@ -30,12 +30,24 @@ def trigger_run(body: PipelineRunRequest) -> PipelineRunOut:
         if body.field not in list_field_profiles():
             raise HTTPException(status_code=422,
                                 detail=f"Unknown field profile: {body.field}")
+    if body.position_types:
+        from core import position_types as pt
+        offered = {x.name for x in pt.offered_types()}
+        bad = [p for p in body.position_types if p not in offered]
+        if bad:
+            planned = {x.name for x in pt.coming_soon_types()}
+            hint = (" (not available yet)" if set(bad) <= planned else "")
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unsupported position type(s): {', '.join(bad)}{hint}. "
+                       f"Available: {', '.join(sorted(offered))}")
     try:
         run_id = tasks.enqueue_pipeline_job(country=body.country,
                                             sources=body.sources,
                                             field=body.field,
                                             subfields=body.subfields,
-                                            include_slow=body.include_slow)
+                                            include_slow=body.include_slow,
+                                            position_types=body.position_types)
     except RuntimeError as exc:
         raise HTTPException(status_code=429, detail=str(exc))
     return PipelineRunOut(status="started", run_id=run_id)

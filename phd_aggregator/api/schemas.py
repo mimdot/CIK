@@ -174,6 +174,11 @@ class PipelineRunRequest(BaseModel):
         False, description="also run the opt-in slow sources (the university "
                            "department sweep). Adds minutes to a run; off by "
                            "default.")
+    position_types: Optional[list[str]] = Field(
+        None, description="which kinds of position to hunt, e.g. [\"phd\"] or "
+                          "[\"postdoc\"]. PhD and Postdoc are separate "
+                          "searches with their own results; omit for the "
+                          "server default.")
 
 
 class SupervisorRunRequest(BaseModel):

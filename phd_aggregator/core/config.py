@@ -1120,6 +1120,25 @@ def build_config(args: argparse.Namespace) -> Config:
         cfg.http_cache = False
     if getattr(args, "include_slow_sources", False):
         cfg.include_slow_sources = True
+    types = getattr(args, "types", None)
+    if types:
+        # PhD and postdoc are separate searches. Only types the registry
+        # actually offers are accepted; a planned-but-disabled one (masters,
+        # scholarship) is reported rather than silently returning nothing.
+        from core import position_types as _pt
+        wanted = [str(x).strip().lower() for x in types if str(x).strip()]
+        offered = {x.name for x in _pt.offered_types()}
+        unknown = [x for x in wanted if x not in offered]
+        if unknown:
+            planned = {x.name for x in _pt.coming_soon_types()}
+            for name in unknown:
+                log.warning("position type %r is %s — ignored", name,
+                            "not available yet" if name in planned
+                            else "not a known type")
+        kept = [x for x in wanted if x in offered]
+        if kept:
+            cfg.wanted_types = kept
+            log.info("hunting position type(s): %s", ", ".join(kept))
     subfields = getattr(args, "subfields", None)
     if subfields:
         apply_subfield_focus(cfg, subfields)

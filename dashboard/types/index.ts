@@ -182,6 +182,20 @@ export interface CvAnalysis {
   reason: string | null;
 }
 
+/** A kind of position the app can hunt for (PhD, Postdoc, ...). */
+export interface PositionType {
+  name: string;
+  label: string;
+  description: string;
+  /** false = shipped but not offered yet; shown disabled as "coming soon". */
+  enabled: boolean;
+}
+
+export interface PositionTypeCatalogue {
+  types: PositionType[];
+  default: string[];
+}
+
 export interface SourceProgress {
   source: string;
   status: "done" | "error" | string;

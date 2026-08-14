@@ -23,6 +23,7 @@ import {
 import { DepartmentBrowser } from "@/components/DepartmentBrowser";
 import { TestimonialsPlaceholder } from "@/components/ComingSoon";
 import { FieldPicker } from "@/components/FieldPicker";
+import { PositionTypeTabs } from "@/components/PositionTypeTabs";
 import { RunFunnelSummary } from "@/components/RunFunnelSummary";
 import { useRunJob } from "@/hooks/useRunJob";
 import { ApiError, fetchOpportunities, triggerPipeline } from "@/lib/api";
@@ -47,7 +48,9 @@ export default function OpportunitiesPage() {
 
   const [country, setCountry] = useState("");
   const [source, setSource] = useState("");
-  const [type, setType] = useState("");
+  // PhD and Postdoc are SEPARATE searches (2C): the selected type scopes both
+  // what a run collects and which stored rows are listed, so the two never mix.
+  const [type, setType] = useState("phd");
 
   // The field (and optionally subfields) this page is scoped to. Drives BOTH
   // what a run crawls and which stored rows are listed, so the results shown
@@ -118,6 +121,7 @@ export default function OpportunitiesPage() {
         field: field || undefined,
         subfields: subfields.length ? subfields : undefined,
         include_slow: includeSlow || undefined,
+        position_types: type ? [type] : undefined,
       }),
     );
   }
@@ -130,10 +134,6 @@ export default function OpportunitiesPage() {
     () => [...new Set(items.map((o) => o.source).filter(Boolean))].sort(),
     [items],
   );
-  const types = useMemo(
-    () => [...new Set(items.map((o) => o.position_type).filter(Boolean) as string[])].sort(),
-    [items],
-  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -143,14 +143,18 @@ export default function OpportunitiesPage() {
           <p className="text-sm text-muted-foreground">
             {loading
               ? "Loading…"
-              : `${total} open position${total === 1 ? "" : "s"}${
-                  field ? ` in ${field}` : ""
-                }.`}
+              : `${total} open ${type === "postdoc" ? "postdoc" : "PhD"} position${
+                  total === 1 ? "" : "s"
+                }${field ? ` in ${field}` : ""}.`}
           </p>
         </div>
         <Button onClick={() => void handleRunEngine()} disabled={run.busy}>
           {run.busy ? "Searching…" : "Search for positions"}
         </Button>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4">
+        <PositionTypeTabs value={type} onChange={setType} />
       </div>
 
       <FieldPicker
@@ -205,10 +209,9 @@ export default function OpportunitiesPage() {
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <FilterInput label="Country" value={country} onChange={setCountry} options={countries} />
         <FilterInput label="Source" value={source} onChange={setSource} options={sources} />
-        <FilterInput label="Type" value={type} onChange={setType} options={types} />
         <Button
           variant="outline"
-          className="sm:col-span-3 lg:col-span-2 lg:self-end"
+          className="sm:col-span-2 lg:col-span-3 lg:self-end"
           onClick={() => void load()}
         >
           Refresh

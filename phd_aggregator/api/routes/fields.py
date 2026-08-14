@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from core import position_types
 from core.config import (FIELD_PROFILE, SOURCES_ENABLED, list_field_profiles,
                          load_field_profile)
 from sources.base import (SOURCE_INFO, general_sources,
@@ -95,6 +96,28 @@ def list_fields() -> dict:
             "subfields": _subfields(profile, with_keywords=False),
         })
     return {"default": FIELD_PROFILE, "profiles": names, "fields": fields}
+
+
+@router.get("/position-types", tags=["meta"])
+def position_type_catalogue() -> dict:
+    """The position types a user may search for, plus the planned ones.
+
+    Data-driven (``position_types.yaml``), so Master's and Scholarships become
+    real options by flipping one flag — the UI needs no change, it already
+    renders whatever this returns and disables what is not enabled yet.
+    """
+    return {
+        "types": [
+            {
+                "name": t.name,
+                "label": t.label,
+                "description": t.description,
+                "enabled": t.enabled,
+            }
+            for t in position_types.TYPES if t.selectable
+        ],
+        "default": [t.name for t in position_types.offered_types()],
+    }
 
 
 @router.get("/{name}/departments")

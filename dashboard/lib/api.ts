@@ -21,6 +21,7 @@ import type {
   DepartmentList,
   FieldCatalogue,
   FieldDetail,
+  PositionTypeCatalogue,
   OpportunityFilters,
   Paginated,
   PipelineStatus,
@@ -232,6 +233,15 @@ export function analyseCv(
     method: "POST",
     body: JSON.stringify({ raw_text: rawText }),
   });
+}
+
+/**
+ * The position types a user may search for, plus the planned ones. Driven by
+ * position_types.yaml, so Master's and Scholarships appear as real options the
+ * moment they are enabled server-side — no frontend change needed.
+ */
+export function fetchPositionTypes(): Promise<PositionTypeCatalogue> {
+  return request<PositionTypeCatalogue>("/api/fields/position-types", {}, false);
 }
 
 // --- auth ---------------------------------------------------------------------
@@ -451,6 +461,8 @@ export function triggerPipeline(
     subfields?: string[];
     /** Opt in to the slow university-department sweep. */
     include_slow?: boolean;
+    /** Which kinds of position to hunt, e.g. ["phd"]. */
+    position_types?: string[];
   },
 ): Promise<{ status: string; run_id: string }> {
   return request("/api/pipeline/run", {

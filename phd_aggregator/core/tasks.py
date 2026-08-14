@@ -144,7 +144,8 @@ def run_pipeline_job(country: str | None = None,
                      on_progress=None,
                      subfields: list[str] | None = None,
                      cancel=None,
-                     include_slow: bool = False) -> int:
+                     include_slow: bool = False,
+                     position_types: list[str] | None = None) -> int:
     """Execute the aggregation pipeline and return the number of records.
 
     The return value (an ``int`` record count) is stored as the rq *result* for
@@ -164,6 +165,8 @@ def run_pipeline_job(country: str | None = None,
         # context_terms) rather than gating them — see apply_subfield_focus.
         subfields=list(subfields or []),
         include_slow_sources=bool(include_slow),
+        # PhD and postdoc are separate searches, each with its own results.
+        types=list(position_types) if position_types else None,
         no_config=True,
     )
     cfg = build_config(args)
@@ -217,14 +220,16 @@ def _redis():
 def _fallback_run(job_id: str, country: str | None,
                   sources: list[str] | None, field: str | None = None,
                   attempt: int = 1, subfields: list[str] | None = None,
-                  include_slow: bool = False) -> None:
+                  include_slow: bool = False,
+                  position_types: list[str] | None = None) -> None:
     is_final: Optional[bool] = None
     token = cancel_mod.get(job_id) or cancel_mod.register(job_id)
     try:
         records = run_pipeline_job(country, sources, field,
                                    on_progress=_inproc_progress_callback(job_id),
                                    subfields=subfields, cancel=token,
-                                   include_slow=include_slow)
+                                   include_slow=include_slow,
+                                   position_types=position_types)
         with _in_memory_jobs_lock:
             prev = _in_memory_jobs.get(job_id, {})
             # A cancelled run still SUCCEEDED — it just stopped early. Its
@@ -247,7 +252,8 @@ def _fallback_run(job_id: str, country: str | None,
             time.sleep(RETRY_BACKOFF_S)
             threading.Thread(target=_fallback_run,
                              args=(job_id, country, sources, field,
-                                   attempt + 1, subfields, include_slow),
+                                   attempt + 1, subfields, include_slow,
+                                   position_types),
                              daemon=True).start()
             is_final = False
         else:
@@ -267,7 +273,8 @@ def _fallback_run(job_id: str, country: str | None,
 
 
 def _enqueue_fallback(country, sources, field=None,
-                      subfields=None, include_slow=False) -> str:
+                      subfields=None, include_slow=False,
+                      position_types=None) -> str:
     job_id = uuid.uuid4().hex[:12]
     if not _fallback_slots.acquire(blocking=False):
         raise RuntimeError("Too many concurrent pipeline runs — try again later")
@@ -278,13 +285,13 @@ def _enqueue_fallback(country, sources, field=None,
                                    "created_at": time.time(), "attempts": 1}
     threading.Thread(target=_fallback_run,
                      args=(job_id, country, sources, field, 1, subfields,
-                           include_slow),
+                           include_slow, position_types),
                      daemon=True).start()
     return job_id
 
 
 def _enqueue_rq(country, sources, field=None, subfields=None,
-                include_slow=False) -> str:
+                include_slow=False, position_types=None) -> str:
     from rq import Queue
     client = _redis()
     q = Queue(connection=client)
@@ -302,7 +309,8 @@ def _enqueue_rq(country, sources, field=None, subfields=None,
     job = q.enqueue(run_pipeline_job,
                     args=(country, sources, field),
                     kwargs={"subfields": list(subfields or []),
-                            "include_slow": bool(include_slow)},
+                            "include_slow": bool(include_slow),
+                            "position_types": list(position_types or []) or None},
                     job_id=job_id,
                     retry=retry,
                     result_ttl=3600, failure_ttl=86400)
@@ -313,7 +321,8 @@ def enqueue_pipeline_job(country: str | None = None,
                          sources: list[str] | None = None,
                          field: str | None = None,
                          subfields: list[str] | None = None,
-                         include_slow: bool = False) -> str:
+                         include_slow: bool = False,
+                         position_types: list[str] | None = None) -> str:
     """Start a pipeline run; returns the job id.
 
     ``field`` names the field profile to crawl/score under (e.g. ``biology``);
@@ -322,8 +331,10 @@ def enqueue_pipeline_job(country: str | None = None,
     """
     client = _redis()
     if client is not None:
-        return _enqueue_rq(country, sources, field, subfields, include_slow)
-    return _enqueue_fallback(country, sources, field, subfields, include_slow)
+        return _enqueue_rq(country, sources, field, subfields, include_slow,
+                           position_types)
+    return _enqueue_fallback(country, sources, field, subfields, include_slow,
+                             position_types)
 
 
 # ---------------------------------------------------------------------------

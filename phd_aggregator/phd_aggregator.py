@@ -238,6 +238,10 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                          "(the cache is still refreshed for next time)")
     ap.add_argument("--no-http-cache", action="store_true",
                     help="disable the persistent HTTP conditional-GET cache")
+    ap.add_argument("--type", dest="types", action="append", metavar="TYPE",
+                    help="which kind of position to hunt: phd or postdoc "
+                         "(repeatable). PhD and postdoc are separate searches "
+                         "with their own results; omit for the config default")
     ap.add_argument("--include-slow-sources", action="store_true",
                     help="also run the opt-in slow sources (the university "
                          "department sweep: ~150 pages for astronomy, ~20 for "
