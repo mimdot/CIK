@@ -135,6 +135,75 @@ def test_registry_is_used_when_the_profile_says_nothing():
                                "categories") == ["chemistry"]
 
 
+# --- country scoping ------------------------------------------------------------
+# A board that can filter by country must be asked to. The crawler reads a
+# bounded number of pages, so filtering afterwards does not merely waste
+# requests: a post the board would show on page 9 of an unfiltered listing is
+# unreachable at any page the crawler fetches. Measured on EURAXESS 2026-08-15
+# (physics/Germany): 1 kept before, 6 after.
+
+class _CountryCfg:
+    """The parts of Config the registry reads, with a geo filter."""
+    def __init__(self, countries, field_profile="astronomy", option=None):
+        self.countries = list(countries)
+        self.field_profile = field_profile
+        self._option = option or {}
+
+    @property
+    def geo_filter_active(self):
+        return bool(self.countries) and "*" not in self.countries
+
+    def source_option(self, source, key, default=None):
+        return self._option.get((source, key), default)
+
+
+@pytest.mark.parametrize("given,expected", [
+    ("Germany", "job_country:794"),
+    ("germany", "job_country:794"),
+    ("DE", "job_country:794"),          # ISO2, via core.normalize
+    ("Turkey", "job_country:739"),      # alias -> the portal's "Türkiye"
+    ("Czechia", "job_country:747"),     # alias -> "Czech Republic"
+])
+def test_country_resolves_through_the_normalizer(given, expected):
+    """The board names countries in ITS vocabulary; we match through aliases
+    rather than keeping a second hand-written map."""
+    assert registry.country_facets_for(
+        _CountryCfg([given]), "euraxess") == [expected]
+
+
+def test_several_countries_become_several_facets():
+    """Same-key facets OR on this portal (verified live), so one query serves."""
+    assert registry.country_facets_for(
+        _CountryCfg(["Germany", "France"]), "euraxess") == [
+            "job_country:794", "job_country:793"]
+
+
+def test_no_geo_filter_means_no_country_facet():
+    assert registry.country_facets_for(_CountryCfg([]), "euraxess") == []
+    assert registry.country_facets_for(_CountryCfg(["*"]), "euraxess") == []
+
+
+def test_an_unknown_country_keeps_the_unscoped_sweep():
+    """Better to page through everything than to silently search one country
+    fewer than the user asked for."""
+    assert registry.country_facets_for(
+        _CountryCfg(["Atlantis"]), "euraxess") == []
+    assert registry.country_facets_for(
+        _CountryCfg(["Germany", "Atlantis"]), "euraxess") == []
+
+
+def test_boards_without_a_country_facet_say_so():
+    for source in ("findaphd", "academicjobsonline", "does_not_exist"):
+        assert registry.country_facets_for(
+            _CountryCfg(["Germany"]), source) == []
+
+
+def test_profile_can_override_the_country_vocabulary():
+    cfg = _CountryCfg(["Germany"],
+                      option={("euraxess", "countries"): [999]})
+    assert registry.country_facets_for(cfg, "euraxess") == ["job_country:999"]
+
+
 # --- selector fixtures ----------------------------------------------------------
 # Saved HTML from the live boards. If a board redesigns, these fail in CI
 # instead of the crawler quietly returning zero.

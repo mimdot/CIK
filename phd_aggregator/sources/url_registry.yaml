@@ -133,11 +133,98 @@ sources:
     param: research_field
     facet_param: "f[{i}]"
     facet_prefix: "job_research_field:"
+    country_facet_prefix: "job_country:"
     note: >
       The portal IGNORES ?keywords= (it returns business professorships for
       "astrophysics"), so the Drupal facet is the only real filter. IDs were
       read off the portal's own facet sidebar.
       positions:php_positions (sic, their spelling) narrows to PhD posts.
+
+      Facet semantics, measured on 2026-08-15 (do not re-derive by guessing):
+      values of the SAME key OR together, values of DIFFERENT keys AND. So
+      research_field + job_country + positions narrows correctly, and listing
+      several research_fields widens. [34, 35, 37] below returns exactly what
+      34 alone does because Astrophysics and Astronomy-other are taxonomy
+      CHILDREN of Astronomy — verified per country, items(35) \ items(34) was
+      empty every time. Redundant, kept for when the portal reorganises.
+    # The portal's own country vocabulary, harvested from the job_country
+    # select on the search page (2026-08-15, 67 entries). This is what lets a
+    # country-scoped search filter SERVER-SIDE: without it the crawler pages
+    # through every country and discards the wrong ones afterwards, so a post
+    # beyond the page budget is never seen at all. Measured for Germany on the
+    # physics sweep: 5 reachable before, 21 after, 16 of them previously
+    # unreachable at any page depth.
+    # Names are the portal's; they are matched against the user's country
+    # through core.normalize, so "Turkey"/"Türkiye" and "Czechia"/"Czech
+    # Republic" both resolve.
+    countries:
+      Afghanistan: 702
+      Argentina: 664
+      Australia: 802
+      Austria: 791
+      Belgium: 792
+      Bosnia and Herzegovina: 775
+      Brazil: 668
+      Bulgaria: 746
+      Canada: 682
+      Chile: 669
+      China: 694
+      Croatia: 776
+      Cyprus: 777
+      Czech Republic: 747
+      Denmark: 757
+      Egypt: 593
+      Estonia: 758
+      Europe: 742
+      Finland: 760
+      France: 793
+      French Guiana: 673
+      Georgia: 728
+      Germany: 794
+      Greece: 779
+      Hong Kong: 695
+      Hungary: 748
+      Iceland: 762
+      India: 705
+      Indonesia: 715
+      Ireland: 763
+      Israel: 730
+      Italy: 781
+      Japan: 698
+      Korea: 700
+      Latvia: 766
+      Lithuania: 767
+      Luxembourg: 796
+      Macao: 696
+      Malaysia: 717
+      Malta: 782
+      Morocco: 595
+      Netherlands: 798
+      New Zealand: 803
+      Norway: 768
+      Papua New Guinea: 808
+      Poland: 749
+      Portugal: 784
+      Qatar: 735
+      Romania: 751
+      Réunion: 572
+      Saudi Arabia: 736
+      Serbia: 786
+      Singapore: 720
+      Slovakia: 753
+      Slovenia: 787
+      South Africa: 605
+      Spain: 788
+      Sweden: 770
+      Switzerland: 799
+      Tunisia: 599
+      Türkiye: 739
+      Ukraine: 754
+      United Arab Emirates: 740
+      United Kingdom: 771
+      United States: 685
+      Uzbekistan: 692
+      Vietnam: 723
     fields:
       astronomy:
         research_field: [34, 35, 37]      # Astronomy / Astrophysics / Astronomy-other

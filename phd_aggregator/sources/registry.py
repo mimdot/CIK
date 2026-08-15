@@ -88,9 +88,57 @@ class SourceSpec:
     param: str = ""
     facet_param: str = ""
     facet_prefix: str = ""
+    # Boards that can filter by country themselves: the facet key, plus that
+    # board's own country vocabulary (its name -> its id).
+    country_facet_prefix: str = ""
+    countries: dict[str, str] = dc_field(default_factory=dict)
     static_params: tuple[tuple[str, str], ...] = ()
     note: str = ""
     fields: dict[str, FieldTarget] = dc_field(default_factory=dict)
+
+    def country_facets(self, wanted) -> list[str]:
+        """Facet strings scoping a search to ``wanted``, or [] if it cannot.
+
+        Filtering by country server-side is not an optimisation: the crawler
+        reads a bounded number of pages, so a post the board would have shown
+        on page 9 of an unfiltered listing is not "slow to reach", it is
+        invisible. Only the board can page through its own listing by country.
+
+        The board names countries in its own vocabulary ("Türkiye", "Czech
+        Republic"), so both sides go through core.normalize — the same alias +
+        fuzzy matching the UI uses — rather than a second hand-written map.
+        Returns [] when the board has no country facet or when ANY requested
+        country is missing from its vocabulary, so the caller keeps its
+        unscoped sweep instead of silently searching fewer countries.
+        """
+        if not (self.country_facet_prefix and self.countries):
+            return []
+        wanted = [c for c in (wanted or []) if c and str(c) != "*"]
+        if not wanted:
+            return []
+        from core.normalize import normalize_country
+
+        index: dict[str, str] = {}
+        for name, value in self.countries.items():
+            for key in {str(name).strip().casefold(),
+                        str(normalize_country(name) or "").strip().casefold()}:
+                if key:
+                    index.setdefault(key, str(value))
+
+        out: list[str] = []
+        for country in wanted:
+            hit = (index.get(str(country).strip().casefold())
+                   or index.get(str(normalize_country(country) or "")
+                                .strip().casefold()))
+            if not hit:
+                log.info("[registry] %s has no country facet for %r — keeping "
+                         "the unscoped sweep so nothing is silently dropped",
+                         self.name, country)
+                return []
+            facet = f"{self.country_facet_prefix}{hit}"
+            if facet not in out:
+                out.append(facet)
+        return out
 
     def target(self, field_name: Optional[str]) -> Optional[FieldTarget]:
         """The entry for ``field_name``, falling back to the general ``*``."""
@@ -209,6 +257,11 @@ def load_registry(path: Optional[str] = None,
             fname: _coerce_target(name, fname, fraw, param)
             for fname, fraw in (raw.get("fields") or {}).items()
         }
+        countries = {
+            str(cname): str(cvalue)
+            for cname, cvalue in (raw.get("countries") or {}).items()
+            if cvalue is not None
+        }
         specs[name] = SourceSpec(
             name=name,
             label=str(raw.get("label") or name),
@@ -218,6 +271,8 @@ def load_registry(path: Optional[str] = None,
             param=param,
             facet_param=str(raw.get("facet_param") or ""),
             facet_prefix=str(raw.get("facet_prefix") or ""),
+            country_facet_prefix=str(raw.get("country_facet_prefix") or ""),
+            countries=countries,
             static_params=statics,
             note=str(raw.get("note") or ""),
             fields=fields,
@@ -248,6 +303,25 @@ def values_for(cfg, source: str, option_key: str,
         return []
     target = spec.target(field_name)
     return list(target.values) if target else []
+
+
+def country_facets_for(cfg, source: str) -> list[str]:
+    """Facet strings that scope ``source`` to the run's countries, or [].
+
+    Honours the geo filter the user actually asked for (``cfg.countries``),
+    and lets a profile override the vocabulary via
+    ``source_options.<source>.countries`` exactly like every other target.
+    """
+    if not getattr(cfg, "geo_filter_active", False):
+        return []
+    spec = spec_for(source)
+    if spec is None:
+        return []
+    explicit = cfg.source_option(source, "countries")
+    if isinstance(explicit, list) and explicit:
+        prefix = spec.country_facet_prefix
+        return [f"{prefix}{v}" for v in explicit] if prefix else []
+    return spec.country_facets(list(getattr(cfg, "countries", []) or []))
 
 
 def iter_entries() -> Iterator[tuple[SourceSpec, FieldTarget]]:

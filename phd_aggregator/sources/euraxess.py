@@ -14,6 +14,11 @@ from .base import log, register_source
 
 
 
+# How deep to keep paging an UNSCOPED sweep once a country-scoped one covers
+# the same facets — see source_euraxess.
+UNSCOPED_PAGES = 2
+
+
 def _facet_strings(values) -> list[str]:
     return [f"job_research_field:{int(v)}" for v in (values or [])
             if str(v).strip().isdigit()]
@@ -88,6 +93,24 @@ def source_euraxess(cfg: Config, http: Http) -> list[dict]:
         for adjacent in euraxess_adjacent_facets_for(cfg):
             # One extra PhD-scoped pass per neighbouring subject.
             QUERIES.append(([adjacent, "positions:php_positions"], None, 3))
+
+    # Scope to the requested countries SERVER-SIDE where the portal can do it.
+    # The crawler reads a bounded number of pages, so filtering by country
+    # afterwards is not merely wasteful — a German post sitting on page 9 of a
+    # listing dominated by another country is unreachable at any page we fetch.
+    # Measured 2026-08-15, astronomy/Germany: the unscoped physics sweep could
+    # reach 5 German posts, the scoped one 21, of which 16 were unreachable
+    # before. Different facet keys AND, so this narrows rather than replaces.
+    country_facets = registry.country_facets_for(cfg, "euraxess")
+    if country_facets:
+        log.info("[euraxess] country facets: %s", ", ".join(country_facets))
+        # The unscoped sweep still runs, shallower: its remaining job is to
+        # catch listings the portal itself left untagged (the region filter
+        # keeps those under keep_ambiguous), so page 1-2 serves as well as 4.
+        QUERIES = ([(facets + country_facets, forced, pages)
+                    for facets, forced, pages in QUERIES]
+                   + [(facets, forced, min(pages, UNSCOPED_PAGES))
+                      for facets, forced, pages in QUERIES])
 
     out: list[dict] = []
     seen: set[str] = set()
