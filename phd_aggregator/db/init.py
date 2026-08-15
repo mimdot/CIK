@@ -67,10 +67,60 @@ def create_engine_and_base(db_url: str = DEFAULT_DB_URL) -> Engine:
     return engine
 
 
+def reconcile_columns(engine: Engine) -> list[str]:
+    """Add columns the models declare but an existing table is missing.
+
+    ``create_all`` creates missing TABLES; it never touches a table that
+    already exists. So a model that gains a column leaves every pre-existing
+    database one column short, and every write touching it fails with
+    ``no such column``.
+
+    That is not hypothetical: ``supervisors.fit_explanation`` was added to the
+    model (and to an Alembic revision) but never reached databases created
+    before it. The supervisor search then found real candidates, failed to
+    upsert every single one, and still reported "completed, 0 records" — the
+    user's "supervisor search returns nothing".
+
+    The desktop app never runs Alembic (the shell just launches the sidecar),
+    so this reconciliation is what keeps a long-lived local SQLite file usable
+    across upgrades. Only NULLable columns can be added this way; anything else
+    needs a real migration, and is reported rather than guessed at.
+
+    Returns the list of ``table.column`` names added.
+    """
+    from sqlalchemy import inspect, text
+
+    added: list[str] = []
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    for table in Base.metadata.sorted_tables:
+        if table.name not in existing_tables:
+            continue  # create_all already made it, in full
+        have = {c["name"] for c in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in have:
+                continue
+            if not column.nullable or column.primary_key:
+                log.error("%s.%s is missing from the database and cannot be "
+                          "added automatically (it is NOT NULL) — run the "
+                          "Alembic migrations", table.name, column.name)
+                continue
+            ddl = column.type.compile(engine.dialect)
+            with engine.begin() as conn:
+                conn.execute(text(
+                    f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {ddl}'))
+            added.append(f"{table.name}.{column.name}")
+    if added:
+        log.warning("database schema was behind the models — added %s",
+                    ", ".join(added))
+    return added
+
+
 def init_db(db_url: str = DEFAULT_DB_URL) -> Engine:
-    """Create engine + all tables. Returns the engine."""
+    """Create engine + all tables, then bring existing tables up to date."""
     engine = create_engine_and_base(db_url)
     Base.metadata.create_all(engine)
+    reconcile_columns(engine)
     return engine
 
 

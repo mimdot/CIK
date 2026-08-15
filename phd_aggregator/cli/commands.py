@@ -216,6 +216,12 @@ def sync_supervisors(
 
     total_upserted = 0
     total_candidates = 0
+    # Candidates found but rejected by the database. Counting these is what
+    # separates "the search found nobody" from "the search found people and
+    # every save failed" — which looked identical from the UI (completed,
+    # 0 records) while the log quietly repeated `no such column`.
+    total_failed = 0
+    first_failure: list[Optional[str]] = [None]
 
     # Interactive (UI) runs are lighter so a user gets results, not a wait —
     # but 25 candidates per field was far too tight a cap and is what produced
@@ -334,6 +340,9 @@ def sync_supervisors(
                             repo.upsert(sup_data)
                             total_upserted += 1
                         except Exception as e:
+                            total_failed += 1
+                            if first_failure[0] is None:
+                                first_failure[0] = f"{type(e).__name__}: {e}"
                             log.warning("Failed to upsert %s: %s",
                                         sup_data.get("name"), e)
 
@@ -350,6 +359,13 @@ def sync_supervisors(
     session.commit()
     session.close()
     core_cache.invalidate_supervisors()
+    if total_failed:
+        # Loud, and specific about the FIRST cause: "0 results" after finding
+        # real candidates is a storage failure, not an empty search, and the
+        # user cannot tell those apart from the outside.
+        raise RuntimeError(
+            f"found {total_candidates} supervisor candidate(s) but could not "
+            f"save {total_failed} of them — first failure: {first_failure[0]}")
     log.info("Supervisor sync complete: %d upserted from %d total candidates",
              total_upserted, total_candidates)
     return total_upserted, total_candidates

@@ -57,6 +57,27 @@ export function apiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 }
 
+/**
+ * Why the desktop backend is unavailable, straight from the Rust shell.
+ *
+ * The shell health-checks the sidecar before handing the page a base URL. When
+ * it cannot start one — port conflict, missing bundled file, a Python import
+ * error — it publishes the real reason (with the tail of the backend log) here.
+ * Without this the UI could only ever say "is it running?", which is the one
+ * thing the user cannot answer: the shell is what starts it.
+ */
+export function apiStartupError(): string | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    __CIK_API_ERROR__?: string | null;
+    __CIK_API_READY__?: boolean;
+  };
+  if (w.__CIK_API_READY__ === false && w.__CIK_API_ERROR__) {
+    return w.__CIK_API_ERROR__;
+  }
+  return null;
+}
+
 const TOKEN_KEY = "cik_token";
 
 export class ApiError extends Error {

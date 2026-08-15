@@ -66,6 +66,58 @@ export from `../out` and declares `sidecar/api/cik-api` as `externalBin`.
 **Frontend↔backend is HTTP over localhost on every surface** — no IPC, no
 subprocess-per-request, no direct Python import from the UI.
 
+### Who serves the supervisor endpoint, and who starts it
+
+Both searches are plain HTTP to the same FastAPI process; neither runs
+in-process in the UI. What differs is the **gate in front of each**, and that
+difference is the whole reason one worked while the other reported "Cannot
+reach the API server":
+
+| | Position search | Supervisor search |
+|---|---|---|
+| Endpoint | `POST /api/pipeline/run` | `POST /api/supervisors/run` |
+| Auth | **none** | `Depends(get_current_user)` |
+| Page | `/opportunities` — **not** wrapped in `AuthGate` | `/supervisors` — wrapped in `AuthGate` |
+| Worker | `core.tasks.run_pipeline_job` | `core.tasks.enqueue_supervisor_job` → `cli.commands.sync_supervisors_cmd` |
+| Concurrency | 3 slots | **1** (`_supervisor_slots`); a second run is refused with 429 |
+
+`AuthGate` calls `GET /api/auth/me` on mount. A *network-level* failure there
+(status 0) renders "Cannot reach the API server. Is it running?" **in place of
+the entire page**, so the supervisor feature disappears whenever the backend is
+not reachable at that instant — while `/opportunities`, having no gate and no
+auth, keeps working from cached rows and looks healthy.
+
+#### Desktop lifecycle (`dashboard/src-tauri/src/lib.rs`)
+
+1. `setup()` spawns `boot_and_watch` on a background thread so the window paints
+   immediately instead of freezing while a PyInstaller onefile unpacks.
+2. `spawn_sidecar()` picks a port — 8000 if free, otherwise an OS-assigned one —
+   and starts `cik-api` with the desktop env (`NO_PROXY`/`no_proxy` include
+   `localhost,127.0.0.1,::1` so a system-wide SOCKS/HTTP proxy cannot swallow
+   loopback traffic).
+3. `wait_for_health()` polls `GET /health` over raw TCP until it answers 200
+   (90 s budget). **Only then** is a base URL published. Before this existed the
+   port was injected immediately and any call made during the unpack window
+   failed as "cannot reach the API server".
+4. `on_page_load` re-injects `window.__CIK_API_BASE__` on **every** page load.
+   The previous one-shot `eval()` at setup was thrown away by the first
+   navigation, after which the frontend fell back to `:8000` — the wrong port
+   whenever the shell had picked another.
+5. If the child dies while the app is open, the watcher restarts it.
+6. On failure the shell publishes `window.__CIK_API_ERROR__` with the reason and
+   the tail of `<app-data>/api.log`; `AuthGate` renders that instead of asking
+   the user whether the backend they cannot start is running.
+
+#### Schema drift is repaired at startup
+
+`init_db()` runs `create_all()` and then `reconcile_columns()`, which adds any
+nullable column the models declare that an existing table lacks. `create_all`
+only creates missing *tables*, and the desktop app never runs Alembic — so a
+model that gains a column otherwise leaves every older database one column
+short. That is not hypothetical: `supervisors.fit_explanation` was missing, and
+the supervisor search found 89 German candidates, failed to save all 89 with
+`no such column`, and reported "completed, 0 records".
+
 ---
 
 ## 2. Backend package map (`phd_aggregator/`)

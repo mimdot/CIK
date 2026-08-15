@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AuthGate from "@/components/AuthGate";
-import { ApiError, fetchMe, login } from "@/lib/api";
+import { ApiError, apiStartupError, fetchMe, login } from "@/lib/api";
 
 jest.mock("@/lib/api", () => ({
   ApiError: class ApiError extends Error {
@@ -15,14 +15,18 @@ jest.mock("@/lib/api", () => ({
   login: jest.fn(),
   registerWithInvite: jest.fn(),
   fetchMe: jest.fn(),
+  apiBase: jest.fn(() => "http://127.0.0.1:8000"),
+  apiStartupError: jest.fn(() => null),
 }));
 
 const mockFetchMe = fetchMe as jest.Mock;
+const mockStartupError = apiStartupError as jest.Mock;
 const mockLogin = login as jest.Mock;
 
 describe("AuthGate", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockStartupError.mockReturnValue(null);
   });
 
   it("shows the app when the API confirms a session", async () => {
@@ -84,5 +88,34 @@ describe("AuthGate", () => {
     mockFetchMe.mockResolvedValue({ user_id: 1, email: "you@example.com" });
     await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("secret page")).toBeInTheDocument();
+  });
+
+  it("shows WHY the backend is down instead of asking if it is running", async () => {
+    // The desktop shell is what starts the backend, so "is it running?" is the
+    // one question the user cannot answer. When the shell knows the reason it
+    // publishes it, and the gate must show that instead.
+    mockFetchMe.mockRejectedValue(
+      new ApiError("Cannot reach the API server. Is it running?", 0),
+    );
+    mockStartupError.mockReturnValue(
+      "the backend process exited (exit status: 1) before it was ready.\n\n" +
+        "Backend log (/home/me/.local/share/cik/api.log):\n" +
+        "ModuleNotFoundError: No module named 'feedparser'",
+    );
+    render(
+      <AuthGate>
+        <div>secret page</div>
+      </AuthGate>,
+    );
+    expect(
+      await screen.findByText("The backend could not be started."),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("api-offline-reason")).toHaveTextContent(
+      "No module named 'feedparser'",
+    );
+    expect(
+      screen.queryByText("Cannot reach the API server. Is it running?"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 });

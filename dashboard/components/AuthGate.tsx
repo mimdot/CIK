@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import LoginForm from "@/components/LoginForm";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, fetchMe } from "@/lib/api";
+import { ApiError, apiBase, apiStartupError, fetchMe } from "@/lib/api";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [offline, setOffline] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);
 
   const check = useCallback(async () => {
     // Verify the session by asking the API instead of reading the token:
@@ -24,6 +25,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       // valid session. Show an error + retry instead of dumping them on the
       // login form, which would only fail to submit anyway.
       if (e instanceof ApiError && e.status === 0) {
+        // "Is it running?" is the one question the user cannot answer — the
+        // desktop shell is what starts the backend. If it told us why it could
+        // not, show that instead of asking them.
+        setReason(apiStartupError());
         setOffline(true);
       } else {
         setAuthed(false);
@@ -38,9 +43,25 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   if (authed === null) {
     if (offline) {
       return (
-        <div className="mx-auto mt-16 flex max-w-sm flex-col items-center gap-3 p-6 text-center">
+        <div
+          className="mx-auto mt-16 flex max-w-xl flex-col items-center gap-3 p-6 text-center"
+          data-testid="api-offline"
+        >
           <p className="text-sm text-destructive">
-            Cannot reach the API server. Is it running?
+            {reason
+              ? "The backend could not be started."
+              : "Cannot reach the API server. Is it running?"}
+          </p>
+          {reason && (
+            <pre
+              className="max-h-64 w-full overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-left text-xs"
+              data-testid="api-offline-reason"
+            >
+              {reason}
+            </pre>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Trying <code className="font-mono">{apiBase()}</code>
           </p>
           <Button variant="outline" onClick={() => void check()}>
             Retry

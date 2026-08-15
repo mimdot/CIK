@@ -8,11 +8,14 @@
 // and Windows.
 
 use std::fmt::Write; // random_hex writes hex into a String (fmt::Write, not io)
+use std::io::{Read, Write as IoWrite};
+use std::net::TcpStream;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 // Name of the bundled sidecar binary (externalBin basename). On Windows the
 // bundle ships it as `cik-api.exe`; everywhere else plain `cik-api`.
@@ -22,6 +25,107 @@ const SIDECAR_NAME: &str = "cik-api.exe";
 const SIDECAR_NAME: &str = "cik-api";
 
 static SIDECAR_CHILD: Mutex<Option<Child>> = Mutex::new(None);
+/// Resolved once the sidecar answers /health. Until then the frontend must not
+/// be told a base URL, because a call to a port nobody is listening on fails as
+/// "Cannot reach the API server" and looks like a broken app.
+static API_PORT: Mutex<Option<u16>> = Mutex::new(None);
+/// Why the backend is unavailable, in words the user can act on.
+static API_ERROR: Mutex<Option<String>> = Mutex::new(None);
+static SIDECAR_LOG: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// How long to wait for the sidecar to come up. A PyInstaller onefile has to
+/// unpack itself before uvicorn binds, which is seconds, not milliseconds.
+const HEALTH_TIMEOUT: Duration = Duration::from_secs(90);
+
+/// Ask the sidecar's /health endpoint directly over TCP.
+///
+/// Deliberately hand-rolled rather than pulling in an HTTP client: this is one
+/// request to localhost, and the desktop bundle does not need another
+/// dependency (or another TLS stack) to make it.
+fn probe_health(port: u16) -> Result<(), String> {
+    let addr = format!("127.0.0.1:{port}");
+    let sock = addr
+        .parse()
+        .map_err(|e| format!("bad address {addr}: {e}"))?;
+    let mut stream = TcpStream::connect_timeout(&sock, Duration::from_millis(800))
+        .map_err(|e| format!("connect: {e}"))?;
+    stream
+        .set_read_timeout(Some(Duration::from_millis(2500)))
+        .ok();
+    stream
+        .write_all(
+            format!("GET /health HTTP/1.0\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n")
+                .as_bytes(),
+        )
+        .map_err(|e| format!("write: {e}"))?;
+    let mut body = String::new();
+    stream
+        .read_to_string(&mut body)
+        .map_err(|e| format!("read: {e}"))?;
+    if !body.starts_with("HTTP/1.") || !body.contains(" 200 ") {
+        let first = body.lines().next().unwrap_or("(empty response)");
+        return Err(format!("/health said {first}"));
+    }
+    Ok(())
+}
+
+/// Poll /health until it answers or we give up. Returns the reason on failure,
+/// including whether the child process died (the common case: an import error
+/// or a missing bundled data file, which uvicorn never gets far enough to log).
+fn wait_for_health(port: u16) -> Result<(), String> {
+    let deadline = Instant::now() + HEALTH_TIMEOUT;
+    let mut last = String::from("not started");
+    while Instant::now() < deadline {
+        if let Some(status) = child_exit_status() {
+            return Err(format!(
+                "the backend process exited ({status}) before it was ready.\n\n{}",
+                log_tail(40)
+            ));
+        }
+        match probe_health(port) {
+            Ok(()) => return Ok(()),
+            Err(e) => last = e,
+        }
+        std::thread::sleep(Duration::from_millis(300));
+    }
+    Err(format!(
+        "the backend did not answer http://127.0.0.1:{port}/health within {}s ({last}).\n\n{}",
+        HEALTH_TIMEOUT.as_secs(),
+        log_tail(40)
+    ))
+}
+
+/// None while the child is still running; Some(status) once it has exited.
+fn child_exit_status() -> Option<String> {
+    let mut guard = SIDECAR_CHILD.lock().unwrap_or_else(|p| p.into_inner());
+    match guard.as_mut() {
+        Some(child) => match child.try_wait() {
+            Ok(Some(status)) => Some(status.to_string()),
+            _ => None,
+        },
+        None => Some("never spawned".into()),
+    }
+}
+
+/// The tail of the sidecar's own log — the only place the real reason lives
+/// when Python dies on import.
+fn log_tail(lines: usize) -> String {
+    let path = {
+        let guard = SIDECAR_LOG.lock().unwrap_or_else(|p| p.into_inner());
+        guard.clone()
+    };
+    let Some(path) = path else {
+        return String::new();
+    };
+    match std::fs::read_to_string(&path) {
+        Ok(text) => {
+            let tail: Vec<&str> = text.lines().rev().take(lines).collect();
+            let tail: Vec<&str> = tail.into_iter().rev().collect();
+            format!("Backend log ({}):\n{}", path.display(), tail.join("\n"))
+        }
+        Err(e) => format!("Backend log at {} is unreadable: {e}", path.display()),
+    }
+}
 
 /// Pick a port for the sidecar: prefer the conventional 8000, else let the OS
 /// assign a free one — so a busy 8000 never leaves the app on a blank screen.
@@ -115,10 +219,24 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
         .stdout(Stdio::from(log_file.try_clone().map_err(|e| e.to_string())?))
         .stderr(Stdio::from(log_file));
 
+    // Localhost must never go through the proxy. Users on restricted networks
+    // run a system-wide SOCKS/HTTP proxy (V2RayN and friends), and a proxy set
+    // for *all* traffic swallows 127.0.0.1 too — which is one of the ways this
+    // app reports "Cannot reach the API server" while the backend is running
+    // perfectly. Both spellings: Python's urllib honours the lowercase one,
+    // most other stacks the uppercase.
+    const NO_PROXY: &str = "localhost,127.0.0.1,::1,0.0.0.0";
+    cmd.env("NO_PROXY", NO_PROXY).env("no_proxy", NO_PROXY);
+
     // Forward a proxy if the user set one (e.g. V2RayN SOCKS for restricted
     // networks) — the packaged sidecar has no config.yaml on its CWD.
     if let Ok(proxy) = std::env::var("CIK_PROXY") {
         cmd.env("CIK_PROXY", proxy);
+    }
+
+    {
+        let mut guard = SIDECAR_LOG.lock().unwrap_or_else(|p| p.into_inner());
+        *guard = Some(log_path.clone());
     }
 
     let child = cmd.spawn().map_err(|e| {
@@ -146,9 +264,103 @@ fn kill_sidecar() {
     }
 }
 
+/// Push the current backend state into a page.
+///
+/// Called on EVERY page load, not once at startup: the old code injected
+/// `window.__CIK_API_BASE__` a single time during setup, and any navigation
+/// after that threw the global away. The frontend then fell back to :8000 —
+/// which is the wrong port whenever 8000 was busy and the shell picked another,
+/// and answers nothing, which surfaces as "Cannot reach the API server".
+fn state_js() -> String {
+    let port = *API_PORT.lock().unwrap_or_else(|p| p.into_inner());
+    let error = API_ERROR
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone()
+        .unwrap_or_default();
+    match port {
+        Some(p) => format!(
+            "window.__CIK_API_BASE__='http://127.0.0.1:{p}';\
+             window.__CIK_API_READY__=true;window.__CIK_API_ERROR__=null;"
+        ),
+        None => format!(
+            "window.__CIK_API_READY__=false;window.__CIK_API_ERROR__={};",
+            serde_json::to_string(&error).unwrap_or_else(|_| "\"\"".into())
+        ),
+    }
+}
+
+/// Broadcast the state to any page already loaded, and remember it for the next.
+fn publish_state(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.eval(&state_js());
+    }
+    let port = *API_PORT.lock().unwrap_or_else(|p| p.into_inner());
+    let error = API_ERROR
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone()
+        .unwrap_or_default();
+    let _ = app.emit(
+        "cik://api-state",
+        serde_json::json!({
+            "ready": port.is_some(),
+            "base": port.map(|p| format!("http://127.0.0.1:{p}")),
+            "error": if error.is_empty() { None } else { Some(error) },
+        }),
+    );
+}
+
+/// Start the sidecar and wait until it genuinely answers /health.
+fn boot_and_watch(app: tauri::AppHandle) {
+    loop {
+        {
+            let mut err = API_ERROR.lock().unwrap_or_else(|p| p.into_inner());
+            *err = None;
+            let mut port = API_PORT.lock().unwrap_or_else(|p| p.into_inner());
+            *port = None;
+        }
+        publish_state(&app);
+
+        let outcome = spawn_sidecar(&app).and_then(|port| {
+            wait_for_health(port)?;
+            Ok(port)
+        });
+
+        match outcome {
+            Ok(port) => {
+                log::info!("cik-api sidecar healthy on 127.0.0.1:{port}");
+                *API_PORT.lock().unwrap_or_else(|p| p.into_inner()) = Some(port);
+                publish_state(&app);
+            }
+            Err(err) => {
+                log::error!("cik-api sidecar unavailable: {err}");
+                *API_ERROR.lock().unwrap_or_else(|p| p.into_inner()) = Some(err);
+                publish_state(&app);
+                return; // a start failure is not something retrying fixes
+            }
+        }
+
+        // Supervise: if the backend dies while the app is open, say so and
+        // bring it back rather than leaving every page silently failing.
+        loop {
+            std::thread::sleep(Duration::from_secs(2));
+            if let Some(status) = child_exit_status() {
+                log::warn!("cik-api sidecar exited ({status}) — restarting");
+                break;
+            }
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        // Every page load gets the current backend state, so a navigation can
+        // never leave the frontend guessing at the port.
+        .on_page_load(|webview, _payload| {
+            let _ = webview.eval(&state_js());
+        })
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -157,21 +369,11 @@ pub fn run() {
                         .build(),
                 )?;
             }
-            match spawn_sidecar(app.handle()) {
-                Ok(port) => {
-                    log::info!("cik-api sidecar started on 127.0.0.1:{port}");
-                    // Tell the static frontend which port to call — the shell
-                    // may have picked a non-default one. The page also falls
-                    // back to :8000 if this injection is missed.
-                    if let Some(win) = app.get_webview_window("main") {
-                        let js = format!(
-                            "window.__CIK_API_BASE__ = 'http://127.0.0.1:{port}';"
-                        );
-                        let _ = win.eval(&js);
-                    }
-                }
-                Err(err) => log::error!("{err}"),
-            }
+            // Boot off the UI thread: the window paints immediately and shows
+            // "starting the backend" instead of freezing for the seconds a
+            // PyInstaller onefile needs to unpack.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || boot_and_watch(handle));
             Ok(())
         })
         .build(tauri::generate_context!())
