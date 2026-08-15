@@ -77,6 +77,29 @@ Per your no-evasion rule, no CAPTCHA solving was attempted. **Switching V2Ray
 server usually fixes it on your machine** — if it does, re-run
 `--validate-sources` and those 13 rows should turn green.
 
+**2026-08-16 follow-up — the FindAPhD URLs themselves are now fixed and
+verified; the Cloudflare block is a separate, still-open problem.** The token
+you found (`/phds/astronomy/?30M7W2o3`) is not a search-session id — it is a
+durable per-discipline id the site embeds in its own rendered links,
+confirmed by fetching it fresh with no referrer and by three independent
+loads of the physics page coming back byte-identical. All 11 fields now carry
+real tokens instead of bare slugs (`sources/url_registry.yaml`); a saved-HTML
+fixture pins the selector so a redesign fails CI instead of quietly returning
+zero. That fetch succeeded in a browser riding your own logged-in
+findaphd.com session — re-tested through the actual production path
+(`--validate-sources`, headless → this source's own headed retry, your real
+V2Ray proxy) and Cloudflare still blocks it there, so **`--validate-sources`
+is still 28/41, unchanged** — the fix corrects what a working fetch would
+return, not whether Cloudflare allows the automated one. One untried,
+non-evasive lever: log into findaphd.com by hand once inside
+`phd_aggregator/.pw_profile` (it already persists across runs) so future
+automated runs carry a real session — I did not do this myself, since
+entering account credentials isn't something I do. Also noticed in passing:
+a full `--validate-sources` run degrades the shared headed-browser context
+after its first Cloudflare challenge, so later findaphd targets in the same
+run fail with "context has been closed" instead of their own clean 40s
+challenge wait — cosmetic (same 0-listings outcome), not chased down here.
+
 ---
 
 ## 1. The earlier correction list, item by item (2026-08-14)
