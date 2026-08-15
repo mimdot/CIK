@@ -35,66 +35,128 @@ sources:
   findaphd:
     label: FindAPhD
     transport: browser          # Cloudflare — plain GET and browser-TLS both 403
-    url_template: "https://www.findaphd.com/phds/{discipline}/"
+    url_template: "https://www.findaphd.com/phds/{discipline}"
     result_selector: "a[href*='/phds/project/']"
     param: discipline
     note: >
-      On 2026-08-15 every automated client available was refused: curl direct
-      and via SOCKS (403), headless Chrome through Playwright (Cloudflare
-      "Attention Required"), the user's own Chrome via extension (challenge
-      loop), and a server-side fetch (403). The one page that did answer
-      returned FindAPhD's own 404 for the astrophysics slug, which is what
-      proves the slug map below is guesswork rather than fact.
-      The reported working URLs carry a query token
-      (/phds/astronomy/?30M7W2o3) that is a SEARCH-SESSION id, not part of the
-      durable address — it is not reproducible and must not be hardcoded.
-      These slugs need one pass in a real browser to confirm; until then they
-      are honestly labelled unverified.
+      TWO SEPARATE PROBLEMS HERE — keep them separate, because one is fixed
+      and one is not.
+      (1) THE URLs WERE WRONG. Fixed on 2026-08-16, confirmed by direct
+      fetch, not inference. The query token is NOT a search-session id as
+      first assumed — it is a durable per-discipline identifier the site
+      embeds in its own rendered links: /phds/physics/ with NO token 404s
+      (FindAPhD's own 404, reproducing the original finding), but
+      /phds/physics/?10M7W0 came back byte-identical, with real listings,
+      across three independent fresh page loads, and /phds/astronomy/
+      ?30M7W2o3 + /phds/astrophysics/?30M7Wyo3 reproduced the user's own
+      independently-found URLs exactly. Astronomy and Astrophysics are
+      FindAPhD SUBJECT facets *inside* Physics (26 and 38 listings), not
+      their own top-level discipline — there is no bare "astronomy" path at
+      all, with or without a token. Confirmed with a real fetch and the real
+      listing count: astronomy, astrophysics, physics, solid-state-physics.
+      The other 7 disciplines below carry a token read from that same page's
+      own rendered anchors (same mechanism, not guessed) but were not
+      individually re-fetched this pass.
+      (2) CLOUDFLARE STILL BLOCKS THE AUTOMATED FETCH — this is NOT fixed,
+      and fixing (1) does not fix it. Tested on the corrected URLs with
+      `--validate-sources`, i.e. the real production path: headless first,
+      then this source's own headed-window retry, through the user's actual
+      V2Ray SOCKS proxy, on the PERSISTENT profile (`.pw_profile`) — and
+      Cloudflare still challenges it into the ground after ~40s and the
+      source politely gives up (0/2 for astronomy, reproduced for both
+      astronomy and astrophysics). So it is not a headless-vs-headed problem
+      and not a wrong-URL problem — both were already ruled out here.
+      Separately, a full --validate-sources run (12 findaphd targets back to
+      back) showed the shared headed browser context going unstable after
+      the FIRST Cloudflare challenge — every target after it failed fast with
+      "Failed to open a new tab" / "context has been closed" rather than its
+      own clean 40s challenge wait. That is a pre-existing flakiness in
+      core.http's headed-retry-for-the-rest-of-the-run reuse, not something
+      this pass introduced or fixed — it changes the FAILURE MESSAGE for the
+      later targets, not the outcome (0 listings either way). Worth a look if
+      someone is ever debugging *why* a run failed, not relevant to whether
+      these URLs are right. My one
+      successful manual fetch (the evidence for point 1) rode the user's own
+      already-logged-in findaphd.com session in their regular daily-driver
+      Chrome profile — a fresh Playwright profile, even headed and correctly
+      proxied, has no such login and no such history, and Cloudflare seems to
+      be scoring exactly that. The one untried, non-evasive lever: log into
+      findaphd.com by hand ONCE inside this project's `.pw_profile` (it
+      already persists across runs) so future automated runs carry a real,
+      logged-in session — nobody has done this yet. I did not attempt it
+      myself: entering account credentials is outside what I do.
+      IMPORTANT if the token ever needs re-deriving: it cannot be hand-built
+      from the slug or reused across disciplines. Get it from the site's own
+      UI — open /phds/, use the Discipline picker, read the resulting href
+      (or a Subject checkbox for something narrower than a top-level
+      discipline) — never guess one.
     fields:
       astronomy:
-        discipline: [astrophysics, astronomy]
+        discipline: ["astronomy/?30M7W2o3", "astrophysics/?30M7Wyo3"]
         status: blocked
         verified: null
+        note: >
+          URL confirmed correct by direct fetch (26 + 38 real listings, no
+          referrer needed) — but the automated path is Cloudflare-blocked;
+          see the source-level note. Re-run --validate-sources after logging
+          into .pw_profile to see if that changes the verdict.
       physics:
-        discipline: [physics]
+        discipline: ["physics/?10M7W0"]
         status: blocked
         verified: null
+        note: >
+          URL confirmed correct by direct fetch (522 real listings,
+          reproduced on 3 separate loads) — automated path still
+          Cloudflare-blocked; see the source-level note.
       condensed_matter:
-        discipline: [physics]
+        discipline: ["solid-state-physics/?30M7W2u3"]
         status: blocked
         verified: null
+        note: >
+          Was silently reusing the whole 522-listing Physics page; now the
+          actual Solid State Physics subject facet (84 real listings,
+          confirmed by direct fetch) — automated path still Cloudflare-
+          blocked; see the source-level note.
       chemistry:
-        discipline: [chemistry]
-        status: blocked
+        discipline: ["chemistry/?10M7c0"]
+        status: unverified
         verified: null
+        note: Token read live from findaphd.com's own rendered discipline link (2026-08-16), same mechanism as the confirmed entries above, but not independently fetched this pass — and even the fetched ones are Cloudflare-blocked in production, so treat this as lower-confidence still.
       biology:
-        discipline: [biological-sciences]
-        status: blocked
+        discipline: ["biological-sciences/?10M780"]
+        status: unverified
         verified: null
+        note: Token read live from findaphd.com's own rendered discipline link (2026-08-16), same mechanism as the confirmed entries above, but not independently fetched this pass — and even the fetched ones are Cloudflare-blocked in production, so treat this as lower-confidence still.
       computer_science:
-        discipline: [computer-science]
-        status: blocked
+        discipline: ["computer-science/?10M7g0"]
+        status: unverified
         verified: null
+        note: Token read live from findaphd.com's own rendered discipline link (2026-08-16), same mechanism as the confirmed entries above, but not independently fetched this pass — and even the fetched ones are Cloudflare-blocked in production, so treat this as lower-confidence still.
       mathematics:
-        discipline: [mathematics]
-        status: blocked
+        discipline: ["mathematics/?10M7O0"]
+        status: unverified
         verified: null
+        note: Token read live from findaphd.com's own rendered discipline link (2026-08-16), same mechanism as the confirmed entries above, but not independently fetched this pass — and even the fetched ones are Cloudflare-blocked in production, so treat this as lower-confidence still.
       engineering:
-        discipline: [engineering]
-        status: blocked
+        discipline: ["engineering/?10M7o0"]
+        status: unverified
         verified: null
+        note: Token read live from findaphd.com's own rendered discipline link (2026-08-16), same mechanism as the confirmed entries above, but not independently fetched this pass — and even the fetched ones are Cloudflare-blocked in production, so treat this as lower-confidence still.
       economics:
-        discipline: [economics]
-        status: blocked
+        discipline: ["economics/?10M7k0"]
+        status: unverified
         verified: null
+        note: Token read live from findaphd.com's own rendered discipline link (2026-08-16), same mechanism as the confirmed entries above, but not independently fetched this pass — and even the fetched ones are Cloudflare-blocked in production, so treat this as lower-confidence still.
       geology:
-        discipline: [geology]
-        status: blocked
+        discipline: ["geology/?10M7A0"]
+        status: unverified
         verified: null
+        note: Token read live from findaphd.com's own rendered discipline link (2026-08-16), same mechanism as the confirmed entries above, but not independently fetched this pass — and even the fetched ones are Cloudflare-blocked in production, so treat this as lower-confidence still.
       geophysics_hydro:
-        discipline: [geology]
-        status: blocked
+        discipline: ["geology/?10M7A0"]
+        status: unverified
         verified: null
+        note: Same token as geology (this field has no board of its own here, matching the existing design choice) — not yet independently fetched, and even the fetched entries above are Cloudflare-blocked in production.
 
   # ---------------------------------------------------------------------------
   aas:
@@ -115,6 +177,14 @@ sources:
       client tried on 2026-08-15. Splitting phd/postdoc below is therefore left
       deliberately un-guessed — fill the two lists in once the facet sidebar can
       be read, and the PhD/postdoc split becomes server-side.
+      RE-ATTEMPTED 2026-08-16 via the same real, cookie-carrying Chrome session
+      that got FindAPhD working (not a generic headless client — the strongest
+      attempt available). aas.org still hangs indefinitely in Cloudflare's
+      "Performing security verification" interstitial. So this is a CONFIRMED,
+      not stale, block — a second independent path was tried and failed the
+      same way, not just an old finding going unchecked. Do not keep retrying
+      with browser automation; needs either a different exit IP/V2Ray server
+      or a manual pass in the user's own Firefox.
     fields:
       astronomy:
         category: [511, 512]

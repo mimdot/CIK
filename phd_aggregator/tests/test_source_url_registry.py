@@ -214,6 +214,7 @@ def test_profile_can_override_the_country_vocabulary():
     ("jobs_ac_uk_phd.html", "div.j-search-result__result", 1),
     ("nature_careers.html", "a[href*='/naturecareers/job/']", 3),
     ("academictransfer.html", "a[href*='/en/jobs/']", 3),
+    ("findaphd_astronomy.html", "a[href*='/phds/project/']", 3),
 ])
 def test_result_selector_still_matches_saved_markup(fixture, selector, minimum):
     from bs4 import BeautifulSoup
@@ -232,3 +233,5 @@ def test_registered_selectors_match_the_fixture_selectors():
             == "a[href*='/ajo/jobs/']")
     assert (registry.spec_for("euraxess").result_selector
             == "article.ecl-content-item")
+    assert (registry.spec_for("findaphd").result_selector
+            == "a[href*='/phds/project/']")

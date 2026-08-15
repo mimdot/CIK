@@ -51,7 +51,12 @@ def test_astronomy_ajo_and_findaphd_urls_are_unchanged():
     cfg = _cfg("astronomy")
     assert ajo_categories_for(cfg) == ["physics/Astronomy",
                                        "physics/Astrophysics"]
-    assert findaphd_disciplines_for(cfg) == ["astrophysics", "astronomy"]
+    # Bare "astrophysics"/"astronomy" were never real FindAPhD addresses —
+    # confirmed live 2026-08-16: /phds/astronomy/ with no token is FindAPhD's
+    # own 404. Real entries carry the durable per-discipline token the site
+    # embeds in its own rendered links (see url_registry.yaml's findaphd note).
+    assert findaphd_disciplines_for(cfg) == ["astronomy/?30M7W2o3",
+                                             "astrophysics/?30M7Wyo3"]
 
 
 def test_astronomy_linkedin_queries_stay_astronomy():
@@ -65,11 +70,11 @@ def test_astronomy_linkedin_queries_stay_astronomy():
 # --- other fields get their OWN queries --------------------------------------
 
 @pytest.mark.parametrize("field,facet,category,discipline", [
-    ("chemistry", "job_research_field:47", "chemistry", "chemistry"),
-    ("biology", "job_research_field:38", "biology", "biological-sciences"),
-    ("computer_science", "job_research_field:78", "cs", "computer-science"),
-    ("mathematics", "job_research_field:298", "mathematics", "mathematics"),
-    ("economics", "job_research_field:117", "economics", "economics"),
+    ("chemistry", "job_research_field:47", "chemistry", "chemistry/?10M7c0"),
+    ("biology", "job_research_field:38", "biology", "biological-sciences/?10M780"),
+    ("computer_science", "job_research_field:78", "cs", "computer-science/?10M7g0"),
+    ("mathematics", "job_research_field:298", "mathematics", "mathematics/?10M7O0"),
+    ("economics", "job_research_field:117", "economics", "economics/?10M7k0"),
 ])
 def test_each_field_queries_its_own_subject(field, facet, category,
                                             discipline):
