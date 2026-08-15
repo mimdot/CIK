@@ -172,24 +172,50 @@ def invalidate_matches(profile_id: Optional[int] = None) -> int:
 
 
 # --- opportunities ------------------------------------------------------------
-def opportunity_list_key(field: Optional[str] = None) -> str:
+def profile_fingerprint(terms) -> str:
+    """A short, stable digest of the research-profile terms in play.
+
+    Part of the opportunity cache key. Results are RANKED by the profile, so a
+    list cached under one profile is wrong for another — and with a 1 h TTL,
+    editing your keywords and re-running would appear to change nothing at all,
+    which is indistinguishable from "the profile has no effect".
+
+    Order-insensitive (reordering the same keywords is the same profile) and
+    empty terms map to "none" so an unprofiled run keeps a readable key.
+    """
+    import hashlib
+    cleaned = sorted({str(t).strip().lower() for t in (terms or []) if str(t).strip()})
+    if not cleaned:
+        return "none"
+    return hashlib.sha1("\x1f".join(cleaned).encode("utf-8")).hexdigest()[:10]
+
+
+def opportunity_list_key(field: Optional[str] = None,
+                         profile: Optional[str] = None) -> str:
     """Cache key for the unfiltered opportunity list.
 
-    KEYED BY FIELD. With a single global key, selecting chemistry could be
-    served the astronomy list cached minutes earlier (1 h TTL) — which looks
-    exactly like "the engine is biased towards astronomy" even after the crawl
-    itself is fixed. ``None`` keeps the legacy key so nothing that predates
+    KEYED BY FIELD *AND* PROFILE. With a single global key, selecting chemistry
+    could be served the astronomy list cached minutes earlier (1 h TTL) — which
+    looks exactly like "the engine is biased towards astronomy" even after the
+    crawl itself is fixed. The profile half is the same failure one level down:
+    the list is ordered by match score, so it belongs to the profile that
+    produced it. ``None`` for both keeps the legacy key so nothing that predates
     field scoping changes meaning.
     """
-    return "opportunities:list" if not field else f"opportunities:list:{field}"
+    if not field and not profile:
+        return "opportunities:list"
+    key = f"opportunities:list:{field or 'all'}"
+    return key if not profile else f"{key}:{profile}"
 
 
-def cache_opportunity_list(results: list, field: Optional[str] = None) -> None:
-    set(opportunity_list_key(field), results, ttl=OPPORTUNITIES_TTL)
+def cache_opportunity_list(results: list, field: Optional[str] = None,
+                           profile: Optional[str] = None) -> None:
+    set(opportunity_list_key(field, profile), results, ttl=OPPORTUNITIES_TTL)
 
 
-def get_cached_opportunity_list(field: Optional[str] = None) -> Optional[list]:
-    return get(opportunity_list_key(field))
+def get_cached_opportunity_list(field: Optional[str] = None,
+                                profile: Optional[str] = None) -> Optional[list]:
+    return get(opportunity_list_key(field, profile))
 
 
 def invalidate_opportunities() -> int:

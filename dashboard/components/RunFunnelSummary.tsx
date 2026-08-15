@@ -48,6 +48,25 @@ export function RunFunnelSummary({ funnel }: { funnel: RunFunnel }) {
         ))}
       </div>
 
+      {/* Which profile terms this run actually used. Without this the only way
+          to tell whether the research profile did anything was to change it,
+          re-run, and compare by eye. */}
+      <p className="mt-2 text-muted-foreground" data-testid="run-profile-terms">
+        {funnel.profile_active && (funnel.profile_terms?.length ?? 0) > 0 ? (
+          <>
+            Ranked with your research profile:{" "}
+            <span className="font-medium text-foreground">
+              {funnel.profile_terms!.join(", ")}
+            </span>
+          </>
+        ) : (
+          <>
+            No research profile was used — results are ranked by field relevance
+            only. Add keywords on the Profile page to change what ranks highest.
+          </>
+        )}
+      </p>
+
       {reasons.length > 0 && (
         <p className="mt-2 text-muted-foreground">
           Dropped:{" "}

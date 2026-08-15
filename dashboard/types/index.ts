@@ -37,6 +37,10 @@ export interface Opportunity {
   short_description?: string | null;
   position_type?: string | null;
   is_new: boolean;
+  /** Profile/field terms this row actually matched — the visible proof that
+   *  the research profile changed what came back. */
+  matched_keywords?: string[];
+  matched_anchors?: string[];
 }
 
 export interface Match extends Opportunity {
@@ -230,6 +234,9 @@ export interface RunFunnel {
   storage_error?: string;
   /** Where a failed save snapshotted the results, so a crawl is never lost. */
   storage_rescue_path?: string;
+  /** The research-profile terms this run actually used. */
+  profile_terms?: string[];
+  profile_active?: boolean;
   dropped: {
     position_type: number;
     off_field: number;

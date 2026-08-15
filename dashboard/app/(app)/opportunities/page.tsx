@@ -468,6 +468,22 @@ export default function OpportunitiesPage() {
               {o.deadline && (
                 <Badge variant="outline">Deadline {o.deadline.slice(0, 10)}</Badge>
               )}
+              {/* Why this one is here. The engine has always recorded the terms
+                  that matched; showing them is what makes the research profile
+                  observably do something instead of merely claiming to. */}
+              {(o.matched_keywords?.length ?? 0) > 0 && (
+                <span
+                  className="mt-1 flex w-full flex-wrap items-center gap-1"
+                  data-testid={`matched-${o.id}`}
+                >
+                  <span className="text-xs text-muted-foreground">matched</span>
+                  {o.matched_keywords!.slice(0, 6).map((term) => (
+                    <Badge key={term} variant="secondary" className="text-[10px]">
+                      {term}
+                    </Badge>
+                  ))}
+                </span>
+              )}
             </CardContent>
           </Card>
         ))}

@@ -234,13 +234,18 @@ def test_opportunities_unfiltered_served_from_cache(monkeypatch, db_session,
 
     client.post("/api/profile/build", headers=auth, json={"raw_text": "CV."})
     client.get("/api/opportunities")
-    assert cache.get_cached_opportunity_list() is not None
+    # The list is ranked by the active profile, so it is cached UNDER that
+    # profile — a list cached for one set of keywords is wrong for another.
+    from core.tasks import profile_terms
+    fp = cache.profile_fingerprint(profile_terms(profile))
+    assert fp != "none", "a real profile must produce a real fingerprint"
+    assert cache.get_cached_opportunity_list(None, fp) is not None
     # Add another row; the cache (1h TTL) must not see it until invalidated.
     _seed_opportunity(db_session, url="https://ex.org/j/2",
                       title="PhD in cosmology")
     db_session.commit()
-    cached = cache.get_cached_opportunity_list()
+    cached = cache.get_cached_opportunity_list(None, fp)
     assert len(cached) == 1
     cache.invalidate_opportunities()
     client.get("/api/opportunities")
-    assert len(cache.get_cached_opportunity_list()) == 2
+    assert len(cache.get_cached_opportunity_list(None, fp)) == 2

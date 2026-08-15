@@ -12,6 +12,7 @@ from api.deps import get_db
 from api.serializers import opportunity_out
 from core import cache
 from db.models import Opportunity
+from db.repositories import ProfileRepo
 
 router = APIRouter(prefix="/api/opportunities", tags=["opportunities"])
 
@@ -20,6 +21,21 @@ def _like(q: str) -> str:
     """Escape a free-text search term for use inside a LIKE/ILIKE pattern."""
     escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+def _active_profile_terms(session: Session) -> list[str]:
+    """Terms of the globally active research profile — the same profile the
+    engine ranks a run with (core.tasks._active_profile). Never fatal: an
+    unreadable profile degrades to an unprofiled cache key."""
+    try:
+        from core.tasks import profile_terms
+        from core.profile_schema import UserProfile
+        row = ProfileRepo(session).get_active()
+        if row is None:
+            return []
+        return profile_terms(UserProfile(**row.to_profile()))
+    except Exception:
+        return []
 
 
 @router.get("")
@@ -42,7 +58,12 @@ def list_opportunities(
     # cache key carries the field: a single global key would serve the
     # astronomy list to a chemistry view for up to an hour.
     if not (country or source or type or q) and page == 1:
-        cached = cache.get_cached_opportunity_list(field)
+        # The list is RANKED by the active research profile, so it belongs to
+        # that profile. Keying on field alone meant editing your keywords and
+        # re-running served the previous ranking for a full hour — which is
+        # indistinguishable from the profile having no effect at all.
+        prof = cache.profile_fingerprint(_active_profile_terms(session))
+        cached = cache.get_cached_opportunity_list(field, prof)
         if cached is not None:
             total = len(cached)
             return {"items": cached[:limit], "total": total,
@@ -54,7 +75,7 @@ def list_opportunities(
         full = [opportunity_out(o) for o in session.scalars(
             stmt.order_by(Opportunity.posted_date.desc().nulls_last(),
                           Opportunity.id.desc()))]
-        cache.cache_opportunity_list(full, field)
+        cache.cache_opportunity_list(full, field, prof)
         total = len(full)
         return {"items": full[:limit], "total": total,
                 "page": 1, "limit": limit, "field": field,

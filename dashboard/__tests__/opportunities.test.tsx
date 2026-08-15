@@ -545,6 +545,60 @@ describe("OpportunitiesPage", () => {
     );
   });
 
+  it("names the profile terms a run actually used", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "pt" });
+    mockJobStatus.mockResolvedValue({
+      run_id: "pt",
+      status: "completed",
+      records: 5,
+      progress: {
+        total: 1, completed: 1, sources: [],
+        funnel: {
+          found: 5, after_field_filter: 5, after_freshness: 5, after_dedupe: 5,
+          profile_active: true,
+          profile_terms: ["interstellar medium", "radio interferometry", "LOFAR"],
+          dropped: { position_type: 0, off_field: 0, expired: 0,
+                     country: 0, stale: 0, duplicate: 0 },
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+
+    // "Did my research profile do anything?" must be answerable by looking.
+    expect(await screen.findByTestId("run-profile-terms")).toHaveTextContent(
+      "interstellar medium, radio interferometry, LOFAR",
+    );
+  });
+
+  it("says so when no research profile was used", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "pn" });
+    mockJobStatus.mockResolvedValue({
+      run_id: "pn",
+      status: "completed",
+      records: 5,
+      progress: {
+        total: 1, completed: 1, sources: [],
+        funnel: {
+          found: 5, after_field_filter: 5, after_freshness: 5, after_dedupe: 5,
+          profile_active: false, profile_terms: [],
+          dropped: { position_type: 0, off_field: 0, expired: 0,
+                     country: 0, stale: 0, duplicate: 0 },
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+
+    expect(await screen.findByTestId("run-profile-terms")).toHaveTextContent(
+      /No research profile was used/,
+    );
+  });
+
   it("runs the engine scoped to the active country filter", async () => {
     mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "p1" });
     mockJobStatus.mockResolvedValue({

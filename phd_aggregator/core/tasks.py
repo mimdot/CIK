@@ -151,6 +151,48 @@ def _rq_cancel_token():
     return cancel_mod.RedisToken(client, job.id)
 
 
+def profile_terms(profile) -> list[str]:
+    """The profile's own terms, in the order the matcher weighs them.
+
+    Surfaced in the run funnel so the UI can show WHICH terms a search actually
+    used. "Did my profile do anything?" should be answerable by looking, not by
+    re-running and squinting at the difference.
+    """
+    if profile is None:
+        return []
+    terms: list[str] = []
+    for value in (getattr(profile, "subfield", None),):
+        if value:
+            terms.append(str(value))
+    for attr in ("methods", "tools", "skills", "target_roles"):
+        terms.extend(str(t) for t in (getattr(profile, attr, None) or []) if t)
+    # dict.fromkeys keeps first-seen order while de-duplicating.
+    return list(dict.fromkeys(terms))
+
+
+def _active_profile():
+    """The saved research profile, or None. Never fatal: an unreadable profile
+    must degrade to an unprofiled run, not fail a crawl that would otherwise
+    have worked."""
+    try:
+        from cli.commands import load_active_profile
+        from db.init import resolve_db_url
+        profile = load_active_profile(resolve_db_url())
+    except Exception as exc:
+        log.warning("could not load the active research profile (%s) — running "
+                    "unprofiled, results will not be ranked by your keywords",
+                    exc)
+        return None
+    if profile is None:
+        log.info("no active research profile — results are ranked by field "
+                 "relevance only")
+    else:
+        log.info("research profile active (domain=%s): %d term(s) -> %s",
+                 getattr(profile, "domain", "?"), len(profile_terms(profile)),
+                 ", ".join(profile_terms(profile)[:12]) or "(none)")
+    return profile
+
+
 def _rescue_dump(cfg) -> str | None:
     """Copy this run's outputs to timestamped siblings and return the JSON path.
 
@@ -255,8 +297,16 @@ def run_pipeline_job(country: str | None = None,
     if cancel is None:
         cancel = _rq_cancel_token()
     funnel: dict = {}
+    # The saved research profile has to reach the engine, or picking keywords
+    # in the UI changes nothing. pipeline_run() has always accepted a profile
+    # and scored every kept opportunity against it — but only the CLI ever
+    # passed one, so the dashboard and the desktop app silently ran unprofiled
+    # while the profile page cheerfully saved the user's choices.
+    profile = _active_profile()
+    funnel["profile_terms"] = profile_terms(profile)
+    funnel["profile_active"] = profile is not None
     records = pipeline_run(cfg, only_sources=sources, on_progress=on_progress,
-                           funnel=funnel, cancel=cancel)
+                           funnel=funnel, cancel=cancel, profile=profile)
     _persist_records(cfg, funnel, country)
     cache.invalidate_supervisors()
     cache.invalidate_matches()

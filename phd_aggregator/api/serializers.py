@@ -50,6 +50,12 @@ def opportunity_out(opp: Opportunity) -> dict:
         "short_description": opp.short_description,
         "position_type": opp.position_type,
         "is_new": opp.is_new,
+        # WHY this row is here. The engine records the terms that matched, but
+        # they stopped at the database — so the UI could never show the user
+        # that their profile had done anything, which is most of the reason
+        # "does my research profile even work?" had no answer.
+        "matched_keywords": _json_list(opp.matched_keywords),
+        "matched_anchors": _json_list(opp.matched_anchors),
     }
 
 

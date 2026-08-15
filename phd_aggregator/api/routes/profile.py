@@ -148,6 +148,10 @@ def build_profile(body: BuildProfileRequest,
     session.commit()
     invalidate_match_cache()
     cache.invalidate_matches(created.id)
+    # The opportunity list is RANKED by the profile, so a new profile makes
+    # every cached page wrong. Without this, editing your keywords and
+    # re-running looks exactly like "the profile has no effect" for a full TTL.
+    cache.invalidate_opportunities()
     return profile.model_dump()
 
 
@@ -165,4 +169,5 @@ def update_profile(body: ProfileUpdate,
     session.commit()
     invalidate_match_cache()
     cache.invalidate_matches(row.id)
+    cache.invalidate_opportunities()
     return row.to_profile()
