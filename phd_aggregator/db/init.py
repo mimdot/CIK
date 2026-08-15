@@ -179,7 +179,12 @@ def _upsert_opportunity(session: Session, r: dict) -> None:
 
 def seed_from_json(session: Session, json_path: str | Path) -> int:
     """Seed ``opportunities`` from the pipeline's JSON output (idempotent).
-    Returns the number of records read from the file."""
+
+    Returns the number of records actually WRITTEN, not the number read: a
+    record with no title is skipped, and a count that includes it would report
+    rows that are not in the table — the kind of small lie this funnel exists
+    to eliminate.
+    """
     path = Path(json_path)
     if not path.exists():
         log.warning("seed source %s not found — nothing seeded", path)
@@ -188,12 +193,18 @@ def seed_from_json(session: Session, json_path: str | Path) -> int:
         records = json.load(fh)
     if not isinstance(records, list):
         records = [records]
+    written = 0
     for r in records:
         if isinstance(r, dict) and r.get("title"):
             _upsert_opportunity(session, r)
+            written += 1
     session.commit()
-    log.info("seeded %d opportunity record(s) from %s", len(records), path)
-    return len(records)
+    if written != len(records):
+        log.warning("seeded %d of %d record(s) from %s — %d had no title",
+                    written, len(records), path, len(records) - written)
+    else:
+        log.info("seeded %d opportunity record(s) from %s", written, path)
+    return written
 
 
 def count_opportunities(session: Session) -> int:

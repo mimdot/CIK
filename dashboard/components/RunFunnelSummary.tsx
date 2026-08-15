@@ -67,6 +67,15 @@ export function RunFunnelSummary({ funnel }: { funnel: RunFunnel }) {
         )}
       </p>
 
+      {/* The table total belongs OUTSIDE the funnel chain. Printed as the last
+          stage it contradicted the stage before it — "0 after dedupe → 40
+          stored" — because it counts every earlier run's rows too. */}
+      {typeof funnel.stored_total === "number" && (
+        <p className="mt-2 text-muted-foreground" data-testid="run-stored-total">
+          {funnel.stored_total} saved in total, including earlier runs.
+        </p>
+      )}
+
       {reasons.length > 0 && (
         <p className="mt-2 text-muted-foreground">
           Dropped:{" "}

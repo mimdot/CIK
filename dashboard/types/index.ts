@@ -230,7 +230,10 @@ export interface RunFunnel {
   after_field_filter: number;
   after_freshness: number;
   after_dedupe: number;
+  /** Rows THIS run wrote — the funnel's last stage, not the table's size. */
   stored?: number;
+  /** Rows in the table afterwards, including everything earlier runs saved. */
+  stored_total?: number;
   storage_error?: string;
   /** Where a failed save snapshotted the results, so a crawl is never lost. */
   storage_rescue_path?: string;

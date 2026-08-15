@@ -474,6 +474,53 @@ describe("OpportunitiesPage", () => {
     expect(within(funnel).getByText(/19 duplicate/)).toBeInTheDocument();
   });
 
+  it("keeps the table total out of the funnel chain", async () => {
+    // "stored" is the chain's last stage, so it is what THIS run wrote. The
+    // table total counts earlier runs too; printed as a stage it contradicted
+    // the stage before it ("0 after dedupe -> 40 stored").
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "pt" });
+    mockJobStatus.mockResolvedValue({
+      run_id: "pt",
+      status: "completed",
+      records: 0,
+      progress: {
+        total: 1,
+        completed: 1,
+        sources: [{ source: "euraxess", status: "done", records: 73 }],
+        funnel: {
+          field: "astronomy",
+          found: 73,
+          after_field_filter: 0,
+          after_freshness: 0,
+          after_dedupe: 0,
+          stored: 0,
+          stored_total: 40,
+          dropped: {
+            position_type: 46,
+            off_field: 24,
+            expired: 0,
+            country: 3,
+            stale: 0,
+            duplicate: 0,
+          },
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+
+    const funnel = await screen.findByTestId("run-funnel");
+    const chain = funnel.textContent?.replace(/\s+/g, " ") ?? "";
+    expect(chain).toContain("0 after dedupe");
+    expect(chain).toContain("0 stored");
+    expect(chain).not.toContain("40 stored");
+    expect(within(funnel).getByTestId("run-stored-total")).toHaveTextContent(
+      "40 saved in total, including earlier runs.",
+    );
+  });
+
   it("warns when results were found but could not be saved", async () => {
     mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "pe" });
     mockJobStatus.mockResolvedValue({

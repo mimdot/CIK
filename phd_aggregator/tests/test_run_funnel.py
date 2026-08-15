@@ -129,6 +129,40 @@ def test_engine_count_equals_stored_count(tmpdir_run):
     assert len(kept) == stored == funnel["after_dedupe"]
 
 
+def test_stored_counts_this_run_not_the_whole_table(tmpdir_run, monkeypatch):
+    """"stored" is the funnel's last stage, so it must be THIS run's rows.
+
+    The bug this pins: ``_persist_records`` reported ``count_opportunities()``,
+    the size of the whole table. Against a database holding earlier runs that
+    printed "0 after dedupe -> 40 stored" — the two-unrelated-numbers problem
+    the funnel exists to end. Invisible to the test above because a fresh
+    tmpdir database starts empty, which makes the two counts coincide.
+    """
+    db_url = f"sqlite:///{tmpdir_run}/t.db"
+    monkeypatch.setattr("db.init.resolve_db_url", lambda *a, **k: db_url)
+
+    # An earlier run's rows are already in the table.
+    seeded_cfg = _cfg("astronomy", tmpdir_run)
+    pipeline_run(seeded_cfg, injected_raw=_astro_batch())
+    engine = init_db(db_url)
+    with Session(engine) as session:
+        seed_from_json(session, seeded_cfg.json_path)
+        pre_existing = count_opportunities(session)
+    assert pre_existing > 0
+
+    # This run finds nothing that survives the filters.
+    cfg = _cfg("astronomy", tmpdir_run)
+    funnel: dict = {}
+    pipeline_run(cfg, injected_raw=[], funnel=funnel)
+    from core import tasks
+    tasks._persist_records(cfg, funnel, "Germany")
+
+    assert funnel["stored"] == funnel["after_dedupe"] == 0, \
+        "stored must report what this run wrote"
+    assert funnel["stored_total"] == pre_existing, \
+        "the table total is still reported, under its own name"
+
+
 # --- the field stamp ---------------------------------------------------------
 
 def test_field_is_part_of_the_written_schema():

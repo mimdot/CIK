@@ -240,8 +240,14 @@ def _persist_records(cfg, funnel: dict, country: str | None = None) -> None:
                              seed_from_json)
         engine = init_db(resolve_db_url())
         with Session(engine) as session:
-            seed_from_json(session, cfg.json_path)
-            funnel["stored"] = count_opportunities(session)
+            # "stored" is the last stage of THIS run's funnel, so it must be
+            # what this run wrote — not how many rows the table happens to
+            # hold. Reporting the table total here made a run that stored
+            # nothing announce "stored 40" underneath "0 after dedupe", which
+            # is the same found-vs-shown contradiction the funnel was built to
+            # end. The table total is still worth showing, under its own name.
+            funnel["stored"] = seed_from_json(session, cfg.json_path)
+            funnel["stored_total"] = count_opportunities(session)
         # Invalidate BEFORE anything else can read a stale list. Keyed by
         # field, so switching field can never serve the previous field's rows.
         cache.invalidate_opportunities()
