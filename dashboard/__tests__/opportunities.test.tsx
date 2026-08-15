@@ -509,6 +509,42 @@ describe("OpportunitiesPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("tells the user where a failed save rescued the results to", async () => {
+    mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "pr" });
+    mockJobStatus.mockResolvedValue({
+      run_id: "pr",
+      status: "completed",
+      records: 63,
+      progress: {
+        total: 1,
+        completed: 1,
+        sources: [],
+        funnel: {
+          found: 63,
+          after_field_filter: 63,
+          after_freshness: 63,
+          after_dedupe: 63,
+          storage_error: "RuntimeError: database is locked",
+          storage_rescue_path: "/home/me/phd_positions.rescue-20260815T101500Z.json",
+          dropped: {
+            position_type: 0, off_field: 0, expired: 0,
+            country: 0, stale: 0, duplicate: 0,
+          },
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<OpportunitiesPage />);
+    await screen.findByText("PhD in radio astronomy");
+    await user.click(screen.getByRole("button", { name: "Search for positions" }));
+
+    // Losing a completed crawl is the worst failure there is. If the database
+    // refused it, the user must be told the exact file it survived in.
+    expect(await screen.findByTestId("run-rescue-path")).toHaveTextContent(
+      "/home/me/phd_positions.rescue-20260815T101500Z.json",
+    );
+  });
+
   it("runs the engine scoped to the active country filter", async () => {
     mockTriggerPipeline.mockResolvedValue({ status: "started", run_id: "p1" });
     mockJobStatus.mockResolvedValue({

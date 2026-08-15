@@ -228,6 +228,8 @@ export interface RunFunnel {
   after_dedupe: number;
   stored?: number;
   storage_error?: string;
+  /** Where a failed save snapshotted the results, so a crawl is never lost. */
+  storage_rescue_path?: string;
   dropped: {
     position_type: number;
     off_field: number;

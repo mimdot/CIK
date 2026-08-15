@@ -31,6 +31,7 @@ import uuid
 from typing import Optional
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from core import cache, cancel as cancel_mod, email
 from core.config import build_config
@@ -150,6 +151,69 @@ def _rq_cancel_token():
     return cancel_mod.RedisToken(client, job.id)
 
 
+def _rescue_dump(cfg) -> str | None:
+    """Copy this run's outputs to timestamped siblings and return the JSON path.
+
+    The pipeline always writes ``cfg.json_path``/``cfg.csv_path``, but those are
+    FIXED paths — the next run overwrites them. So when the database save fails,
+    the stable files are only safe until the user searches again, and a crawl
+    that took minutes is then gone for good. Snapshotting under a timestamped
+    name makes a completed run recoverable no matter what the DB did.
+    """
+    import shutil
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    rescued: str | None = None
+    for attr in ("json_path", "csv_path"):
+        src = getattr(cfg, attr, None)
+        if not src or not os.path.exists(src):
+            continue
+        base, ext = os.path.splitext(src)
+        dest = f"{base}.rescue-{stamp}{ext}"
+        try:
+            shutil.copyfile(src, dest)
+        except OSError as exc:  # disk full / read-only — nothing more we can do
+            log.error("could not write rescue copy %s: %s", dest, exc)
+            continue
+        if attr == "json_path":
+            rescued = dest
+    return rescued
+
+
+def _persist_records(cfg, funnel: dict, country: str | None = None) -> None:
+    """Seed the ``opportunities`` table from the run's JSON output.
+
+    The pipeline writes JSON/CSV/HTML; the dashboard reads the ``opportunities``
+    table, so re-seed it from the JSON just written (idempotent upsert).
+
+    A seeding failure must not fail the job — the crawl already succeeded — but
+    it must not be quiet either. When seeding fails the dashboard keeps showing
+    the OLD row count while the engine reports the new one, which is exactly how
+    "18 open positions" and "63 records" drift apart. So: name the exception
+    *type* as well as its message (a bare "name 'Session' is not defined" gives
+    the user nothing to act on), log the full traceback, and snapshot the
+    results to a timestamped file the user is told about.
+    """
+    try:
+        from db.init import (count_opportunities, init_db, resolve_db_url,
+                             seed_from_json)
+        engine = init_db(resolve_db_url())
+        with Session(engine) as session:
+            seed_from_json(session, cfg.json_path)
+            funnel["stored"] = count_opportunities(session)
+        # Invalidate BEFORE anything else can read a stale list. Keyed by
+        # field, so switching field can never serve the previous field's rows.
+        cache.invalidate_opportunities()
+    except Exception as exc:
+        funnel["storage_error"] = f"{type(exc).__name__}: {exc}"
+        rescued = _rescue_dump(cfg)
+        if rescued:
+            funnel["storage_rescue_path"] = os.path.abspath(rescued)
+        log.exception(
+            "pipeline job %s: saving results to the database FAILED (%s) — "
+            "the crawl succeeded and its results were rescued to %s",
+            country, funnel["storage_error"], rescued or cfg.json_path)
+
+
 def run_pipeline_job(country: str | None = None,
                      sources: list[str] | None = None,
                      field: str | None = None,
@@ -193,26 +257,7 @@ def run_pipeline_job(country: str | None = None,
     funnel: dict = {}
     records = pipeline_run(cfg, only_sources=sources, on_progress=on_progress,
                            funnel=funnel, cancel=cancel)
-    # The pipeline writes JSON/CSV/HTML; the dashboard reads the ``opportunities``
-    # table, so re-seed it from the JSON just written (idempotent upsert). A
-    # seeding failure must not fail the job — the run already succeeded — but it
-    # must not be invisible either: when seeding fails the dashboard keeps
-    # showing the OLD row count while the engine reports the new one, which is
-    # exactly how "18 open positions" and "63 records" drift apart. Record it.
-    try:
-        from db.init import (count_opportunities, init_db, resolve_db_url,
-                             seed_from_json)
-        engine = init_db(resolve_db_url())
-        with Session(engine) as session:
-            seed_from_json(session, cfg.json_path)
-            funnel["stored"] = count_opportunities(session)
-        # Invalidate BEFORE anything else can read a stale list. Keyed by
-        # field, so switching field can never serve the previous field's rows.
-        cache.invalidate_opportunities()
-    except Exception as exc:
-        funnel["storage_error"] = str(exc)
-        log.warning("pipeline job %s: DB seeding failed (%s) — outputs written "
-                    "to %s, dashboard may be stale", country, exc, cfg.json_path)
+    _persist_records(cfg, funnel, country)
     cache.invalidate_supervisors()
     cache.invalidate_matches()
     if on_progress is not None:
@@ -666,7 +711,6 @@ def send_digest_job(profile_id: int, session_factory=None) -> int:
     """
     if session_factory is None:
         from db.init import init_db, resolve_db_url
-        from sqlalchemy.orm import Session
         engine = init_db(resolve_db_url())
         session_factory = lambda: Session(engine)  # noqa: E731
     try:
@@ -871,7 +915,6 @@ def schedule_weekly_digests(session=None) -> int:
         from sqlalchemy import select
         if session is None:
             from db.init import init_db, resolve_db_url
-            from sqlalchemy.orm import Session
             engine = init_db(resolve_db_url())
             with Session(engine) as session:
                 return _schedule_weekly_digests(session)
@@ -925,7 +968,6 @@ def rollup_api_key_usage(session=None) -> int:
     from core.ratelimit import api_key_meter
     if session is None:
         from db.init import init_db, resolve_db_url
-        from sqlalchemy.orm import Session
         engine = init_db(resolve_db_url())
         with Session(engine) as session:
             return _rollup_api_key_usage(session, api_key_meter)

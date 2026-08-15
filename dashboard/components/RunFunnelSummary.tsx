@@ -62,10 +62,23 @@ export function RunFunnelSummary({ funnel }: { funnel: RunFunnel }) {
       )}
 
       {funnel.storage_error && (
-        <p className="mt-2 text-destructive">
-          Results were found but could not be saved ({funnel.storage_error}), so
-          the list below may be out of date.
-        </p>
+        <div className="mt-2 text-destructive">
+          <p>
+            Results were found but could not be saved ({funnel.storage_error}),
+            so the list below may be out of date.
+          </p>
+          {funnel.storage_rescue_path && (
+            <p className="mt-1">
+              Nothing was lost — this run was saved to{" "}
+              <code
+                className="break-all rounded bg-destructive/10 px-1 py-0.5 font-mono"
+                data-testid="run-rescue-path"
+              >
+                {funnel.storage_rescue_path}
+              </code>
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
