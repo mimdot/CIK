@@ -196,6 +196,13 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                     help="list registered sources and their enabled/JS status, then exit")
     ap.add_argument("--list-fields", action="store_true",
                     help="list available field profiles (fields/*.yaml) and exit")
+    ap.add_argument("--validate-sources", action="store_true",
+                    help="request every registered source URL "
+                         "(sources/url_registry.yaml), report HTTP status and "
+                         "how many listings actually parsed, and flag any that "
+                         "return 0; re-run this to catch site drift")
+    ap.add_argument("--validate-json", action="store_true",
+                    help="with --validate-sources: emit JSON instead of a table")
     ap.add_argument("--new-field", nargs="?", const="", metavar="NAME",
                     help="interactively scaffold a NEW field profile "
                          "(fields/NAME.yaml) for your major and exit")
@@ -494,6 +501,16 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"\nActive profile '{cfg.field_profile}' has no fields/{cfg.field_profile}.yaml"
                   " (built-in astronomy taxonomy used).")
         return 0
+    if args.validate_sources:
+        from cli.validate_sources import validate_sources as _validate
+        # Bare --validate-sources checks EVERYTHING. --field/--source narrow it
+        # only when the user actually passed them (cfg.field_profile always has
+        # a value, so filtering on it would silently check one field and call
+        # that a full validation).
+        return _validate(cfg, Http(cfg),
+                         only_source=(args.source or [None])[0],
+                         only_field=args.field,
+                         as_json=args.validate_json)
     if args.new_field is not None:
         return new_field_wizard(args.new_field)
     if args.self_test:

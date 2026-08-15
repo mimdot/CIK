@@ -1,0 +1,300 @@
+# Per-source, per-field URL registry.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# Source URLs used to be built by substituting the field name into a path
+# ("astrophysics" -> https://www.findaphd.com/phds/astrophysics/). That is a
+# guess dressed up as a URL: the slug a board uses is its own vocabulary, not
+# ours. Confirmed on 2026-08-15 — /phds/astrophysics/ returns FindAPhD's OWN
+# 404 page ("FindAPhD | 404 Error : Sorry Page Not Found").
+#
+# So targeting is data now, not string arithmetic. Every entry below says which
+# concrete slug / facet ID / category a field maps to on that specific board,
+# and — just as importantly — whether anyone has actually checked.
+#
+# HOW TO READ AN ENTRY
+# --------------------
+#   status: ok          a run against this target returned listings
+#           unverified  plausible, never confirmed — treat as a guess
+#           blocked     the board refuses automated clients (Cloudflare)
+#   verified:           ISO date of the last successful check, or null
+#   note:               how it was checked, or why it could not be
+#
+# Run `python3 phd_aggregator.py --validate-sources` to re-check every entry
+# and rewrite your picture of what is actually working. Sites drift; that
+# command is how you catch it.
+#
+# A field profile always wins over this file:
+#     source_options: {findaphd: {disciplines: [chemistry]}}
+
+version: 1
+
+sources:
+
+  # ---------------------------------------------------------------------------
+  findaphd:
+    label: FindAPhD
+    transport: browser          # Cloudflare — plain GET and browser-TLS both 403
+    url_template: "https://www.findaphd.com/phds/{discipline}/"
+    result_selector: "a[href*='/phds/project/']"
+    param: discipline
+    note: >
+      On 2026-08-15 every automated client available was refused: curl direct
+      and via SOCKS (403), headless Chrome through Playwright (Cloudflare
+      "Attention Required"), the user's own Chrome via extension (challenge
+      loop), and a server-side fetch (403). The one page that did answer
+      returned FindAPhD's own 404 for the astrophysics slug, which is what
+      proves the slug map below is guesswork rather than fact.
+      The reported working URLs carry a query token
+      (/phds/astronomy/?30M7W2o3) that is a SEARCH-SESSION id, not part of the
+      durable address — it is not reproducible and must not be hardcoded.
+      These slugs need one pass in a real browser to confirm; until then they
+      are honestly labelled unverified.
+    fields:
+      astronomy:
+        discipline: [astrophysics, astronomy]
+        status: blocked
+        verified: null
+      physics:
+        discipline: [physics]
+        status: blocked
+        verified: null
+      condensed_matter:
+        discipline: [physics]
+        status: blocked
+        verified: null
+      chemistry:
+        discipline: [chemistry]
+        status: blocked
+        verified: null
+      biology:
+        discipline: [biological-sciences]
+        status: blocked
+        verified: null
+      computer_science:
+        discipline: [computer-science]
+        status: blocked
+        verified: null
+      mathematics:
+        discipline: [mathematics]
+        status: blocked
+        verified: null
+      engineering:
+        discipline: [engineering]
+        status: blocked
+        verified: null
+      economics:
+        discipline: [economics]
+        status: blocked
+        verified: null
+      geology:
+        discipline: [geology]
+        status: blocked
+        verified: null
+      geophysics_hydro:
+        discipline: [geology]
+        status: blocked
+        verified: null
+
+  # ---------------------------------------------------------------------------
+  aas:
+    label: AAS Job Register
+    transport: browser
+    # The board moved to a Drupal facet UI on aas.org; jobregister.aas.org and
+    # its /rss are the OLD host and answer 403 to everything now.
+    url_template: "https://aas.org/jobregister"
+    result_selector: "a[href*='/jobregister/']"
+    param: category
+    facet_param: "f[{i}]"
+    facet_prefix: "category:"
+    note: >
+      Category IDs 511 and 512 were supplied by the user from the site's own
+      facet UI (they cover PhD-level and postdoc between them). The FULL
+      category-ID map, and which of 511/512 is PhD versus postdoc, could not be
+      read here: aas.org is Cloudflare-guarded and refused every automated
+      client tried on 2026-08-15. Splitting phd/postdoc below is therefore left
+      deliberately un-guessed — fill the two lists in once the facet sidebar can
+      be read, and the PhD/postdoc split becomes server-side.
+    fields:
+      astronomy:
+        category: [511, 512]
+        status: blocked
+        verified: null
+        by_position_type:
+          phd: []               # unknown — do NOT guess; see note
+          postdoc: []           # unknown — do NOT guess; see note
+
+  # ---------------------------------------------------------------------------
+  euraxess:
+    label: EURAXESS (EU)
+    transport: html
+    url_template: "https://euraxess.ec.europa.eu/jobs/search"
+    result_selector: "article.ecl-content-item"
+    param: research_field
+    facet_param: "f[{i}]"
+    facet_prefix: "job_research_field:"
+    note: >
+      The portal IGNORES ?keywords= (it returns business professorships for
+      "astrophysics"), so the Drupal facet is the only real filter. IDs were
+      read off the portal's own facet sidebar.
+      positions:php_positions (sic, their spelling) narrows to PhD posts.
+    fields:
+      astronomy:
+        research_field: [34, 35, 37]      # Astronomy / Astrophysics / Astronomy-other
+        adjacent: [345]                   # Physics — real astro PhDs get filed here
+        status: ok
+        verified: 2026-08-15
+      physics:
+        research_field: [345]
+        status: ok
+        verified: 2026-08-15
+      condensed_matter:
+        research_field: [345]
+        status: ok
+        verified: 2026-08-15
+      chemistry:
+        research_field: [47]
+        status: ok
+        verified: 2026-08-15
+      biology:
+        research_field: [38]
+        status: ok
+        verified: 2026-08-15
+      computer_science:
+        research_field: [78, 251]         # Computer science + Information science
+        status: ok
+        verified: 2026-08-15
+      mathematics:
+        research_field: [298]
+        status: ok
+        verified: 2026-08-15
+      engineering:
+        research_field: [164, 401]        # Engineering + Technology
+        status: ok
+        verified: 2026-08-15
+      economics:
+        research_field: [117]
+        status: ok
+        verified: 2026-08-15
+      geology:
+        research_field: [219]
+        status: ok
+        verified: 2026-08-15
+      geophysics_hydro:
+        research_field: [219, 345]        # Geosciences + Physics
+        status: ok
+        verified: 2026-08-15
+
+  # ---------------------------------------------------------------------------
+  academicjobsonline:
+    label: AcademicJobsOnline
+    transport: html
+    url_template: "https://academicjobsonline.org/ajo/{category}"
+    result_selector: "a[href*='/ajo/jobs/']"
+    param: category
+    note: >
+      AJO answers 200 for ANY path: an unknown category silently serves a
+      generic fallback listing. So "200 OK with results" proves nothing here,
+      and five slugs that shipped for months (mathematics, statistics,
+      economics, engineering, geosciences) were in fact that fallback page —
+      byte-identical to each other and to /ajo/zzz_not_a_real_category.
+      The real vocabulary is short and abbreviated. Each slug below was
+      confirmed on 2026-08-15 by reading the category the page names in its own
+      heading ("Job Listings [ Engineering ]") and checking its fingerprint
+      differs from the fallback. --validate-sources now performs that same
+      fallback check on every run.
+    fields:
+      astronomy:
+        category: ["physics/Astronomy", "physics/Astrophysics"]
+        status: ok
+        verified: 2026-08-15
+      physics:
+        category: [physics]
+        status: ok
+        verified: 2026-08-15
+      condensed_matter:
+        category: ["physics/Condensed Matter Physics"]
+        status: ok
+        verified: 2026-08-15
+      chemistry:
+        category: [chemistry]
+        status: ok
+        verified: 2026-08-15
+      biology:
+        category: [biology]
+        status: ok
+        verified: 2026-08-15
+      computer_science:
+        category: [cs]
+        status: ok
+        verified: 2026-08-15
+      mathematics:
+        category: [math, stat]        # NOT mathematics/statistics — those are the fallback
+        status: ok
+        verified: 2026-08-15
+      engineering:
+        category: [eng]               # NOT engineering — that is the fallback
+        status: ok
+        verified: 2026-08-15
+      economics:
+        category: [econ]              # NOT economics — that is the fallback
+        status: ok
+        verified: 2026-08-15
+      geology:
+        category: [ES]                # Environmental Science
+        status: ok
+        verified: 2026-08-15
+        note: >
+          AJO has no geology or geosciences category at all; ES (Environmental
+          Science) is the nearest real one. The relevance engine trims it with
+          the profile's own anchors.
+      geophysics_hydro:
+        category: [ES]
+        status: ok
+        verified: 2026-08-15
+        note: AJO has no geophysics category; ES (Environmental Science) is the nearest.
+
+  # ---------------------------------------------------------------------------
+  jobs_ac_uk:
+    label: jobs.ac.uk (UK)
+    transport: html
+    url_template: "https://www.jobs.ac.uk/search/"
+    result_selector: "div.j-search-result__result"
+    # Keyword-driven, not category-driven: the field's OWN search terms are the
+    # query, which is how a profile change reaches this board. jobTypeFacet[]
+    # narrows to studentships server-side.
+    param: keywords
+    static_params:
+      - ["jobTypeFacet[]", "phds"]
+      - ["pageSize", "50"]
+    fields:
+      "*":
+        status: ok
+        verified: 2026-08-15
+        note: General board — every field queries it with its own keywords.
+
+  # ---------------------------------------------------------------------------
+  nature_careers:
+    label: Nature Careers
+    transport: html
+    url_template: "https://www.nature.com/naturecareers/jobs/"
+    result_selector: "a[href*='/naturecareers/job/']"
+    param: Keywords
+    fields:
+      "*":
+        status: ok
+        verified: 2026-08-15
+        note: General board — keyword-driven from the active profile.
+
+  # ---------------------------------------------------------------------------
+  academictransfer:
+    label: AcademicTransfer (NL)
+    transport: html
+    url_template: "https://www.academictransfer.com/en/jobs/"
+    result_selector: "a[href*='/en/jobs/']"
+    param: q
+    fields:
+      "*":
+        status: ok
+        verified: 2026-08-15
+        note: General board — keyword-driven from the active profile.

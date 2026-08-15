@@ -12,42 +12,21 @@ from core.deps import _HTML_PARSER
 from core.http import Http
 from core.records import make_record
 
+from . import registry
 from .base import log, register_source
 
 
-# FindAPhD discipline listing slugs (https://www.findaphd.com/phds/<slug>/).
-#
-# UNVERIFIED, and honestly so: on 2026-08-14 Cloudflare returned 403 "Just a
-# moment..." for EVERY slug from this exit IP — including the two astronomy
-# ones that have always shipped. Probing harder would mean working around the
-# challenge, which this project does not do: it skips and logs instead. These
-# slugs follow FindAPhD's documented URL scheme; a profile can correct any of
-# them without a code change:
-#     source_options: {findaphd: {disciplines: [chemistry]}}
-FINDAPHD_DISCIPLINES: dict[str, list[str]] = {
-    "astronomy": ["astrophysics", "astronomy"],
-    "physics": ["physics"],
-    "condensed_matter": ["physics"],
-    "chemistry": ["chemistry"],
-    "biology": ["biological-sciences"],
-    "computer_science": ["computer-science"],
-    "mathematics": ["mathematics"],
-    "engineering": ["engineering"],
-    "economics": ["economics"],
-    "psychology": ["psychology"],
-    "medicine": ["medicine"],
-    "geology": ["geology"],
-    "geophysics_hydro": ["geology"],
-}
-
-
 def findaphd_disciplines_for(cfg: Config) -> list[str]:
-    """Listing slug(s) to sweep for the active profile ([] = skip the board)."""
-    explicit = cfg.source_option("findaphd", "disciplines")
-    if isinstance(explicit, list) and explicit:
-        return [str(d).strip().strip("/") for d in explicit if str(d).strip()]
-    name = (getattr(cfg, "field_profile", "") or "").strip().lower()
-    return list(FINDAPHD_DISCIPLINES.get(name, []))
+    """Listing slug(s) to sweep for the active profile ([] = skip the board).
+
+    The slug is FindAPhD's vocabulary, not ours, so it comes from the registry
+    (sources/url_registry.yaml) rather than from the field name — pasting the
+    field name into the path is what produced
+    https://www.findaphd.com/phds/astrophysics/, which is FindAPhD's own 404.
+    A profile's ``source_options.findaphd.disciplines`` still wins.
+    """
+    values = registry.values_for(cfg, "findaphd", "disciplines")
+    return [str(d).strip().strip("/") for d in values if str(d).strip()]
 
 
 @register_source("findaphd", label="FindAPhD")
@@ -66,8 +45,10 @@ def source_findaphd(cfg: Config, http: Http) -> list[dict]:
                  "(set source_options.findaphd.disciplines)",
                  getattr(cfg, "field_profile", None))
         return []
-    LISTING_URLS = [f"https://www.findaphd.com/phds/{d}/"
-                    for d in disciplines]
+    spec = registry.spec_for("findaphd")
+    template = (spec.url_template if spec and spec.url_template
+                else "https://www.findaphd.com/phds/{discipline}/")
+    LISTING_URLS = [template.format(discipline=d) for d in disciplines]
     log.info("[findaphd] disciplines for %r: %s",
              getattr(cfg, "field_profile", None), ", ".join(disciplines))
     LINK_RE = re.compile(r"/phds/project/")

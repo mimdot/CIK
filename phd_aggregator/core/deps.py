@@ -19,6 +19,14 @@ except ImportError:  # pragma: no cover - environment guard
     feedparser = None
     _HAVE_FEEDPARSER = False
 
+# PyYAML — field profiles and the per-source URL registry are YAML.
+try:
+    import yaml  # type: ignore
+    _HAVE_YAML = True
+except ImportError:  # pragma: no cover - environment guard
+    yaml = None
+    _HAVE_YAML = False
+
 # lxml — optional faster/robuster bs4 backend.
 try:
     import lxml  # noqa: F401  (presence enables the faster bs4 parser)

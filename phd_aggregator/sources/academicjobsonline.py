@@ -8,38 +8,22 @@ from core.config import Config
 from core.http import Http
 from core.records import make_record
 
+from . import registry
 from .base import log, register_source
 
 
-# AcademicJobsOnline category slugs, each verified live on 2026-08-14 by
-# fetching https://academicjobsonline.org/ajo/<slug> and counting job links
-# (chemistry 26, biology 44, cs 47, mathematics/economics/psychology/medicine/
-# engineering/statistics 40 each). A field profile overrides this with
-#     source_options: {academicjobsonline: {categories: [chemistry]}}
-AJO_CATEGORIES: dict[str, list[str]] = {
-    "astronomy": ["physics/Astronomy", "physics/Astrophysics"],
-    "physics": ["physics"],
-    "condensed_matter": ["physics"],
-    "chemistry": ["chemistry"],
-    "biology": ["biology"],
-    "computer_science": ["cs"],
-    "mathematics": ["mathematics", "statistics"],
-    "engineering": ["engineering"],
-    "economics": ["economics"],
-    "psychology": ["psychology"],
-    "medicine": ["medicine"],
-    "geology": ["geosciences"],
-    "geophysics_hydro": ["geosciences"],
-}
 
 
 def ajo_categories_for(cfg: Config) -> list[str]:
-    """Category path(s) to sweep for the active profile ([] = skip the board)."""
-    explicit = cfg.source_option("academicjobsonline", "categories")
-    if isinstance(explicit, list) and explicit:
-        return [str(c).strip().strip("/") for c in explicit if str(c).strip()]
-    name = (getattr(cfg, "field_profile", "") or "").strip().lower()
-    return list(AJO_CATEGORIES.get(name, []))
+    """Category path(s) to sweep for the active profile ([] = skip the board).
+
+    AJO's category paths are its own vocabulary ("cs", "physics/Astrophysics"),
+    so they live in sources/url_registry.yaml rather than being derived from
+    the field name. A profile's source_options.academicjobsonline.categories
+    still wins.
+    """
+    values = registry.values_for(cfg, "academicjobsonline", "categories")
+    return [str(c).strip().strip("/") for c in values if str(c).strip()]
 
 
 @register_source("academicjobsonline", label="AcademicJobsOnline")

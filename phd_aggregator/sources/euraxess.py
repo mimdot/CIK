@@ -9,60 +9,9 @@ from core.config import Config
 from core.http import Http
 from core.records import make_record
 
+from . import registry
 from .base import log, register_source
 
-
-# EURAXESS `job_research_field` facet IDs, read off the live portal's own facet
-# sidebar on 2026-08-14 (the portal ignores plain ?keywords=, so the facet is
-# the only way to scope a search). A field profile overrides this with
-#     source_options: {euraxess: {research_fields: [47]}}
-# and this table is only the fallback for profiles that say nothing.
-EURAXESS_RESEARCH_FIELDS: dict[str, list[int]] = {
-    "agricultural sciences": [2],
-    "astronomy": [34, 35, 37],        # 35/37 = Astrophysics / Astronomy other
-    "biological sciences": [38],
-    "chemistry": [47],
-    "communication sciences": [65],
-    "computer science": [78],
-    "criminology": [92],
-    "cultural studies": [94],
-    "demography": [115],
-    "economics": [117],
-    "educational sciences": [158],
-    "engineering": [164],
-    "environmental science": [195],
-    "geosciences": [219],
-    "history": [223],
-    "information science": [251],
-    "language sciences": [281],
-    "literature": [286],
-    "mathematics": [298],
-    "medical sciences": [313],
-    "neurosciences": [317],
-    "pharmacological sciences": [325],
-    "physics": [345],
-    "psychological sciences": [374],
-    "religious sciences": [380],
-    "sociology": [388],
-    "technology": [401],
-}
-
-# Profile name -> the EURAXESS subject(s) that discipline lives under. Only
-# needed where the two vocabularies disagree; an exact name match wins first.
-_PROFILE_TO_EURAXESS = {
-    "biology": ["biological sciences"],
-    "computer_science": ["computer science", "information science"],
-    "condensed_matter": ["physics"],
-    "geology": ["geosciences"],
-    "geophysics_hydro": ["geosciences", "physics"],
-    "medicine": ["medical sciences", "neurosciences",
-                 "pharmacological sciences"],
-    "psychology": ["psychological sciences"],
-    "social_sciences": ["sociology", "demography", "communication sciences"],
-    "humanities": ["history", "literature", "language sciences",
-                   "cultural studies"],
-    "environmental_science": ["environmental science", "geosciences"],
-}
 
 
 def _facet_strings(values) -> list[str]:
@@ -73,21 +22,13 @@ def _facet_strings(values) -> list[str]:
 def euraxess_facets_for(cfg: Config) -> list[str]:
     """The `job_research_field:N` facet strings to search for this profile.
 
-    Resolution order: the profile's own ``source_options.euraxess.
-    research_fields`` -> the profile-name mapping above -> an exact match on
-    the EURAXESS subject list -> ``[]`` (caller falls back to a keyword scan).
+    The portal IGNORES ?keywords=, so the numeric facet is the only real
+    filter — and those IDs are EURAXESS's vocabulary, not ours. They live in
+    sources/url_registry.yaml; the profile's own
+    ``source_options.euraxess.research_fields`` still wins over it.
     """
-    explicit = cfg.source_option("euraxess", "research_fields")
-    if isinstance(explicit, list) and explicit:
-        return _facet_strings(explicit)
-
-    name = (getattr(cfg, "field_profile", "") or "").strip().lower()
-    subjects = _PROFILE_TO_EURAXESS.get(name)
-    if subjects is None:
-        spaced = name.replace("_", " ")
-        subjects = [spaced] if spaced in EURAXESS_RESEARCH_FIELDS else []
-    ids = [i for s in subjects for i in EURAXESS_RESEARCH_FIELDS.get(s, [])]
-    return _facet_strings(dict.fromkeys(ids))
+    return _facet_strings(
+        registry.values_for(cfg, "euraxess", "research_fields"))
 
 
 def euraxess_adjacent_facets_for(cfg: Config) -> list[str]:
@@ -98,8 +39,12 @@ def euraxess_adjacent_facets_for(cfg: Config) -> list[str]:
     matter. That stays true, it is just data now:
     ``source_options: {euraxess: {adjacent_research_fields: [345]}}``.
     """
-    return _facet_strings(
-        cfg.source_option("euraxess", "adjacent_research_fields"))
+    explicit = cfg.source_option("euraxess", "adjacent_research_fields")
+    if isinstance(explicit, list) and explicit:
+        return _facet_strings(explicit)
+    spec = registry.spec_for("euraxess")
+    target = spec.target(getattr(cfg, "field_profile", None)) if spec else None
+    return _facet_strings(list(target.adjacent) if target else [])
 
 
 @register_source("euraxess", label="EURAXESS (EU)")

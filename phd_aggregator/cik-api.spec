@@ -20,6 +20,13 @@ field_files = glob.glob(os.path.join(SPECPATH, "fields", "*.yaml"))
 for p in field_files:
     datas.append((p, "fields"))
 
+# The per-source URL registry. Without it the packaged app has no per-field
+# targeting at all: every board falls back to "no mapping — skipping", so the
+# desktop build quietly searches nothing while the dev checkout works fine.
+_registry = os.path.join(SPECPATH, "sources", "url_registry.yaml")
+if os.path.isfile(_registry):
+    datas.append((_registry, "sources"))
+
 # CV parsers are imported LAZILY inside core.cv (so a missing one degrades
 # instead of breaking startup), which means PyInstaller's static analysis
 # cannot see them. Without naming them here the packaged desktop app ships
