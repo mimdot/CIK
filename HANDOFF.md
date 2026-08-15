@@ -1,17 +1,85 @@
-# HANDOFF — progress report (2026-08-14)
+# HANDOFF — progress report
 
-Everything in your correction list is done. Branch **`chore/audit-repair`** →
-**PR #1** (https://github.com/mimdot/CIK/pull/1), all pushed, **CI green**.
+Branch **`chore/audit-repair`** → **PR #1**
+(https://github.com/mimdot/CIK/pull/1).
 
-**Tests: 726 → 945 backend, 97 → 147 dashboard.** 17 commits, 173 files.
+Two rounds of work live here. **§0 is the four bugs you reported from real
+use (2026-08-15)** — read that first. Everything from §1 down is the earlier
+correction list (2026-08-14) and the testing guide, which still applies.
+
+**Tests: 726 → 1022 backend, 97 → 152 dashboard.**
 
 Companion docs: `ISSUES.md` (findings, decisions, §D2 the API-keys/admin
 report, §D3 live verification, §D4 the last three items), `ARCHITECTURE.md`
-(§6 = the full astronomy-hardcoding inventory with file:line).
+(§6 = the astronomy-hardcoding inventory with file:line; the supervisor
+endpoint, the auth-gate asymmetry and the desktop boot sequence).
 
 ---
 
-## 1. Your list, item by item
+## 0. The four bugs from real use (2026-08-15)
+
+All four fixed, one commit each, plus two follow-ups the verification itself
+turned up. Every claim below was measured against the live sites, not reasoned
+about.
+
+| You reported | What it actually was | Status |
+|---|---|---|
+| **1.** Wrong source URLs — FindAPhD/AAS pages that 404 or return the wrong set | URLs were built by pasting the field name into the board's path. Confirmed: `/phds/astrophysics/` is FindAPhD's own 404 page. **Worse:** AcademicJobsOnline answers 200 for *any* path — 5 slugs that had shipped for months (mathematics, statistics, economics, engineering, geosciences) were all the same generic fallback, byte-identical to a deliberately nonsense slug | **fixed** — targeting is data (`sources/url_registry.yaml`), plus `--validate-sources` |
+| **2.** "Results were found but could not be saved (name 'Session' is not defined)" | A real `NameError` — and the save path had **no test at all** | **fixed**, with a rescue dump so a completed crawl can never be lost |
+| **3.** Supervisor search: "Cannot reach the API server" | **Two** faults behind one message: the desktop shell published the sidecar's port before it was up (and threw it away on the first navigation), *and* every upsert died on a missing column, so a search that found 89 people saved 0 and reported "completed" | **fixed** — verified live: Germany 89, Netherlands 67 |
+| **4.** "Your research profile may have no effect" | **Your doubt was right — it did nothing.** `run_pipeline_job`, the only path the UI uses, never passed the profile to the engine. The profile page saved your keywords and the engine never saw them | **fixed**, and now visibly: the run names the terms it used, each card shows what it matched |
+
+### The two follow-ups
+
+Chasing bug 4's verification — *a real run that finds **and** saves* — the
+proving run came back **"73 found, 0 kept"**. Two separate things were true:
+
+**Not a bug: there really are no German astronomy posts on EURAXESS.** All 73
+were Japanese JREC-IN listings and were correctly dropped. Confirmed from the
+portal's own side: its country selector, under the astronomy facets, offers 11
+countries and Germany is not among them. A search returning nothing because
+the board holds nothing is working correctly.
+
+**A real bug: country was filtered too late to matter.** The crawler read a
+bounded number of pages and applied the country filter *afterwards*, so a
+German post on page 9 of a listing dominated by another country was not slow
+to reach — it was unreachable. The portal can filter by country itself, and
+nobody asked it to. Same page budget, physics/Germany:
+
+```
+fetched 30, of which  5 German     before
+fetched 21, of which 21 German     after     (16 unreachable before)
+end to end: 1 kept -> 6 kept
+```
+
+**And the funnel's last stage was lying.** It printed `0 after dedupe → 40
+stored`, because "stored" reported the size of the whole table rather than
+what the run wrote. Now `stored` is this run's rows and the table total is
+shown separately. The old test missed it by seeding an empty database, where
+the two numbers coincide.
+
+### Verification (your list, item by item)
+
+| You asked for | Result |
+|---|---|
+| `--validate-sources` table | **28/41 targets return listings.** The 13 failures are all FindAPhD + AAS |
+| A real run that finds AND saves, UI count == engine count | **`80 found → 6 after field filter → 5 after dedupe → 5 stored`**, `storage_error: none`, engine count == funnel stored |
+| Supervisor search, two countries | **Germany 89, Netherlands 67**, ranked, all in-country |
+| Profile change alters results | Regression test over fixture data; the run dialog now names the terms used |
+| Full suite + `--self-test`, nothing weakened | **1022 backend, 152 dashboard, 18 suites**, eslint + tsc clean, `--self-test ALL PASSED` |
+| Small, separate commits per bug | 6 commits, one per bug plus the two follow-ups |
+
+**Still blocked, and labelled rather than guessed:** FindAPhD and AAS refuse
+every automated client from this exit IP — curl direct and via SOCKS (403),
+headless Chrome, Chrome driven by extension (challenge loop), server-side
+fetch. Their registry entries say `status: blocked` with the reason and date.
+Per your no-evasion rule, no CAPTCHA solving was attempted. **Switching V2Ray
+server usually fixes it on your machine** — if it does, re-run
+`--validate-sources` and those 13 rows should turn green.
+
+---
+
+## 1. The earlier correction list, item by item (2026-08-14)
 
 | You said | What it actually was | Status |
 |---|---|---|
@@ -204,7 +272,7 @@ Run the test suite yourself:
 
 ```bash
 python3 -m pip install -r requirements-dev.txt
-python3 -m pytest tests/ -q        # expect: 960 passed
+python3 -m pytest tests/ -q        # expect: 1022 passed
 ```
 
 ### Desktop app — **this part is yours**
