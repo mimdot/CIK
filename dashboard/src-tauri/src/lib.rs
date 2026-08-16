@@ -234,6 +234,14 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
         )
         .env("CIK_COOKIE_SECURE", "0")
         .env("CIK_SCHEDULER_ENABLED", "0")
+        // CV reading is the only feature that can reach an AI provider, and it
+        // is off in the desktop build so nobody spends tokens on it yet. The
+        // code is all still there: set CV_PARSING_ENABLED=1 in the environment
+        // to bring it back, no rebuild needed.
+        .env(
+            "CV_PARSING_ENABLED",
+            std::env::var("CV_PARSING_ENABLED").unwrap_or_else(|_| "0".into()),
+        )
         .env("CIK_JSON_LOGS", "0")
         .env("CORS_ORIGINS", CORS)
         .env("CIK_API_HOST", "127.0.0.1")

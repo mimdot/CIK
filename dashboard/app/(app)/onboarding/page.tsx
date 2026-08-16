@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ApiError, buildProfile, fetchFields, fetchProfile, updateProfile, validateInvite } from "@/lib/api";
+import { ApiError, buildProfile, fetchFields, fetchParserSupport, fetchProfile, updateProfile, validateInvite } from "@/lib/api";
 import type { UserProfile } from "@/types";
 
 const STEPS = [
@@ -43,6 +43,15 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [inviting, setInviting] = useState(false);
+  // Off until the API says otherwise, so the CV step is never offered and then
+  // withdrawn. See CV_PARSING_ENABLED.
+  const [cvEnabled, setCvEnabled] = useState(false);
+
+  useEffect(() => {
+    fetchParserSupport()
+      .then((s) => setCvEnabled(s.enabled))
+      .catch(() => setCvEnabled(false));
+  }, []);
 
   // Restore saved progress from localStorage (client-only).
   useEffect(() => {
@@ -266,7 +275,28 @@ export default function OnboardingPage() {
           </Card>
         )}
 
-        {step === 1 && (
+        {step === 1 && !cvEnabled && (
+          <Card data-testid="cv-coming-soon">
+            <CardHeader>
+              <CardTitle>Reading your CV — coming in a future update</CardTitle>
+              <CardDescription>
+                For now you build your profile by choosing your field and the
+                keywords you work on. It takes about a minute and gives the
+                matching engine terms it actually understands.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => goTo(0)}>
+                Back
+              </Button>
+              <Button onClick={() => router.push("/profile")}>
+                Choose field and keywords
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === 1 && cvEnabled && (
           <Card>
             <CardHeader>
               <CardTitle>Paste your CV or bio</CardTitle>

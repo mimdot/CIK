@@ -80,7 +80,11 @@ export default function ProfilePage() {
     txt: boolean;
     pdf: boolean;
     docx: boolean;
+    enabled: boolean;
   } | null>(null);
+  // Until the API has answered, assume OFF. Rendering the upload control first
+  // and retracting it would offer a feature and then take it away.
+  const cvEnabled = parserSupport?.enabled === true;
   const { toast } = useToast();
 
   const load = useCallback(async () => {
@@ -283,7 +287,10 @@ export default function ProfilePage() {
           <h1 className="text-2xl font-semibold">Your research profile</h1>
           <p className="text-sm text-muted-foreground">
             Pick your field and the keywords you work on. That is all the app
-            needs — a CV is optional and only pre-fills these choices.
+            needs
+            {cvEnabled
+              ? " — a CV is optional and only pre-fills these choices."
+              : " to find and rank matches for you."}
           </p>
         </div>
 
@@ -314,22 +321,43 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 rounded-lg border p-4">
-          <button
-            type="button"
-            className="text-left text-sm font-medium underline-offset-4 hover:underline"
-            onClick={() => setCvOpen((v) => !v)}
-            aria-expanded={cvOpen}
+        {/* Switched off for now (CV_PARSING_ENABLED). Stated as a plan rather
+            than shown as a control that refuses to work — a disabled button
+            with no explanation reads as a broken app. */}
+        {!cvEnabled ? (
+          <div
+            className="flex flex-col gap-1 rounded-lg border border-dashed p-4"
+            data-testid="cv-coming-soon"
           >
-            {cvOpen ? "Hide" : "Optional:"} pre-fill from a CV
-          </button>
-          <p className="text-xs text-muted-foreground">
-            Reads your CV locally and ticks the matching keywords above. You
-            stay in control — nothing is saved until you press Save.
-          </p>
-          {!cvOpen && <div className="hidden" />}
-        </div>
+            <p className="text-sm font-medium text-muted-foreground">
+              Reading your CV — coming in a future update
+            </p>
+            <p className="text-xs text-muted-foreground">
+              For now, pick your field and keywords above. That is all the app
+              needs to find and rank matches for you.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 rounded-lg border p-4">
+            <button
+              type="button"
+              className="text-left text-sm font-medium underline-offset-4 hover:underline"
+              onClick={() => setCvOpen((v) => !v)}
+              aria-expanded={cvOpen}
+            >
+              {cvOpen ? "Hide" : "Optional:"} pre-fill from a CV
+            </button>
+            <p className="text-xs text-muted-foreground">
+              Reads your CV locally and ticks the matching keywords above. You
+              stay in control — nothing is saved until you press Save.
+            </p>
+          </div>
+        )}
 
+        {/* Not rendered at all when the feature is off — not merely hidden.
+            A `display:none` block still holds a focusable file input and live
+            buttons, which is the difference between "absent" and "disabled". */}
+        {cvEnabled && (
         <div className={cvOpen ? "flex flex-col gap-2" : "hidden"}>
           <Label htmlFor="cv">CV / bio text</Label>
           <Textarea
@@ -383,6 +411,7 @@ export default function ProfilePage() {
             )}
           </p>
         </div>
+        )}
 
         {error && (
           <p role="alert" className="text-sm text-destructive">

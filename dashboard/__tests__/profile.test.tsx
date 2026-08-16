@@ -55,7 +55,9 @@ const PROFILE: UserProfile = {
 describe("ProfilePage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockParserSupport.mockResolvedValue({ txt: true, pdf: true, docx: true });
+    // enabled: the CV path is what this suite exercises. Its disabled state
+    // has its own suite (cvdisabled.test.tsx).
+    mockParserSupport.mockResolvedValue({ txt: true, pdf: true, docx: true, enabled: true });
     mockFetchFields.mockResolvedValue({
       default: "astronomy",
       profiles: ["astronomy", "chemistry"],
@@ -300,7 +302,7 @@ describe("ProfilePage — CV pre-fills the keyword picker (3B/3C)", () => {
   });
 
   it("warns when this installation cannot read PDFs", async () => {
-    mockParserSupport.mockResolvedValue({ txt: true, pdf: false, docx: false });
+    mockParserSupport.mockResolvedValue({ txt: true, pdf: false, docx: false, enabled: true });
     renderPage();
     expect(
       await screen.findByText(/cannot read PDF files/),

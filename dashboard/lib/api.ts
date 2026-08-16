@@ -230,11 +230,18 @@ export function fetchFieldDepartments(
   );
 }
 
-/** Which CV file types this installation can actually read. */
+/**
+ * Whether this installation reads CVs at all, and which file types.
+ *
+ * `enabled` is the prior question: CV reading is behind CV_PARSING_ENABLED and
+ * is off by default in the desktop build, so the UI must ask before offering
+ * an upload control it would only have to retract.
+ */
 export function fetchParserSupport(): Promise<{
   txt: boolean;
   pdf: boolean;
   docx: boolean;
+  enabled: boolean;
 }> {
   return request("/api/profile/parser-support", {}, false);
 }

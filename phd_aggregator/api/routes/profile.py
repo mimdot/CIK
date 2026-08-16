@@ -23,7 +23,7 @@ from api.schemas import (BuildProfileRequest, ExtractCvRequest,
 from core import cache
 from core.cv import CvParseError, extract_cv_text, parser_support
 from core.cv_extract import extract_from_text
-from core.llm import LLMRouter
+from core.llm import LLMRouter, feature_enabled
 from core.profile import extract_profile
 from core.profile_schema import UserProfile
 from db.models import User
@@ -32,6 +32,28 @@ from db.repositories import ProfileRepo
 log = logging.getLogger("api.profile")
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
+
+# Reading a CV is the one feature here that can reach an AI provider (only via
+# POST /build, and only there). It is switched off with ``CV_PARSING_ENABLED=0``
+# so no user spends tokens on it before we are ready — the desktop shell sets
+# that by default. Nothing is deleted: flip the variable and the whole path is
+# back, no rebuild and no code change.
+#
+# The keyword picker is unaffected on purpose, because with CV reading off it
+# becomes the only way to define a research profile.
+CV_FEATURE = "cv_parsing"
+
+
+def cv_parsing_enabled() -> bool:
+    return feature_enabled(CV_FEATURE)
+
+
+def _require_cv_parsing() -> None:
+    if not cv_parsing_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail=("Reading CVs is coming in a future update. Choose your "
+                    "field and pick keywords instead."))
 
 # Columns stored as JSON-encoded text in the DB (mirrors UserProfileRow).
 _JSON_COLUMNS = ("skills", "methods", "tools", "target_roles",
@@ -62,6 +84,7 @@ def extract_cv(body: ExtractCvRequest,
     """Parse an uploaded CV (PDF/DOCX/TXT) to plain text — locally, never sent
     to any third party and never stored. Returns the extracted text for the
     user to review/edit before ``POST /build`` uses it."""
+    _require_cv_parsing()
     payload = body.content_b64.split(",", 1)[-1]  # tolerate a data: URL prefix
     try:
         data = base64.b64decode(payload, validate=True)
@@ -83,8 +106,12 @@ def cv_parser_support() -> dict:
 
     Lets the upload control degrade to the paste path BEFORE the user picks a
     file, instead of failing after they have chosen one.
+
+    ``enabled`` answers the prior question — whether this installation reads
+    CVs at all — so the UI can show "coming in a future update" instead of an
+    upload control that would only fail.
     """
-    return parser_support()
+    return {**parser_support(), "enabled": cv_parsing_enabled()}
 
 
 @router.post("/analyse-cv")
@@ -102,6 +129,7 @@ def analyse_cv(body: BuildProfileRequest,
     than showing a generic error. The result PRE-FILLS the keyword picker; the
     picker remains the source of truth.
     """
+    _require_cv_parsing()
     result = extract_from_text(body.raw_text, field_hint=field)
     log.info("analysed %d chars of CV for user %s: field=%s keywords=%d",
              len(body.raw_text or ""), user.id, result.field,
@@ -113,8 +141,20 @@ def analyse_cv(body: BuildProfileRequest,
 def build_profile(body: BuildProfileRequest,
                   user: User = Depends(get_current_user),
                   session: Session = Depends(get_db)) -> dict:
-    llm = LLMRouter()
-    profile = extract_profile(body.raw_text, llm)
+    # The ONE place in this app that can reach an AI provider. With CV reading
+    # switched off it is not merely unused by the UI — the router is never
+    # constructed and the call is never made, so there is no request to any
+    # provider and no prompt for a key.
+    #
+    # NOT gated wholesale like the CV endpoints, deliberately: the keyword
+    # picker calls /build too, to create the very first profile for a user who
+    # has no row yet. Refusing here would break the one path that has to keep
+    # working. The deterministic extractor below handles it, which is what the
+    # picker wanted anyway — it matches against the same fields/*.yaml
+    # vocabulary the relevance engine scores on.
+    profile = None
+    if cv_parsing_enabled():
+        profile = extract_profile(body.raw_text, LLMRouter())
     if profile is None:
         # The LLM path needs an API key that may not be configured — that is
         # what produced the bare "Could not extract profile from text". Fall

@@ -26,6 +26,12 @@ export function mockAuthApi(extra: Record<string, unknown> = {}): object {
       Promise.resolve({ auth_mode: "password", invite_required: false }),
     ),
     logout: jest.fn(() => Promise.resolve()),
+    // CV reading is behind a flag; pages ask before offering it. Defaults to
+    // enabled here so suites written against the CV flow keep exercising it —
+    // the disabled state is asserted explicitly where it matters.
+    fetchParserSupport: jest.fn(() =>
+      Promise.resolve({ txt: true, pdf: true, docx: true, enabled: true }),
+    ),
     ...extra,
   };
 }
