@@ -78,8 +78,17 @@ alembic upgrade head
 ```
 
 LLM features (profile build, match explanations, assistant drafting) walk a
-provider chain from highest capacity down — see `command.md` for the lane
-table. A blocked or out-of-credits lane fails over automatically.
+provider chain from highest capacity down, set via `LLM_MODEL_CHAIN`
+(comma-separated) in `.env`:
+
+| Lane | Provider | Env required |
+|------|----------|-------------|
+| 1 | Gemini `gemini-2.5-flash-lite` | `GEMINI_API_KEY` |
+| 2 | Mistral `mistral-large-latest` | `MISTRAL_API_KEY` |
+| 3 | OpenAI `gpt-4o-mini` | `OPENAI_API_KEY` |
+
+Each non-final lane is tried `LLM_CHAIN_RETRIES`+1 times before the next
+lane. A blocked or out-of-credits lane fails over automatically.
 
 ### 3.2 Dashboard
 

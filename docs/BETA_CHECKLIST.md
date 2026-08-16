@@ -5,7 +5,7 @@ built (code in the repo) or a verification step you run on the provisioned VPS.
 Do not open invites while any required item is unchecked.
 
 > **Local-dev beta (2026-08-11):** the stack runs bare-metal on the developer
-> device (uvicorn :8000 + `next dev` :3000, see `command.md`). Release gates
+> device (uvicorn :8000 + `next dev` :3000, see GETTING_STARTED.md). Release gates
 > are checked above; deploy/ops items below apply to the VPS beta and are not
 > yet ticked. This local instance uses **open registration** (`INVITES_REQUIRED`
 > unset) by choice; set `INVITES_REQUIRED=1` before opening the VPS beta.

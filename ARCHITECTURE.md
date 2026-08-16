@@ -2,8 +2,8 @@
 
 > Fresh map built from the current working tree (2026-08-13). Verified against
 > code, a green test suite (696 pytest passed, offline `--self-test` passed),
-> and the running entry points. **Supersedes `CODEBASE_MAP.md`**, which still
-> describes the pre-refactor 7,368-line monolith and is now stale.
+> and the running entry points. Supersedes the old codebase map, which still
+> described the pre-refactor 7,368-line monolith and is now stale.
 
 ## 0. Reconciliation with the standing brief (read this first)
 
@@ -22,9 +22,9 @@ asks (Phase 3) to *split the monolith into a package*.
   GDPR endpoints, and beta-ops docs.
 
 So this is a **mature, tested beta product**, not a suspect bulk-dump. The audit
-below and `ISSUES.md` are written for *that* reality. Where the brief's Phase 1/2
-items are already implemented, `ISSUES.md` says so and narrows the work to the
-genuine gaps (per your instruction to flag conflicts rather than rebuild).
+below is written for *that* reality. Where the brief's Phase 1/2 items are
+already implemented, the audit says so and narrows the work to the genuine
+gaps (per your instruction to flag conflicts rather than rebuild).
 
 ---
 
@@ -218,7 +218,7 @@ the same scorer and emails the top matches.
 - **Silent excepts:** 140 `except Exception` outside tests, **0 bare `except:`**.
   27 of them end in a bare `pass`. Most are deliberate graceful degradation
   (one bad card must not sink a crawl). The ones that genuinely hide bugs are
-  listed individually in `ISSUES.md` — notably the DB-seeding swallow in
+  tracked individually — notably the DB-seeding swallow in
   `core/tasks.py:145`, which is the prime suspect for the count mismatch.
 - **UI thread:** no crawling happens on it. Every surface talks HTTP to the
   backend; the crawl runs in an rq worker or an in-process daemon thread. The

@@ -232,8 +232,8 @@ repository itself contains no secrets.
 
 ## Code layout
 
-The single `phd_aggregator.py` is being split into modules under `core/`
-(migration plan: `../MIGRATION_PLAN.md` at the repo root). Step 1:
+The single `phd_aggregator.py` is being split into modules under `core/`.
+Step 1:
 
 - `core/config.py` — the CONFIG block (constants), the `Config` object, the
   `config.yaml` + `fields/*.yaml` plumbing and `build_config()`. The monolith

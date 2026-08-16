@@ -11,8 +11,7 @@ matched against a profile extracted from your CV.
 > proxy, with polite rate limiting and robots.txt handling. No CAPTCHA solving,
 > no ban evasion — a blocked source is skipped and logged.
 
-See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full map and
-**[ISSUES.md](ISSUES.md)** for the current issue list / roadmap.
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full map.
 
 ---
 
@@ -98,7 +97,7 @@ docker compose -f docker-compose.prod.yml up   # hardened prod
 
 The desktop app ships the dashboard as a static export plus a PyInstaller
 **`cik-api`** sidecar (the FastAPI backend) that it launches on
-`127.0.0.1:8000`. Build/run per **[TAURI_BUILD_COMMANDS.txt](TAURI_BUILD_COMMANDS.txt)**:
+`127.0.0.1:8000`. Build/run:
 
 ```bash
 cd dashboard
@@ -209,7 +208,7 @@ third-party service without explicit opt-in. Uploaded files are gitignored
 (`phd_aggregator/uploads/`) and never committed.
 
 > Note: today the profile builder takes **pasted text**. Robust PDF/DOCX **file
-> upload** is planned (see ISSUES.md, item 2B).
+> upload** is planned.
 
 ---
 
@@ -235,7 +234,6 @@ documented, single-file change. See **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 ## More docs
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — entry points, package map, data flow.
-- **[ISSUES.md](ISSUES.md)** — prioritized issues & roadmap.
 - **[phd_aggregator/README.md](phd_aggregator/README.md)** — deep CLI reference.
 - **[phd_aggregator/CONTRIBUTING.md](phd_aggregator/CONTRIBUTING.md)** — the
   engine's extension contract (sources, seed adapters).

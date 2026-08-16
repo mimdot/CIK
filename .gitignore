@@ -63,6 +63,10 @@ uploads/
 # Agent/tooling workspaces
 .opencode/
 
+# Local scratch: internal dev-diary docs, one-off notes, build artifacts —
+# not part of the published repo. See Extra/README.md for what's in here.
+Extra/
+
 # Tauri: PyInstaller sidecar binary + generated files (rebuilt by `tauri build`)
 dashboard/src-tauri/sidecar/api/cik-api
 dashboard/src-tauri/sidecar/api/cik-api.exe
