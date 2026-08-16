@@ -25,3 +25,8 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2.5.4"
 tauri-plugin-dialog = "2.7.2"
+
+[target.'cfg(unix)'.dependencies]
+# SIGTERM for the sidecar, so the PyInstaller bootloader can remove its
+# extraction dir. Already in the tree via tauri; declaring it is free.
+libc = "0.2"

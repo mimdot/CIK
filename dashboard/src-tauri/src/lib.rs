@@ -288,16 +288,103 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
     Ok(port)
 }
 
+/// Stop the sidecar, giving it the chance to clean up after itself.
+///
+/// SIGTERM first, SIGKILL only as a fallback. This is not politeness — the
+/// sidecar is a PyInstaller onefile, and the bootloader unpacks ~389 MB into
+/// `/tmp/_MEIxxxxxx` on every launch. It removes that directory when it is
+/// allowed to shut down, and cannot when it is SIGKILLed.
+///
+/// `Child::kill()` is SIGKILL on Unix, so the previous version leaked a full
+/// extraction on EVERY exit. On most Linux systems /tmp is a RAM-backed tmpfs,
+/// so those leaks are RAM: 24 of them had accumulated here, filling a 7.5 GB
+/// tmpfs completely and making every subsequent launch die with
+/// "Failed to extract … decompression resulted in return code -1".
 fn kill_sidecar() {
-    if let Some(mut child) = SIDECAR_CHILD
+    let Some(mut child) = SIDECAR_CHILD
         .lock()
         .unwrap_or_else(|p| p.into_inner())
         .take()
+    else {
+        return;
+    };
+
+    #[cfg(unix)]
     {
-        let _ = child.kill();
-        let _ = child.wait();
+        // SAFETY: `child.id()` is this process's own child; the worst case for
+        // a stale pid is ESRCH, which we ignore.
+        unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGTERM) };
+        // Wait up to 2s for the bootloader to unlink its directory.
+        for _ in 0..40 {
+            if matches!(child.try_wait(), Ok(Some(_))) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+/// Delete PyInstaller extraction directories that no live process is using.
+///
+/// The SIGTERM path above stops the routine leak, but nothing can clean up
+/// after the app itself is killed (a crash, a force-quit, the OOM killer). So
+/// sweep once at startup, before spawning: any `_MEI*` directory not mapped by
+/// a running process belonged to a run that is already over.
+#[cfg(target_os = "linux")]
+fn sweep_stale_extractions() {
+    use std::collections::HashSet;
+
+    // Every _MEI path currently mapped by any process. Reading another user's
+    // maps is denied, which just means we skip it — we only ever delete
+    // directories we can prove nobody has open.
+    let mut live: HashSet<String> = HashSet::new();
+    if let Ok(procs) = std::fs::read_dir("/proc") {
+        for entry in procs.flatten() {
+            let maps = entry.path().join("maps");
+            let Ok(text) = std::fs::read_to_string(&maps) else {
+                continue;
+            };
+            for line in text.lines() {
+                if let Some(idx) = line.find("/tmp/_MEI") {
+                    let rest = &line[idx..];
+                    let end = rest[5..]
+                        .find('/')
+                        .map(|i| i + 5)
+                        .unwrap_or(rest.len());
+                    live.insert(rest[..end].to_string());
+                }
+            }
+        }
+    }
+
+    let Ok(entries) = std::fs::read_dir("/tmp") else {
+        return;
+    };
+    let mut freed = 0u64;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !name.starts_with("_MEI") || !path.is_dir() {
+            continue;
+        }
+        if live.contains(path.to_string_lossy().as_ref()) {
+            continue;
+        }
+        if std::fs::remove_dir_all(&path).is_ok() {
+            freed += 1;
+        }
+    }
+    if freed > 0 {
+        log::info!("swept {freed} stale PyInstaller extraction dir(s) from /tmp");
     }
 }
+
+#[cfg(not(target_os = "linux"))]
+fn sweep_stale_extractions() {}
 
 /// Push the current backend state into a page.
 ///
@@ -457,6 +544,9 @@ pub fn run() {
             // Boot off the UI thread: the window paints immediately and shows
             // "starting the backend" instead of freezing for the seconds a
             // PyInstaller onefile needs to unpack.
+            // Reclaim anything a previous run could not clean up before we
+            // add another 389 MB of our own.
+            sweep_stale_extractions();
             let handle = app.handle().clone();
             std::thread::spawn(move || boot_and_watch(handle));
             Ok(())
