@@ -14,3 +14,6 @@ phd_positions_selftest*.csv
 phd_positions_selftest*.html
 phd_positions_selftest*.json
 phd_positions_selftest*_state.json
+
+# Run outputs (csv/html/json), collected out of the way
+reza results/
