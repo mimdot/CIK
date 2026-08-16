@@ -401,6 +401,17 @@ export function submitMatchFeedback(
 }
 
 // --- assistant (Sprint 09, A2) --------------------------------------------------
+
+/**
+ * Whether AI drafting is switched on here (ASSISTANT_ENABLED).
+ *
+ * Asked before any Draft control is rendered: the desktop build ships with it
+ * off so nobody spends tokens on it, and a button that fails when pressed is
+ * worse than no button.
+ */
+export function fetchAssistantConfig(): Promise<{ enabled: boolean }> {
+  return request("/api/assistant/config", {}, false);
+}
 export function generateCoverLetter(
   opportunityId: number,
   opts: { tone?: string; length?: string } = {},

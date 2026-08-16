@@ -140,6 +140,17 @@ def cv_improvements(profile: UserProfile = Depends(get_active_profile),
     return suggest_cv_improvements(profile, gaps=gaps[:5], user_id=user.id)
 
 
+@router.get("/config")
+def assistant_config() -> dict:
+    """Whether AI drafting is switched on here.
+
+    Ungated on purpose — it is the question the UI has to ask *before* offering
+    a Draft button, so that a switched-off assistant is an absent control
+    rather than one that fails when pressed.
+    """
+    return {"enabled": assistant_enabled()}
+
+
 @router.get("/usage", response_model=AssistantUsageOut)
 def usage(user: User = Depends(get_current_user)) -> dict:
     """Per-user daily draft usage (limit / used / remaining)."""

@@ -242,6 +242,13 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
             "CV_PARSING_ENABLED",
             std::env::var("CV_PARSING_ENABLED").unwrap_or_else(|_| "0".into()),
         )
+        // The other AI spender: cover letters, application emails and CV
+        // suggestions, reachable from every opportunity card. Off for the same
+        // reason and by the same switch style.
+        .env(
+            "ASSISTANT_ENABLED",
+            std::env::var("ASSISTANT_ENABLED").unwrap_or_else(|_| "0".into()),
+        )
         .env("CIK_JSON_LOGS", "0")
         .env("CORS_ORIGINS", CORS)
         .env("CIK_API_HOST", "127.0.0.1")

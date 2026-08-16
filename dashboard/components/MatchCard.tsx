@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CoverLetterModal from "@/components/CoverLetterModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Bookmark, ExternalLink, FileText, ThumbsDown, ThumbsUp } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import { ApiError, submitMatchFeedback } from "@/lib/api";
+import { ApiError, fetchAssistantConfig, submitMatchFeedback } from "@/lib/api";
 import type { Match } from "@/types";
 
 interface Props {
@@ -25,6 +25,16 @@ interface Props {
 
 export default function MatchCard({ match, onBookmark }: Props) {
   const [expanded, setExpanded] = useState(false);
+  // AI drafting is behind ASSISTANT_ENABLED and off in the desktop build.
+  // Assume off until the API says otherwise, so the button is never offered
+  // and then withdrawn — and never offered only to fail when pressed.
+  const [aiEnabled, setAiEnabled] = useState(false);
+
+  useEffect(() => {
+    fetchAssistantConfig()
+      .then((c) => setAiEnabled(c.enabled))
+      .catch(() => setAiEnabled(false));
+  }, []);
   const [feedback, setFeedback] = useState<boolean | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -144,14 +154,16 @@ export default function MatchCard({ match, onBookmark }: Props) {
               {feedbackMsg}
             </span>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setModalOpen(true)}
-            aria-label="Draft a cover letter for this match"
-          >
-            <FileText className="size-4" aria-hidden />
-          </Button>
+          {aiEnabled && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setModalOpen(true)}
+              aria-label="Draft a cover letter for this match"
+            >
+              <FileText className="size-4" aria-hidden />
+            </Button>
+          )}
           <div
             className="flex items-center gap-1"
             role="group"
@@ -200,11 +212,13 @@ export default function MatchCard({ match, onBookmark }: Props) {
           )}
         </div>
       </CardFooter>
-      <CoverLetterModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        match={match}
-      />
+      {aiEnabled && (
+        <CoverLetterModal
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          match={match}
+        />
+      )}
     </Card>
   );
 }

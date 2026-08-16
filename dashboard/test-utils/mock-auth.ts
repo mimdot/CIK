@@ -32,6 +32,9 @@ export function mockAuthApi(extra: Record<string, unknown> = {}): object {
     fetchParserSupport: jest.fn(() =>
       Promise.resolve({ txt: true, pdf: true, docx: true, enabled: true }),
     ),
+    // AI drafting is behind ASSISTANT_ENABLED; MatchCard asks before showing
+    // the Draft button. Enabled here so existing card suites keep covering it.
+    fetchAssistantConfig: jest.fn(() => Promise.resolve({ enabled: true })),
     ...extra,
   };
 }

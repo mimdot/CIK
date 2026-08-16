@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DashboardPage from "@/app/(app)/page";
-import { ApiError, createBookmark, fetchMatches, fetchFields } from "@/lib/api";
+import { ApiError, createBookmark, fetchAssistantConfig, fetchMatches, fetchFields } from "@/lib/api";
 import type { Match } from "@/types";
 // shared auth mock loaded via jest.requireActual inside the factory
 
@@ -156,6 +156,34 @@ describe("DashboardPage", () => {
     await waitFor(() => expect(mockCreateBookmark).toHaveBeenCalledWith(1));
     expect(
       await screen.findByText(/Saved "PhD in radio astronomy" to bookmarks/),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("AI drafting switched off (ASSISTANT_ENABLED=0)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetchFields.mockResolvedValue({ default: "astronomy", profiles: ["astronomy"] });
+    mockFetchMatches.mockResolvedValue({ items: [MATCHES[0]], total: 1 });
+  });
+
+  it("removes the Draft button rather than leaving one that fails", async () => {
+    (fetchAssistantConfig as jest.Mock).mockResolvedValue({ enabled: false });
+    render(<DashboardPage />);
+    await screen.findAllByTestId("match-card");
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText("Draft a cover letter for this match"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("keeps it when the assistant is on", async () => {
+    (fetchAssistantConfig as jest.Mock).mockResolvedValue({ enabled: true });
+    render(<DashboardPage />);
+    await screen.findAllByTestId("match-card");
+    expect(
+      await screen.findByLabelText("Draft a cover letter for this match"),
     ).toBeInTheDocument();
   });
 });
