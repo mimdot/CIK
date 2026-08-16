@@ -288,16 +288,41 @@ fn state_js() -> String {
         .unwrap_or_else(|p| p.into_inner())
         .clone()
         .unwrap_or_default();
+    // `__CIK_DESKTOP__` marks the webview for the frontend, which must know it
+    // is not in a browser: a plain <a href> to an external site and the
+    // blob-download trick both do nothing here, so those paths have to go
+    // through the Tauri plugins instead. Set on every page load and never
+    // cleared, because it is a fact about the host, not about the backend.
+    let head = "window.__CIK_DESKTOP__=true;";
     match port {
         Some(p) => format!(
-            "window.__CIK_API_BASE__='http://127.0.0.1:{p}';\
+            "{head}window.__CIK_API_BASE__='http://127.0.0.1:{p}';\
              window.__CIK_API_READY__=true;window.__CIK_API_ERROR__=null;"
         ),
         None => format!(
-            "window.__CIK_API_READY__=false;window.__CIK_API_ERROR__={};",
+            "{head}window.__CIK_API_READY__=false;window.__CIK_API_ERROR__={};",
             serde_json::to_string(&error).unwrap_or_else(|_| "\"\"".into())
         ),
     }
+}
+
+/// Write a text file the user has just chosen in a native save dialog.
+///
+/// Deliberately a command of our own rather than `tauri-plugin-fs`: the only
+/// path this app ever writes is one the user picked seconds earlier in the OS
+/// dialog, and an fs-plugin scope broad enough to cover "wherever they chose"
+/// is no narrower than this — it just spreads the decision across a config
+/// file. Here the grant is visible in one place and the failure is reported.
+#[tauri::command]
+fn write_text_file(path: String, contents: String) -> Result<String, String> {
+    let path = PathBuf::from(path);
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    }
+    std::fs::write(&path, contents)
+        .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+    Ok(path.display().to_string())
 }
 
 /// Broadcast the state to any page already loaded, and remember it for the next.
@@ -366,6 +391,13 @@ fn boot_and_watch(app: tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        // A webview cannot open a system browser or write a file by itself.
+        // Without these two plugins every external link and every export in the
+        // UI is a no-op that reports nothing — which is exactly how the app
+        // behaved.
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![write_text_file])
         // Every page load gets the current backend state, so a navigation can
         // never leave the frontend guessing at the port.
         .on_page_load(|webview, _payload| {

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AuthGate from "@/components/AuthGate";
+import ExportResult from "@/components/ExportResult";
+import { useFileExport } from "@/hooks/useFileExport";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
@@ -54,17 +56,6 @@ function supervisorsToCsv(rows: Supervisor[]): string {
   return [header, ...body].join("\n");
 }
 
-function downloadFile(filename: string, content: string, mime: string): void {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
 
 export default function SupervisorsPage() {
   const [items, setItems] = useState<Supervisor[]>([]);
@@ -77,6 +68,7 @@ export default function SupervisorsPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("fit_desc");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const exp = useFileExport();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -157,16 +149,23 @@ export default function SupervisorsPage() {
     });
   }, [items, query, sort]);
 
+  // Exports exactly `filtered` — the same memoized, searched-and-sorted list
+  // the cards below are rendered from — so what lands in the file is what the
+  // user is looking at, not a second unfiltered query.
   function exportSupervisors(format: "csv" | "json") {
     if (!filtered.length) return;
     const suffix = country ? `_${country.replace(/\s+/g, "_")}` : "";
-    if (format === "csv") {
-      downloadFile(`supervisors${suffix}.csv`, supervisorsToCsv(filtered),
-        "text/csv;charset=utf-8");
-    } else {
-      downloadFile(`supervisors${suffix}.json`,
-        JSON.stringify(filtered, null, 2), "application/json");
-    }
+    void (format === "csv"
+      ? exp.exportFile({
+          suggestedName: `supervisors${suffix}.csv`,
+          contents: supervisorsToCsv(filtered),
+          mime: "text/csv;charset=utf-8",
+        })
+      : exp.exportFile({
+          suggestedName: `supervisors${suffix}.json`,
+          contents: JSON.stringify(filtered, null, 2),
+          mime: "application/json",
+        }));
   }
 
   function toggle(id: number) {
@@ -221,6 +220,14 @@ export default function SupervisorsPage() {
           </Select>
         </div>
       </div>
+
+      <ExportResult
+        saved={exp.saved}
+        error={exp.error}
+        onDismiss={exp.dismiss}
+        onReveal={exp.reveal}
+        onOpen={exp.open}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="outline" onClick={() => void load()}>

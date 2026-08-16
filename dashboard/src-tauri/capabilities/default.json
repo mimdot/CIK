@@ -1,11 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
+  "description": "Core permissions, plus the two things a webview cannot do on its own: open a link in the user's real browser, and save a file where the user asks.",
   "windows": [
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+
+    "opener:allow-open-url",
+    "opener:allow-reveal-item-in-dir",
+    "opener:allow-open-path",
+
+    "dialog:allow-save"
   ]
 }
