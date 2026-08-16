@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AuthGate from "@/components/AuthGate";
 import ExportResult from "@/components/ExportResult";
 import SaveToggle from "@/components/SaveToggle";
@@ -33,7 +33,7 @@ import { CountryInput } from "@/components/CountryInput";
 import { useRunJob } from "@/hooks/useRunJob";
 import { ApiError, fetchSupervisors, fetchFields, triggerSupervisorSearch } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ExternalLink, Mail, Search } from "lucide-react";
+import { ChevronDown, ExternalLink, Loader2, Mail, Search } from "lucide-react";
 import type { Supervisor } from "@/types";
 
 type SortKey = "fit_desc" | "fit_asc" | "name";
@@ -73,21 +73,24 @@ export default function SupervisorsPage() {
   const exp = useFileExport();
   const saved = useSavedIds("supervisor");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchSupervisors(country || undefined, field || undefined);
-      setItems(data.items);
-      setTotalCount(data.total ?? data.items.length);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not load supervisors");
-      setItems([]);
-      setTotalCount(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [country, field]);
+  const load = useCallback(
+    async (c: string = country, f: string = field) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchSupervisors(c || undefined, f || undefined);
+        setItems(data.items);
+        setTotalCount(data.total ?? data.items.length);
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Could not load supervisors");
+        setItems([]);
+        setTotalCount(0);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [country, field],
+  );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -102,8 +105,19 @@ export default function SupervisorsPage() {
   }, []);
 
   // Online search (supervisor sync) state — mirrors the positions Run engine.
+  // The country/field the last run actually searched, so that when the job
+  // finishes the list is re-filtered to match what the user asked for instead
+  // of silently showing every stored supervisor (or the previous filter).
+  const searched = useRef<{ country?: string; field?: string }>({});
+
   function onRunCompleted() {
-    void load();
+    const { country: c, field: f } = searched.current;
+    // Reflect the search in the filter controls, then reload with those exact
+    // values (the state update alone would not re-fetch when they were
+    // unchanged, yet new rows just landed).
+    setCountry(c ?? "");
+    setField(f ?? "");
+    void load(c || undefined, f || undefined);
   }
   const run = useRunJob(onRunCompleted);
   const [formOpen, setFormOpen] = useState(false);
@@ -123,6 +137,13 @@ export default function SupervisorsPage() {
     const raw = runCountry.trim() || country.trim();
     const countries = raw.split(",").map((c) => c.trim()).filter(Boolean);
     if (!countries.length) return;
+    // Remember what this run searched so the list re-filters to it on
+    // completion. A multi-country list cannot fit the single-country filter,
+    // so it reloads the full list (which now contains those countries' rows).
+    searched.current = {
+      country: countries.length === 1 ? countries[0] : undefined,
+      field: runField || undefined,
+    };
     setFormOpen(false);
     void run.start(() =>
       triggerSupervisorSearch({
@@ -370,6 +391,27 @@ export default function SupervisorsPage() {
                 {run.status ?? "idle"}
               </Badge>
             </div>
+            {run.busy && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Finding candidates</span>
+                <span
+                  className="flex items-center gap-1.5 tabular-nums"
+                  data-testid="run-elapsed"
+                >
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  {run.elapsed}s elapsed
+                </span>
+              </div>
+            )}
+            {run.reconnecting && (
+              <p
+                className="text-xs text-muted-foreground"
+                data-testid="run-reconnecting"
+              >
+                Lost contact with the backend — retrying. The search is still
+                running; it does not happen in this window.
+              </p>
+            )}
             {run.records != null && (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Candidates found</span>

@@ -415,6 +415,15 @@ export default function OpportunitiesPage() {
                 </span>
               </div>
             )}
+            {run.reconnecting && (
+              <p
+                className="text-xs text-muted-foreground"
+                data-testid="run-reconnecting"
+              >
+                Lost contact with the backend — retrying. The search is still
+                running; it does not happen in this window.
+              </p>
+            )}
             {run.status === "cancelled" && (
               <p className="rounded-md border bg-muted/50 p-2 text-muted-foreground">
                 Search stopped. The positions found before you cancelled have

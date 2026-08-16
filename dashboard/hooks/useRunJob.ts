@@ -13,11 +13,27 @@ export interface RunJobState {
   progress: RunProgress | null;
   /** True from the moment Cancel is pressed until the run reports back. */
   cancelling: boolean;
+  /** Lost contact with the API mid-run and still retrying. NOT a failure:
+   *  the job runs in the backend, not in this window. */
+  reconnecting: boolean;
   /** Seconds since the run started — proof the search is not frozen. */
   elapsed: number;
 }
 
 const POLL_MS = 2000;
+
+/**
+ * How many consecutive unreachable polls to tolerate before giving up.
+ *
+ * A search runs for minutes, and a single momentary blip used to end it: the
+ * catch below set busy:false and scheduled nothing, so one failed poll killed
+ * the run display permanently and reported "Cannot reach the API server" —
+ * while the job carried on in the backend and finished normally. The run is
+ * not happening in this window, so losing sight of it briefly is not the run
+ * failing. Five tries at a widened interval is ~20s of genuine silence before
+ * we say anything is wrong.
+ */
+const MAX_POLL_FAILURES = 5;
 
 /**
  * Shared state machine for "run a background job and poll until it finishes".
@@ -38,6 +54,7 @@ export function useRunJob(
     error: null,
     progress: null,
     cancelling: false,
+    reconnecting: false,
     elapsed: 0,
   };
   const [state, setState] = useState<RunJobState>(IDLE);
@@ -94,10 +111,12 @@ export function useRunJob(
   useEffect(() => {
     if (!state.open || !runId) return;
     let stopped = false;
+    let fails = 0;
     const tick = async () => {
       try {
         const status = await jobStatus(runId);
         if (stopped) return;
+        fails = 0; // contact restored (or never lost)
         // The job backend may report queued/deferred while en route to
         // running; treat every non-terminal task state as "running".
         const phase =
@@ -110,6 +129,7 @@ export function useRunJob(
           records: status.records ?? s.records,
           error: status.error ?? s.error,
           progress: status.progress ?? s.progress,
+          reconnecting: false,
         }));
         if (status.status === "completed" || status.status === "cancelled") {
           // A cancelled run is a SUCCESSFUL one that stopped early: its
@@ -133,12 +153,24 @@ export function useRunJob(
         }
       } catch (e) {
         if (stopped) return;
+        fails += 1;
+        // status 0 is "the request never got an answer" — the desktop shell
+        // restarting the sidecar looks exactly like this, and it comes back.
+        const unreachable = e instanceof ApiError && e.status === 0;
+        if (unreachable && fails < MAX_POLL_FAILURES) {
+          setState((s) => ({ ...s, reconnecting: true }));
+          setTimeout(() => {
+            if (!stopped) void tick();
+          }, POLL_MS * 2);
+          return;
+        }
         setState((s) => ({
           ...s,
           error:
             e instanceof ApiError ? e.message : "Could not check run status",
           busy: false,
           cancelling: false,
+          reconnecting: false,
           status: s.status === "starting" ? "failed" : s.status,
         }));
       }

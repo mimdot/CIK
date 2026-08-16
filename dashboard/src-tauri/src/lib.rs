@@ -24,10 +24,11 @@ const SIDECAR_NAME: &str = "cik-api.exe";
 #[cfg(not(target_os = "windows"))]
 const SIDECAR_NAME: &str = "cik-api";
 
-/// The shared code the desktop build ships with, used only when the user has
-/// not set `CIK_ACCESS_CODE` themselves. Anyone can read it out of this binary;
-/// that is understood and accepted, because it gates nothing that matters.
-const DEFAULT_ACCESS_CODE: &str = "1819";
+/// The single shared entry code. It is fixed at 1819, not user-definable:
+/// the desktop app is a local, single-user tool and this code is a front door,
+/// never a security boundary. Anyone can read it out of this binary with
+/// `strings`; that is understood and accepted.
+const ACCESS_CODE: &str = "1819";
 
 static SIDECAR_CHILD: Mutex<Option<Child>> = Mutex::new(None);
 /// Resolved once the sidecar answers /health. Until then the frontend must not
@@ -224,14 +225,10 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
         .env("DATABASE_URL", format!("sqlite:///{}", db_path.display()))
         .env("CIK_SECRET_KEY", random_hex(32))
         .env("CIK_INVITE_REQUIRED", "0")
-        // The shared entry code. NOT a secret — it lives in this binary and
-        // `strings` will find it in seconds, so it is a front door, never a
-        // security boundary. Taken from the environment when the user sets one,
-        // so the code can be changed without rebuilding the app.
-        .env(
-            "CIK_ACCESS_CODE",
-            std::env::var("CIK_ACCESS_CODE").unwrap_or_else(|_| DEFAULT_ACCESS_CODE.into()),
-        )
+        // The shared entry code is fixed at 1819, not read from the
+        // environment, so no environment setting can change what a user must
+        // type to get in.
+        .env("CIK_ACCESS_CODE", ACCESS_CODE)
         .env("CIK_COOKIE_SECURE", "0")
         .env("CIK_SCHEDULER_ENABLED", "0")
         // CV reading is the only feature that can reach an AI provider, and it
@@ -327,8 +324,15 @@ fn state_js() -> String {
             "{head}window.__CIK_API_BASE__='http://127.0.0.1:{p}';\
              window.__CIK_API_READY__=true;window.__CIK_API_ERROR__=null;"
         ),
+        // Clear the base as well as flagging not-ready. The sidecar is
+        // restarted on a FRESHLY PICKED port, so a base left over from the
+        // previous one points at a port nobody is listening on — and every
+        // request made during the restart fails as "Cannot reach the API
+        // server" while the shell is busy bringing the backend back. Undefined
+        // is the honest answer here: not ready, and no address to try.
         None => format!(
-            "{head}window.__CIK_API_READY__=false;window.__CIK_API_ERROR__={};",
+            "{head}window.__CIK_API_BASE__=undefined;\
+             window.__CIK_API_READY__=false;window.__CIK_API_ERROR__={};",
             serde_json::to_string(&error).unwrap_or_else(|_| "\"\"".into())
         ),
     }
@@ -418,6 +422,17 @@ fn boot_and_watch(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // A system-wide proxy (common on restricted networks) must never swallow
+    // the loopback traffic between this app's webview and its own sidecar —
+    // that is exactly how the UI reports "Cannot reach the API server" while
+    // the backend is healthy. The sidecar gets the same bypass in
+    // spawn_sidecar(); set it for THIS process too so the webview (which
+    // inherits this process's env) and any helper it spawns skip the proxy
+    // for localhost.
+    let no_proxy = "localhost,127.0.0.1,127.0.0.0/8,::1,0.0.0.0";
+    std::env::set_var("NO_PROXY", no_proxy);
+    std::env::set_var("no_proxy", no_proxy);
+
     let app = tauri::Builder::default()
         // A webview cannot open a system browser or write a file by itself.
         // Without these two plugins every external link and every export in the
