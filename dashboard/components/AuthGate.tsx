@@ -6,10 +6,35 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiBase, apiStartupError, fetchMe } from "@/lib/api";
 
+/**
+ * True while the desktop shell is still bringing the backend up.
+ *
+ * The shell publishes `__CIK_API_READY__ = false` with no error for as long as
+ * the sidecar is starting, and only fills in `__CIK_API_ERROR__` once it has
+ * genuinely given up. A PyInstaller onefile needs seconds to unpack before
+ * uvicorn binds, so the first `fetchMe()` on a cold start always loses that
+ * race — without this the app greeted every launch with "Cannot reach the API
+ * server", an error the user could only clear by clicking Retry.
+ *
+ * Read off `window` rather than through lib/api so the web build and the test
+ * mocks are untouched: neither defines these globals, `=== false` is therefore
+ * never true there, and the old behaviour stands.
+ */
+function backendStarting(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as {
+    __CIK_API_READY__?: boolean;
+    __CIK_API_ERROR__?: string | null;
+  };
+  return w.__CIK_API_READY__ === false && !w.__CIK_API_ERROR__;
+}
+
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [offline, setOffline] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [tick, setTick] = useState(0);
 
   const check = useCallback(async () => {
     // Verify the session by asking the API instead of reading the token:
@@ -19,12 +44,19 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     // for a real session, 401 otherwise.
     try {
       await fetchMe();
+      setStarting(false);
       setAuthed(true);
     } catch (e) {
       // A network failure (status 0) is NOT "logged out": the user may have a
       // valid session. Show an error + retry instead of dumping them on the
       // login form, which would only fail to submit anyway.
       if (e instanceof ApiError && e.status === 0) {
+        // Still booting is not yet a failure — say so and try again shortly.
+        if (backendStarting()) {
+          setStarting(true);
+          return;
+        }
+        setStarting(false);
         // "Is it running?" is the one question the user cannot answer — the
         // desktop shell is what starts the backend. If it told us why it could
         // not, show that instead of asking them.
@@ -38,9 +70,31 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     queueMicrotask(() => void check());
-  }, [check]);
+  }, [check, tick]);
+
+  // Re-check on a timer for as long as the shell reports the backend is on its
+  // way. The shell gives up after its own health budget and publishes a reason,
+  // which the next check turns into the error screen.
+  useEffect(() => {
+    if (!starting) return;
+    const t = setTimeout(() => setTick((n) => n + 1), 1000);
+    return () => clearTimeout(t);
+  }, [starting, tick]);
 
   if (authed === null) {
+    if (starting) {
+      return (
+        <div
+          className="mx-auto mt-16 flex max-w-xl flex-col items-center gap-2 p-6 text-center"
+          data-testid="api-starting"
+        >
+          <p className="text-sm">Starting the backend…</p>
+          <p className="text-xs text-muted-foreground">
+            The first launch takes a few seconds while the API unpacks.
+          </p>
+        </div>
+      );
+    }
     if (offline) {
       return (
         <div

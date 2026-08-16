@@ -5,9 +5,9 @@
 #   ./run.sh --rebuild    force everything to be rebuilt first
 #   ./run.sh --no-launch  build and install the menu entry, but don't start
 #
-# Each of the three build steps (the PyInstaller API sidecar, the dashboard's
-# static export, the Tauri shell) is skipped when its output is newer than its
-# sources, so a second run with nothing changed goes straight to launching.
+# Both build steps (the PyInstaller API sidecar, then the app itself) are
+# skipped when their output is newer than their sources, so a second run with
+# nothing changed goes straight to launching.
 #
 # It also installs a desktop entry, which is the "one click": after the first
 # run, "Career Intelligence" is in the application menu and starts the built
@@ -78,34 +78,33 @@ else
   echo "== API sidecar up to date =="
 fi
 
-# --- 2. the dashboard's static export ----------------------------------------
+# --- 2. the app: dashboard export + Tauri shell -------------------------------
 [ -d "$DASH/node_modules" ] || {
   echo "== installing dashboard dependencies =="
   (cd "$DASH" && npm install)
 }
 
-if [ "$FORCE" = 1 ] || stale "$DASH/out/index.html" \
+# Build through the Tauri CLI, never plain `cargo build --release`.
+#
+# `cargo build` produces a binary that launches, opens its window, starts the
+# sidecar — and renders NOTHING. A pure white screen: the frontend is not in
+# it. Only the CLI runs the beforeBuildCommand and hands the asset embedding
+# the export it expects, so `cargo build` alone yields a shell with no UI, and
+# nothing in the build output says so. Verified both ways here, by screenshot.
+#
+# `--no-bundle` stops after the binary and skips the installer targets
+# (.deb/.AppImage/.rpm), which take minutes and are a packaging concern, not
+# something you need in order to run the app.
+if [ "$FORCE" = 1 ] || stale "$APP" \
+  "$TAURI/src" "$TAURI/Cargo.toml" "$TAURI/tauri.conf.json" \
   "$DASH/app" "$DASH/components" "$DASH/lib" "$DASH/hooks" "$DASH/types" \
   "$DASH/package.json" "$DASH/next.config.ts"; then
-  echo "== building the dashboard =="
-  (cd "$DASH" && TAURI=true npm run build)
+  echo "== building the app (dashboard + desktop shell) =="
+  (cd "$DASH" && TAURI=true npx tauri build --no-bundle)
+  install -m 755 "$SIDECAR" "$TAURI/target/release/cik-api"
 else
-  echo "== dashboard up to date =="
+  echo "== app up to date =="
 fi
-
-# --- 3. the Tauri shell -------------------------------------------------------
-# `cargo build` compiles the shell and embeds out/, but only the Tauri CLI
-# copies externalBin next to the binary — so do that here rather than pay for a
-# full `tauri build`, which also spends minutes producing installers we do not
-# need in order to run.
-if [ "$FORCE" = 1 ] || stale "$APP" \
-  "$TAURI/src" "$TAURI/Cargo.toml" "$TAURI/tauri.conf.json" "$DASH/out"; then
-  echo "== building the desktop shell =="
-  (cd "$TAURI" && cargo build --release)
-else
-  echo "== desktop shell up to date =="
-fi
-install -m 755 "$SIDECAR" "$TAURI/target/release/cik-api"
 
 # --- 4. the menu entry (the "one click") --------------------------------------
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"

@@ -34,25 +34,23 @@ import type {
   WorkerHeartbeat,
 } from "@/types";
 
-// Detect Tauri environment for offline mode
-function isTauri(): boolean {
-  if (typeof window === "undefined") return false;
-  return !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
-}
-
 // Resolve the API base per call (so late injection is picked up).
-// - Desktop (Tauri): the Rust shell picks a free port for the sidecar and
-//   injects the resolved base as `window.__CIK_API_BASE__`. Fall back to the
-//   conventional port so the app still works when nothing was injected.
-// - Web: the configured URL, else localhost:8000.
+//
+// The desktop shell picks a free port for the sidecar and injects the resolved
+// base as `window.__CIK_API_BASE__`. That global is the authority whenever it
+// is present: it only ever exists in the desktop shell, and it names the port
+// the sidecar actually bound.
+//
+// It is deliberately NOT gated behind a `window.__TAURI__` check. Tauri v2
+// only defines `__TAURI__` when `app.withGlobalTauri` is set, which this app
+// does not set — so that check was always false, the injected base was never
+// read, and the desktop app silently used the web default instead. Every bit
+// of the shell's port-picking was dead code on the frontend side.
 export function apiBase(): string {
-  if (isTauri()) {
-    const injected =
-      typeof window !== "undefined"
-        ? (window as unknown as { __CIK_API_BASE__?: string }).__CIK_API_BASE__
-        : undefined;
+  if (typeof window !== "undefined") {
+    const injected = (window as unknown as { __CIK_API_BASE__?: string })
+      .__CIK_API_BASE__;
     if (typeof injected === "string" && injected) return injected;
-    return "http://127.0.0.1:8000";
   }
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 }

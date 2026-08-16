@@ -59,11 +59,14 @@ package directly; there is no server.
 `cik-api` binary on `127.0.0.1:8000` with a per-launch random `CIK_SECRET_KEY`,
 `DATABASE_URL=sqlite://<app-data>/phd_data.db`, invites off, insecure cookies
 (local HTTP), scheduler off; it streams sidecar logs to `<app-data>/api.log` and
-kills the child on exit. `lib/api.ts` detects `window.__TAURI__` and points
-`API_BASE` at `http://localhost:8000`. `tauri.conf.json` serves the static
+kills the child on exit. `lib/api.ts` `apiBase()` uses the base the shell
+injects as `window.__CIK_API_BASE__`, falling back to the web default.
+`tauri.conf.json` serves the static
 export from `../out` and declares `sidecar/api/cik-api` as `externalBin`.
-`./run.sh` at the repo root builds all three pieces (only when stale) and
-launches.
+`./run.sh` at the repo root builds the sidecar and the app (only when stale)
+and launches. It builds through the **Tauri CLI**, never plain `cargo build`:
+the latter yields a binary that opens a window and renders nothing, because
+the frontend is not embedded in it.
 
 **Frontend↔backend is HTTP over localhost on every surface** — no IPC, no
 subprocess-per-request, no direct Python import from the UI.
@@ -110,8 +113,15 @@ auth, keeps working from cached rows and looks healthy.
    The previous one-shot `eval()` at setup was thrown away by the first
    navigation, after which the frontend fell back to `:8000` — the wrong port
    whenever the shell had picked another.
-6. If the child dies while the app is open, the watcher restarts it.
-7. On failure the shell publishes `window.__CIK_API_ERROR__` with the reason and
+6. `lib/api.ts` `apiBase()` honours that global **whenever it is present**. It
+   used to require `window.__TAURI__` first, which Tauri v2 defines only under
+   `app.withGlobalTauri` (unset here) — so the gate was always false and every
+   port the shell picked other than 8000 was unreachable. `AuthGate` also waits
+   while `__CIK_API_READY__ === false` with no error, instead of racing the
+   sidecar's unpack and reporting "cannot reach the API server" on every cold
+   start.
+7. If the child dies while the app is open, the watcher restarts it.
+8. On failure the shell publishes `window.__CIK_API_ERROR__` with the reason and
    the tail of `<app-data>/api.log`; `AuthGate` renders that instead of asking
    the user whether the backend they cannot start is running.
 
