@@ -64,8 +64,14 @@ TRIPLE="$(rustc -vV | awk '/^host:/ {print $2}')"
 SIDECAR="$TAURI/sidecar/api/cik-api-$TRIPLE"
 
 # --- 1. the FastAPI sidecar ---------------------------------------------------
+# Every package the frozen sidecar imports. The old list missed db/ (and
+# matching/pipeline/supervisors/...), so a change to a repository or the
+# finder chain left the shipped sidecar stale while the dev checkout worked.
 if [ "$FORCE" = 1 ] || stale "$SIDECAR" \
-  "$ENGINE/api" "$ENGINE/core" "$ENGINE/sources" "$ENGINE/cik-api.spec"; then
+  "$ENGINE/api" "$ENGINE/core" "$ENGINE/sources" "$ENGINE/db" \
+  "$ENGINE/matching" "$ENGINE/pipeline" "$ENGINE/supervisors" \
+  "$ENGINE/cli" "$ENGINE/toolkit" "$ENGINE/fields" \
+  "$ENGINE/phd_aggregator.py" "$ENGINE/cik-api.spec"; then
   echo "== building the API sidecar (PyInstaller — several minutes) =="
   python3 -c 'import PyInstaller' 2>/dev/null || {
     echo "FAIL: PyInstaller is missing — pip install -r $ENGINE/requirements.txt" >&2
@@ -105,7 +111,7 @@ FRONTEND_SRC=("$DASH/app" "$DASH/components" "$DASH/lib" "$DASH/hooks"
   "$DASH/types" "$DASH/package.json" "$DASH/next.config.ts")
 if [ "$FORCE" = 1 ] \
   || stale "$APP" "$TAURI/src" "$TAURI/Cargo.toml" "$TAURI/tauri.conf.json" \
-       "${FRONTEND_SRC[@]}" \
+       "$TAURI/capabilities" "${FRONTEND_SRC[@]}" \
   || stale "$DASH/out/index.html" "${FRONTEND_SRC[@]}"; then
   echo "== building the app (dashboard + desktop shell) =="
   (cd "$DASH" && TAURI=true npx tauri build --no-bundle)

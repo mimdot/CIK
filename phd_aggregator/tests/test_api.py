@@ -1173,6 +1173,28 @@ def test_supervisors_filter_country(client, db_session):
     assert items[0]["country"] == "Germany"
 
 
+def test_supervisors_filter_country_case_insensitive(client, db_session):
+    """The desktop text field must not be case-sensitive: \"germany\" and
+    \"GERMANY\" return the same rows as \"Germany\"."""
+    seed_supervisors(db_session)
+    for value in ("germany", "GERMANY"):
+        resp = client.get("/api/supervisors", params={"country": value})
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert items[0]["country"] == "Germany"
+
+
+def test_supervisors_filter_country_code_and_alias(client, db_session):
+    """An ISO code or alias normalises to the canonical country, so \"DE\" and
+    \"Deutschland\" both match rows stored as \"Germany\"."""
+    seed_supervisors(db_session)
+    for value in ("DE", "Deutschland"):
+        resp = client.get("/api/supervisors", params={"country": value})
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert items[0]["country"] == "Germany"
+
+
 def test_supervisors_filter_field(client, db_session):
     # field is a field-profile name: it expands to profile keywords and matches
     # topic/department containment (e.g. astronomy -> "cosmic microwave

@@ -28,6 +28,7 @@ function inMode(auth_mode: "access_code" | "password") {
 beforeEach(() => {
   jest.clearAllMocks();
   mockAccess.mockResolvedValue("t");
+  localStorage.clear();
 });
 
 describe("sign-in form follows the API's configured mode", () => {
@@ -61,6 +62,31 @@ describe("sign-in form follows the API's configured mode", () => {
     mockConfig.mockRejectedValue(new Error("offline"));
     render(<LoginForm />);
     expect(await screen.findByLabelText("Password")).toBeInTheDocument();
+  });
+});
+
+describe("remembering the email", () => {
+  it("prefills the email remembered on this computer", async () => {
+    localStorage.setItem("cik_email", "me@example.com");
+    inMode("access_code");
+    render(<LoginForm />);
+
+    expect(await screen.findByLabelText("Email")).toHaveValue(
+      "me@example.com",
+    );
+  });
+
+  it("remembers the email after a successful access-code sign-in", async () => {
+    inMode("access_code");
+    render(<LoginForm />);
+    await screen.findByLabelText("Access code");
+
+    await userEvent.type(screen.getByLabelText("Email"), "me@example.com");
+    await userEvent.type(screen.getByLabelText("Access code"), "1819");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(mockAccess).toHaveBeenCalled());
+    expect(localStorage.getItem("cik_email")).toBe("me@example.com");
   });
 });
 

@@ -12,12 +12,33 @@ import {
   signInWithAccessCode,
 } from "@/lib/api";
 
+const EMAIL_KEY = "cik_email";
+
+/** The last email that signed in on this computer, so it is not asked again. */
+function readSavedEmail(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return localStorage.getItem(EMAIL_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberEmail(value: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(EMAIL_KEY, value);
+  } catch {
+    // Private browsing / full storage: remembering is a nicety, never fatal.
+  }
+}
+
 export default function LoginForm({
   onAuth,
 }: {
   onAuth?: () => void;
 }) {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState<string>(readSavedEmail);
   const [password, setPassword] = useState("");
   const [accessCode, setAccessCode] = useState("");
   const [inviteCode, setInviteCode] = useState("");
@@ -50,6 +71,7 @@ export default function LoginForm({
     setBusy("login");
     try {
       await signInWithAccessCode(email, accessCode.trim());
+      rememberEmail(email.trim());
       onAuth?.();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong");
@@ -73,6 +95,7 @@ export default function LoginForm({
       } else {
         await login(email, password);
       }
+      rememberEmail(email.trim());
       onAuth?.();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong");

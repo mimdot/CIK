@@ -202,11 +202,15 @@ class SupervisorRepo:
                field: Optional[list[str]] = None,
                q: Optional[str] = None,
                limit: int = 100) -> list[Supervisor]:
-        from sqlalchemy import or_
+        from sqlalchemy import func, or_
 
         stmt = select(Supervisor)
         if country:
-            stmt = stmt.where(Supervisor.country == country)
+            # Case-insensitive: "germany", "GERMANY" and "Germany" must all
+            # return the same rows. The route already normalises the input to
+            # its canonical name; this guards any casing drift in stored rows.
+            stmt = stmt.where(
+                func.lower(Supervisor.country) == country.strip().lower())
         if q:
             safe = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             like = f"%{safe}%"

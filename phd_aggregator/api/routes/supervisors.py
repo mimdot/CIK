@@ -16,6 +16,7 @@ from api.schemas import SupervisorRunRequest
 from api.serializers import supervisor_out
 from core import cache, tasks
 from core.config import field_profile_keywords
+from core.normalize import normalize_country
 from db.models import User
 from db.repositories import SupervisorRepo
 
@@ -43,6 +44,15 @@ def list_supervisors(
         full = [supervisor_out(s) for s in rows]
         cache.cache_supervisor_list(full)
         return {"items": full[:limit], "total": len(full), "limit": limit}
+
+    # Resolve the typed country to its canonical name so case, ISO codes,
+    # aliases and minor misspellings all mean the same place: "germany",
+    # "DE" and "Germny" all match rows stored as "Germany". Unrecognised
+    # input falls back to the raw string (which the case-insensitive search
+    # then simply finds no rows for).
+    if country:
+        canonical = normalize_country(country)
+        country = canonical or country
 
     # If field is provided, extract keywords from field profile for filtering.
     # An unknown profile expands to no keywords: return an explicit empty list
