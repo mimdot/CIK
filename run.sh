@@ -95,10 +95,18 @@ fi
 # `--no-bundle` stops after the binary and skips the installer targets
 # (.deb/.AppImage/.rpm), which take minutes and are a packaging concern, not
 # something you need in order to run the app.
-if [ "$FORCE" = 1 ] || stale "$APP" \
-  "$TAURI/src" "$TAURI/Cargo.toml" "$TAURI/tauri.conf.json" \
-  "$DASH/app" "$DASH/components" "$DASH/lib" "$DASH/hooks" "$DASH/types" \
-  "$DASH/package.json" "$DASH/next.config.ts"; then
+# Two staleness questions, not one. The binary's own timestamp does not settle
+# it: a bare `cargo build` in this directory refreshes the binary WITHOUT
+# rebuilding the frontend, so the shell can be newer than every source file
+# while the UI inside it is old. `out/index.html` is the frontend's own output,
+# so checking it against the frontend sources catches exactly that case — which
+# is not hypothetical, it happened here and shipped a stale UI.
+FRONTEND_SRC=("$DASH/app" "$DASH/components" "$DASH/lib" "$DASH/hooks"
+  "$DASH/types" "$DASH/package.json" "$DASH/next.config.ts")
+if [ "$FORCE" = 1 ] \
+  || stale "$APP" "$TAURI/src" "$TAURI/Cargo.toml" "$TAURI/tauri.conf.json" \
+       "${FRONTEND_SRC[@]}" \
+  || stale "$DASH/out/index.html" "${FRONTEND_SRC[@]}"; then
   echo "== building the app (dashboard + desktop shell) =="
   (cd "$DASH" && TAURI=true npx tauri build --no-bundle)
   install -m 755 "$SIDECAR" "$TAURI/target/release/cik-api"
