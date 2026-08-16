@@ -161,13 +161,23 @@ fn random_hex(n: usize) -> String {
     out
 }
 
-/// Resolve the bundled sidecar binary path. External binaries are placed next
-/// to the main executable by Tauri on every platform (usr/bin for AppImage,
-/// Contents/MacOS for .app, install dir on Windows).
-fn sidecar_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .resolve(SIDECAR_NAME, tauri::path::BaseDirectory::Executable)
-        .map_err(|e| format!("cannot resolve sidecar path: {e}"))
+/// Resolve the bundled sidecar binary path: next to the *running executable*,
+/// which is where Tauri places `externalBin` on every platform (usr/bin for the
+/// deb and AppImage, Contents/MacOS for .app, the install dir on Windows, and
+/// target/<profile> under `tauri dev`).
+///
+/// Deliberately NOT `BaseDirectory::Executable`. That resolves to
+/// `dirs::executable_dir()` — the *user's* XDG binary directory, which has
+/// nothing to do with this app. On Linux it sent the shell hunting for the
+/// sidecar in ~/.local/bin and reporting it missing while the real one sat
+/// right next to the binary; on macOS and Windows that directory does not
+/// exist at all, so the same call failed outright.
+fn sidecar_path() -> Result<PathBuf, String> {
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("cannot locate the running executable: {e}"))?;
+    exe.parent()
+        .map(|dir| dir.join(SIDECAR_NAME))
+        .ok_or_else(|| format!("{} has no parent directory", exe.display()))
 }
 
 /// Start the FastAPI sidecar against the app-data SQLite database.
@@ -181,7 +191,7 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
     let db_path = app_data.join("phd_data.db");
     let log_path = app_data.join("api.log");
 
-    let binary = sidecar_path(app)?;
+    let binary = sidecar_path()?;
     if !binary.exists() {
         return Err(format!(
             "sidecar binary not found at {} — rebuild the app so the API is bundled",
