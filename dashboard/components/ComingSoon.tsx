@@ -45,7 +45,7 @@ export function DonationPlaceholder() {
         <Badge variant="outline">Coming soon</Badge>
       </div>
       <p className="mt-1.5 text-sm text-muted-foreground">
-        The Career Intelligence Kit is free and open. A way to support its
+        Astra is free and open. A way to support its
         development is planned for a future update.
       </p>
     </section>

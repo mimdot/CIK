@@ -11,7 +11,7 @@ export default function TermsPage() {
       <section className="space-y-2">
         <h2 className="text-xl font-semibold">Access</h2>
         <p className="text-sm">
-          Career Intelligence is provided as a private beta by invitation. You
+          Astra is provided as a private beta by invitation. You
           may use the service only under the terms here and only for your own
           job search. Access may be revoked by the operator at any time and
           without notice.

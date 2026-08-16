@@ -209,7 +209,7 @@ export default function OnboardingPage() {
     <AuthGate>
       <div className="mx-auto flex max-w-2xl flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold">Welcome to Career Intelligence</h1>
+          <h1 className="text-2xl font-semibold">Welcome to Astra</h1>
           <p className="text-sm text-muted-foreground">
             A few quick steps to personalize your matches.
           </p>

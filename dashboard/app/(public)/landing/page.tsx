@@ -25,7 +25,7 @@ export default function LandingPage() {
           Your next research position, matched to you
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-          Career Intelligence aggregates open PhD and postdoc positions across
+          Astra aggregates open PhD and postdoc positions across
           physics, astronomy, and related fields — then scores each one against
           your own research profile, so you see the positions worth applying
           to.

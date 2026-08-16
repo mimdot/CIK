@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 
 export const GITHUB_URL = "https://github.com/mimdot";
 export const CONTACT_EMAIL = "mr.nasirzadeh@live.com";
@@ -12,10 +13,7 @@ export function SiteFooter() {
   return (
     <footer className="mt-auto border-t">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <p>
-          Career Intelligence Kit — an open tool for finding PhD and postdoc
-          positions.
-        </p>
+        <p>{BRAND.topLine}</p>
         <nav aria-label="About and contact" className="flex flex-wrap gap-4">
           <a
             href={GITHUB_URL}

@@ -71,9 +71,9 @@ describe("about", () => {
   it("shows the FAQ", () => {
     render(<AboutPage />);
     expect(
-      screen.getByRole("heading", { name: /about career intelligence/i }),
+      screen.getByRole("heading", { name: /about astra/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/what is career intelligence/i)).toBeInTheDocument();
+    expect(screen.getByText(/what is astra/i)).toBeInTheDocument();
   });
 });
 

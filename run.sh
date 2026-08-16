@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Career Intelligence — one command to run the desktop app.
+# Astra — one command to run the desktop app.
 #
 #   ./run.sh              build whatever is missing or stale, then launch
 #   ./run.sh --rebuild    force everything to be rebuilt first
@@ -10,7 +10,7 @@
 # nothing changed goes straight to launching.
 #
 # It also installs a desktop entry, which is the "one click": after the first
-# run, "Career Intelligence" is in the application menu and starts the built
+# run, "Astra" is in the application menu and starts the built
 # binary directly, with no build step in the way.
 #
 # For distributable installers (.deb / .AppImage / .rpm) use the packaging
@@ -127,8 +127,8 @@ cat >"$APPS/career-intelligence.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=Career Intelligence
-Comment=PhD and research opportunity aggregator
+Name=Astra
+Comment=Your academic constellation — positions and supervisors in academia
 Exec="$APP"
 Icon=$TAURI/icons/128x128.png
 Terminal=false
@@ -145,5 +145,5 @@ echo "== menu entry installed: $APPS/career-intelligence.desktop =="
 # leave the API orphaned on the port. Clean up after ourselves either way.
 trap 'pkill -f "$TAURI/target/release/cik-api" 2>/dev/null || true' EXIT INT TERM
 
-echo "== starting Career Intelligence =="
+echo "== starting Astra =="
 "$APP"

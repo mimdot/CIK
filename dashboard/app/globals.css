@@ -49,75 +49,94 @@
 }
 
 :root {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* ── Astra — identity spec, Mark 5E ──────────────────────────────────────
+     Literal values from the handoff sheet. shadcn drives every component off
+     these variables, so the palette is set once here rather than per component.
+
+     One deliberate mapping: the brand accent (#ec3013) becomes --primary ONLY.
+     shadcn's --accent is its hover/selected surface, and painting that red
+     would put the accent on every hovered row — the spec allows exactly one
+     accent element per view. */
+  --font-sans: var(--font-archivo), "Archivo", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --background: #f3f2f2;              /* ground  — page and panel */
+  --foreground: #201e1d;              /* ink     — text, rules, mark */
+  --card: #eae9e9;                    /* surface — cards, result rows */
+  --card-foreground: #201e1d;
+  --popover: #eae9e9;
+  --popover-foreground: #201e1d;
+  --primary: #ec3013;                 /* accent  — primary action, keystone */
+  --primary-foreground: #f3f2f2;
+  --secondary: #eae9e9;
+  --secondary-foreground: #201e1d;
+  --muted: #eae9e9;
+  --muted-foreground: #605d5d;        /* secondary text — meta, counts, dates */
+  --accent: #eae9e9;                  /* hover surface, NOT the brand accent */
+  --accent-foreground: #201e1d;
+  --destructive: #ae1800;             /* accent text step — no second hue */
+  --border: color-mix(in srgb, #201e1d 40%, transparent);
+  --input: color-mix(in srgb, #201e1d 40%, transparent);
+  --ring: #ec3013;
+
+  /* The keystone colour the mark reads. Flipped to the 500 step on ink. */
+  --astra-accent: #ec3013;
+
+  /* Nothing in this system is rounded — nodes, containers, buttons alike. */
+  --radius: 0rem;
+
+  --chart-1: #ec3013;
+  --chart-2: #605d5d;
+  --chart-3: #9b9797;
+  --chart-4: #444141;
+  --chart-5: #201e1d;
+  --sidebar: #eae9e9;
+  --sidebar-foreground: #201e1d;
+  --sidebar-primary: #ec3013;
+  --sidebar-primary-foreground: #f3f2f2;
+  --sidebar-accent: #eae9e9;
+  --sidebar-accent-foreground: #201e1d;
+  --sidebar-border: color-mix(in srgb, #201e1d 40%, transparent);
+  --sidebar-ring: #ec3013;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Ink chrome. The accent steps up to #ff563c, which is the only red that
+     reads correctly on #201e1d — the base accent goes muddy there. */
+  --background: #201e1d;
+  --foreground: #f3f2f2;
+  --card: #2d2b2b;
+  --card-foreground: #f3f2f2;
+  --popover: #2d2b2b;
+  --popover-foreground: #f3f2f2;
+  --primary: #ff563c;
+  --primary-foreground: #201e1d;
+  --secondary: #2d2b2b;
+  --secondary-foreground: #f3f2f2;
+  --muted: #2d2b2b;
+  --muted-foreground: #9b9797;
+  --accent: #2d2b2b;
+  --accent-foreground: #f3f2f2;
+  --destructive: #ff563c;
+  --border: color-mix(in srgb, #f3f2f2 25%, transparent);
+  --input: color-mix(in srgb, #f3f2f2 30%, transparent);
+  --ring: #ff563c;
+
+  --astra-accent: #ff563c;
+
+  --chart-1: #ff563c;
+  --chart-2: #9b9797;
+  --chart-3: #bab6b6;
+  --chart-4: #605d5d;
+  --chart-5: #f3f2f2;
+  --sidebar: #2d2b2b;
+  --sidebar-foreground: #f3f2f2;
+  --sidebar-primary: #ff563c;
+  --sidebar-primary-foreground: #201e1d;
+  --sidebar-accent: #2d2b2b;
+  --sidebar-accent-foreground: #f3f2f2;
+  --sidebar-border: color-mix(in srgb, #f3f2f2 25%, transparent);
+  --sidebar-ring: #ff563c;
 }
 
 @layer base {

@@ -24,7 +24,7 @@ export default function PublicLayout({
             <span className="inline-flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm">
               C
             </span>
-            Career Intelligence
+            Astra
           </Link>
           <nav className="flex items-center gap-4 text-sm text-muted-foreground">
             {PUBLIC_LINKS.map(({ href, label }) => (

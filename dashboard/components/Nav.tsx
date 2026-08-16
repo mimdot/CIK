@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import AstraMark from "@/components/AstraMark";
+import { BRAND } from "@/lib/brand";
 import { fetchMe, logout } from "@/lib/api";
 import { Bookmark, KeyRound, LayoutDashboard, LogOut, Settings, Shield, User, Users, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,11 +38,19 @@ export default function Nav() {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <Link href="/" className="flex items-center gap-2 text-base font-semibold">
-          <span className="inline-flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm">
-            C
+        {/* Lockup B — mark + wordmark + descriptor, per the identity spec.
+            Wordmark is uppercase in the heading face at -0.02em; the descriptor
+            sits under it at label size. Nothing here is rounded. */}
+        <Link href="/" className="flex items-center gap-3">
+          <AstraMark size={28} />
+          <span className="flex flex-col gap-0.5">
+            <span className="font-heading text-xl font-extrabold uppercase leading-none tracking-[-0.02em]">
+              {BRAND.name}
+            </span>
+            <span className="whitespace-nowrap text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              {BRAND.descriptorLabel}
+            </span>
           </span>
-          Career Intelligence
         </Link>
         <nav
           aria-label="Main navigation"
@@ -54,10 +64,16 @@ export default function Nav() {
                 key={href}
                 href={href}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  // Dashboard header, per the spec: labels at 12px / 0.12em
+                  // uppercase, the active one UNDERLINED in accent rather than
+                  // filled with it. A filled pill would spend the view's one
+                  // permitted accent on navigation, leaving none for the
+                  // primary action — which is where it belongs.
+                  "inline-flex shrink-0 items-center gap-1 border-b-2 px-2 py-1.5",
+                  "whitespace-nowrap text-[11px] uppercase tracking-[0.08em] transition-colors",
                   active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    ? "border-primary font-bold text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Icon className="size-4" aria-hidden />
@@ -76,7 +92,7 @@ export default function Nav() {
             onClick={() => {
               void logout().finally(() => window.location.assign("/"));
             }}
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-2 py-1.5 text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
           >
             <LogOut className="size-4" aria-hidden />
             <span>Sign out</span>

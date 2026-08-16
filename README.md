@@ -1,10 +1,25 @@
-# Career Intelligence Kit
+# Astra
 
-Find and rank open **PhD / postdoc positions** and likely **PhD supervisors**
-across many fields of science — from the command line, a local web app, or a
-desktop app. Listings are aggregated from academic job boards, scored against an
-editable per-field taxonomy, deduplicated, freshness-filtered, and (optionally)
-matched against a profile extracted from your CV.
+**Your academic constellation**
+
+Astra finds academic positions and supervisors — PhD openings, postdocs, funded
+programmes and the people running them — and keeps the search on your own
+machine.
+
+Academic openings are scattered across faculty pages, mailing lists and PDF
+calls. Astra collects them, matches them to your field and stage, and shows you
+who supervises what — so the search becomes a shortlist you can act on. Runs as
+a command, a local dashboard or a desktop app; your data never leaves your
+machine.
+
+Listings are scored against an editable per-field taxonomy, deduplicated,
+freshness-filtered, and (optionally) matched against your research profile.
+
+| Surface | What it is |
+|---|---|
+| **Astra CLI** | `astra` — the aggregator and supervisor finder |
+| **Astra Dashboard** | the local web app |
+| **Astra Desktop** | the packaged app (Tauri + bundled API) |
 
 > Built to run from restricted networks: **all** traffic (requests, browser-TLS
 > fallback, headless browser, ADS/arXiv/OpenAlex) routes through one configured
@@ -105,7 +120,7 @@ The desktop app ships the dashboard as a static export plus a PyInstaller
 
 That is the whole thing. It builds the sidecar, the dashboard export and the
 Tauri shell only when they are out of date (so the second run starts in well
-under a second), and installs a **Career Intelligence** menu entry — after the
+under a second), and installs an **Astra** menu entry — after the
 first run you can launch it with one click instead.
 
 ```bash

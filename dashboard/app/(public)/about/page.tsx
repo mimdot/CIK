@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const FAQ = [
   {
-    q: "What is Career Intelligence?",
+    q: "What is Astra?",
     a: "A private tool for researchers that aggregates open PhD and postdoc positions from dozens of sources every night, then ranks them against a profile you describe. It also helps you draft cover letters and application emails.",
   },
   {
@@ -22,9 +22,9 @@ const FAQ = [
 export default function AboutPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <h1 className="text-3xl font-semibold">About Career Intelligence</h1>
+      <h1 className="text-3xl font-semibold">About Astra</h1>
       <p className="text-muted-foreground">
-        Career Intelligence was built to solve a common frustration: hundreds of
+        Astra was built to solve a common frustration: hundreds of
         PhD and postdoc openings are published across university pages, job
         boards, and mailing lists every month, and most researchers only ever
         see the few that surface by chance. This service gathers them in one

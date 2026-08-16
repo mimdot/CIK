@@ -189,8 +189,10 @@ from cli.commands import (  # noqa: F401
 # CLI
 # -----------------------------------------------------------------------------
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
+    from core.brand import MEMO
     ap = argparse.ArgumentParser(
-        description="Aggregate open PhD positions in astronomy/astrophysics.",
+        prog="astra",
+        description=MEMO,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     ap.add_argument("--list-sources", action="store_true",
                     help="list registered sources and their enabled/JS status, then exit")
@@ -482,6 +484,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
         format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
+
+    # The lockup, once, on stderr — stdout is data people pipe elsewhere.
+    from core.brand import print_header
+    print_header(os.environ.get("CIK_VERSION", ""))
 
     _load_dotenv()          # gitignored .env -> os.environ (ADS_API_TOKEN etc.)
     cfg = build_config(args)
