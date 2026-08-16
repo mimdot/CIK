@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import CoverLetterModal from "@/components/CoverLetterModal";
+import SaveToggle from "@/components/SaveToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,9 +22,13 @@ import type { Match } from "@/types";
 interface Props {
   match: Match;
   onBookmark?: (match: Match) => void;
+  /** Saved-item id when this match is saved, else null. Owned by the list, so
+   *  a page of cards resolves every toggle in one request instead of N. */
+  savedId?: number | null;
+  onSavedChange?: (matchId: number, savedId: number | null) => void;
 }
 
-export default function MatchCard({ match, onBookmark }: Props) {
+export default function MatchCard({ match, onBookmark, savedId = null, onSavedChange }: Props) {
   const [expanded, setExpanded] = useState(false);
   // AI drafting is behind ASSISTANT_ENABLED and off in the desktop build.
   // Assume off until the API says otherwise, so the button is never offered
@@ -190,15 +195,24 @@ export default function MatchCard({ match, onBookmark }: Props) {
               <ThumbsDown className="size-4" aria-hidden />
             </Button>
           </div>
-          {onBookmark && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onBookmark(match)}
-              aria-label="Bookmark this match"
-            >
-              <Bookmark className="size-4" aria-hidden />
-            </Button>
+          {onSavedChange ? (
+            <SaveToggle
+              kind="opportunity"
+              recordId={match.id}
+              savedId={savedId}
+              onChange={({ savedId: next }) => onSavedChange(match.id, next)}
+            />
+          ) : (
+            onBookmark && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onBookmark(match)}
+                aria-label="Bookmark this match"
+              >
+                <Bookmark className="size-4" aria-hidden />
+              </Button>
+            )
           )}
           {match.url && (
             <a

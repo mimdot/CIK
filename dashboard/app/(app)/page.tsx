@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AuthGate from "@/components/AuthGate";
 import MatchCard from "@/components/MatchCard";
+import { useSavedIds } from "@/hooks/useSavedIds";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ApiError, createBookmark, fetchMatches, fetchFields } from "@/lib/api";
+import { ApiError, fetchMatches, fetchFields } from "@/lib/api";
 import type { Match } from "@/types";
 
 export default function DashboardPage() {
@@ -28,7 +29,7 @@ export default function DashboardPage() {
   const [type, setType] = useState("all");
   const [field, setField] = useState("");
   const [fieldProfiles, setFieldProfiles] = useState<string[]>([]);
-  const [bookmarkMsg, setBookmarkMsg] = useState<string | null>(null);
+  const saved = useSavedIds("opportunity");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,16 +89,6 @@ export default function DashboardPage() {
       return true;
     });
   }, [matches, query, country, source, type]);
-
-  async function handleBookmark(match: Match) {
-    setBookmarkMsg(null);
-    try {
-      await createBookmark(match.id);
-      setBookmarkMsg(`Saved "${match.title}" to bookmarks.`);
-    } catch (e) {
-      setBookmarkMsg(e instanceof ApiError ? e.message : "Bookmark failed");
-    }
-  }
 
   return (
     <AuthGate>
@@ -166,10 +157,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {bookmarkMsg && (
-          <p className="text-sm text-emerald-600">{bookmarkMsg}</p>
-        )}
-
         {!loading && !error && filtered.length === 0 && (
           <div className="rounded-md border p-8 text-center text-sm text-muted-foreground">
             {matches.length === 0
@@ -180,7 +167,12 @@ export default function DashboardPage() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((m) => (
-            <MatchCard key={m.id} match={m} onBookmark={handleBookmark} />
+            <MatchCard
+              key={m.id}
+              match={m}
+              savedId={saved.savedIdFor(m.id)}
+              onSavedChange={saved.set}
+            />
           ))}
         </div>
       </div>

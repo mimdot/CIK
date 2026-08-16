@@ -100,6 +100,24 @@ class AccessRequest(BaseModel):
     code: str
 
 
+class SavedCreate(BaseModel):
+    """Save a record the user is looking at.
+
+    Takes the live row id and derives the stable key server-side, so a client
+    can never invent a key and the snapshot is always the real record.
+    """
+
+    kind: str  # opportunity | supervisor
+    record_id: int
+    note: Optional[str] = None
+    status: Optional[str] = None
+
+
+class SavedUpdate(BaseModel):
+    note: Optional[str] = None
+    status: Optional[str] = None  # interested | applied | rejected
+
+
 class AuthConfigOut(BaseModel):
     """How this deployment expects people to sign in.
 

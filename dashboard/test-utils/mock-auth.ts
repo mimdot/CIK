@@ -35,6 +35,13 @@ export function mockAuthApi(extra: Record<string, unknown> = {}): object {
     // AI drafting is behind ASSISTANT_ENABLED; MatchCard asks before showing
     // the Draft button. Enabled here so existing card suites keep covering it.
     fetchAssistantConfig: jest.fn(() => Promise.resolve({ enabled: true })),
+    // Every list of cards resolves its save toggles in one request. Empty by
+    // default: nothing saved, which is the state most suites want.
+    fetchSavedIds: jest.fn(() => Promise.resolve({ ids: {} })),
+    fetchSaved: jest.fn(() => Promise.resolve({ items: [], total: 0 })),
+    saveItem: jest.fn(),
+    updateSaved: jest.fn(),
+    deleteSaved: jest.fn(() => Promise.resolve({ status: "deleted" })),
     ...extra,
   };
 }

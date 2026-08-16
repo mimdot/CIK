@@ -116,11 +116,68 @@ def reconcile_columns(engine: Engine) -> list[str]:
     return added
 
 
+def migrate_bookmarks_to_saved(engine: Engine) -> int:
+    """Carry old ``bookmarks`` rows over to ``saved_items``.
+
+    Bookmarks were keyed on ``opportunities.id`` and hung off ``profile_id``.
+    Saved items are keyed on the record's own identity and hang off the user,
+    so nothing survives the move automatically — the rows have to be rewritten.
+
+    Idempotent (skips keys already saved) and best-effort: a bookmark whose
+    opportunity has since been deleted is dropped, because there is nothing
+    left to snapshot. Runs at startup because the desktop app never runs
+    Alembic. Returns how many were carried over.
+    """
+    import json as _json
+
+    from sqlalchemy import inspect as _inspect
+    from sqlalchemy.orm import Session as _Session
+
+    names = set(_inspect(engine).get_table_names())
+    if not {"bookmarks", "saved_items", "user_profiles"} <= names:
+        return 0
+
+    from api.serializers import opportunity_out
+    from core.saved_keys import key_for
+    from db.models import Bookmark, Opportunity, SavedItem, UserProfileRow
+
+    moved = 0
+    with _Session(engine) as session:
+        existing = {(s.user_id, s.kind, s.stable_key)
+                    for s in session.scalars(select(SavedItem))}
+        for bm in session.scalars(select(Bookmark)):
+            prof = session.get(UserProfileRow, bm.profile_id)
+            opp = session.get(Opportunity, bm.opportunity_id)
+            if prof is None or opp is None:
+                continue
+            record = opportunity_out(opp)
+            key = key_for("opportunity", record)
+            ident = (prof.user_id, "opportunity", key)
+            if ident in existing:
+                continue
+            session.add(SavedItem(user_id=prof.user_id, kind="opportunity",
+                                  stable_key=key,
+                                  snapshot=_json.dumps(record),
+                                  status="interested",
+                                  created_at=bm.created_at))
+            existing.add(ident)
+            moved += 1
+        if moved:
+            session.commit()
+    if moved:
+        log.info("migrated %d bookmark(s) to saved_items", moved)
+    return moved
+
+
 def init_db(db_url: str = DEFAULT_DB_URL) -> Engine:
     """Create engine + all tables, then bring existing tables up to date."""
     engine = create_engine_and_base(db_url)
     Base.metadata.create_all(engine)
     reconcile_columns(engine)
+    try:
+        migrate_bookmarks_to_saved(engine)
+    except Exception:  # never let a data migration stop the app from starting
+        log.exception("bookmark -> saved_items migration failed; skipping")
     return engine
 
 

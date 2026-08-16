@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AuthGate from "@/components/AuthGate";
 import ExportResult from "@/components/ExportResult";
+import SaveToggle from "@/components/SaveToggle";
+import { useSavedIds } from "@/hooks/useSavedIds";
 import { useFileExport } from "@/hooks/useFileExport";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,6 +71,7 @@ export default function SupervisorsPage() {
   const [sort, setSort] = useState<SortKey>("fit_desc");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const exp = useFileExport();
+  const saved = useSavedIds("supervisor");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -433,11 +436,21 @@ export default function SupervisorsPage() {
           return (
             <Card key={s.id} className="flex flex-col">
               <CardHeader>
-                <CardTitle className="text-base">{s.name}</CardTitle>
-                <CardDescription>
-                  {[s.institution, s.department, s.country].filter(Boolean).join(" · ") ||
-                    "Institution n/a"}
-                </CardDescription>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base">{s.name}</CardTitle>
+                    <CardDescription>
+                      {[s.institution, s.department, s.country].filter(Boolean).join(" · ") ||
+                        "Institution n/a"}
+                    </CardDescription>
+                  </div>
+                  <SaveToggle
+                    kind="supervisor"
+                    recordId={s.id}
+                    savedId={saved.savedIdFor(s.id)}
+                    onChange={({ savedId }) => saved.set(s.id, savedId)}
+                  />
+                </div>
               </CardHeader>
               <CardContent className="mt-auto flex flex-col gap-2 pt-0">
                 <div className="flex flex-wrap items-center gap-2">

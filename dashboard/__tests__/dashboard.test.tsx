@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DashboardPage from "@/app/(app)/page";
-import { ApiError, createBookmark, fetchAssistantConfig, fetchMatches, fetchFields } from "@/lib/api";
+import { ApiError, fetchAssistantConfig, fetchMatches, fetchFields, fetchSavedIds, saveItem } from "@/lib/api";
 import type { Match } from "@/types";
 // shared auth mock loaded via jest.requireActual inside the factory
 
@@ -11,7 +11,6 @@ jest.mock("@/lib/api", () => {
 });
 
 const mockFetchMatches = fetchMatches as jest.Mock;
-const mockCreateBookmark = createBookmark as jest.Mock;
 const mockFetchFields = fetchFields as jest.Mock;
 
 function match(overrides: Partial<Match>): Match {
@@ -142,20 +141,32 @@ describe("DashboardPage", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
-  it("bookmarks a match", async () => {
+  it("saves a match with the star", async () => {
     mockFetchMatches.mockResolvedValue({ items: MATCHES, total: 3 });
-    mockCreateBookmark.mockResolvedValue({ id: 1, opportunity_id: 1 });
+    (saveItem as jest.Mock).mockResolvedValue({ id: 7 });
     const user = userEvent.setup();
     render(<DashboardPage />);
     await screen.findAllByTestId("match-card");
 
-    await user.click(
-      screen.getAllByRole("button", { name: "Bookmark this match" })[0],
-    );
+    await user.click(screen.getAllByRole("button", { name: "Save" })[0]);
 
-    await waitFor(() => expect(mockCreateBookmark).toHaveBeenCalledWith(1));
+    await waitFor(() =>
+      expect(saveItem).toHaveBeenCalledWith("opportunity", 1),
+    );
+    // The star fills immediately, without waiting for a refetch.
     expect(
-      await screen.findByText(/Saved "PhD in radio astronomy" to bookmarks/),
+      await screen.findByRole("button", { name: "Remove from saved" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an already-saved match as saved on first paint", async () => {
+    mockFetchMatches.mockResolvedValue({ items: [MATCHES[0]], total: 1 });
+    (fetchSavedIds as jest.Mock).mockResolvedValue({ ids: { "1": 7 } });
+    render(<DashboardPage />);
+    await screen.findAllByTestId("match-card");
+
+    expect(
+      await screen.findByRole("button", { name: "Remove from saved" }),
     ).toBeInTheDocument();
   });
 });

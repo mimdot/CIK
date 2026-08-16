@@ -26,6 +26,9 @@ import type {
   PositionTypeCatalogue,
   OpportunityFilters,
   Paginated,
+  SavedItem,
+  SavedKind,
+  SavedStatus,
   PipelineStatus,
   SourceHealthSnapshot,
   Supervisor,
@@ -518,6 +521,55 @@ export function deleteBookmark(bookmarkId: number): Promise<{ status: string }> 
   return request<{ status: string }>(`/api/bookmarks/${bookmarkId}`, {
     method: "DELETE",
   });
+}
+
+// --- saved items (opportunities + supervisors) --------------------------------
+// Supersedes bookmarks: keyed by the record's own identity rather than a row
+// id, so an entry survives a re-crawl, and carrying a snapshot so it still
+// reads after the source page is gone.
+
+export function fetchSaved(kind: SavedKind): Promise<{
+  items: SavedItem[];
+  total: number;
+}> {
+  return request(`/api/saved?kind=${kind}`);
+}
+
+/**
+ * Live record id -> saved-item id, for the records currently listed.
+ *
+ * One request per list rather than one per card. Resolved server-side because
+ * the stable key is derived there; deriving it again in the browser would mean
+ * a second copy of the normalisation rules, free to drift.
+ */
+export function fetchSavedIds(
+  kind: SavedKind,
+): Promise<{ ids: Record<string, number> }> {
+  return request(`/api/saved/ids?kind=${kind}`);
+}
+
+export function saveItem(
+  kind: SavedKind,
+  recordId: number,
+): Promise<SavedItem> {
+  return request<SavedItem>("/api/saved", {
+    method: "POST",
+    body: JSON.stringify({ kind, record_id: recordId }),
+  });
+}
+
+export function updateSaved(
+  id: number,
+  patch: { note?: string; status?: SavedStatus },
+): Promise<SavedItem> {
+  return request<SavedItem>(`/api/saved/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteSaved(id: number): Promise<{ status: string }> {
+  return request<{ status: string }>(`/api/saved/${id}`, { method: "DELETE" });
 }
 
 // --- preferences -------------------------------------------------------------

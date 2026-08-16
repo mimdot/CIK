@@ -273,6 +273,43 @@ class Bookmark(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class SavedItem(Base):
+    """A saved opportunity or supervisor, kept by a STABLE key with a snapshot.
+
+    Replaces :class:`Bookmark`, which could not survive the thing it was for.
+    That table pointed at ``opportunities.id`` — a row id that changes when a
+    listing is re-crawled and deduplicated, so a saved position could silently
+    become a different one or vanish. And it hung off ``profile_id``, so
+    rebuilding your profile orphaned everything you had saved.
+
+    Two changes fix both. ``stable_key`` is derived from the record's own
+    identity (a normalised URL, else the upstream id) so it survives re-crawls,
+    and ``user_id`` means a profile rebuild leaves saved items untouched.
+
+    ``snapshot`` is the whole record as it looked when saved, so the entry still
+    displays correctly after the source page disappears — which is exactly when
+    you most want to look at it. Whether it is *still listed* is answered by
+    looking the key up in the live table at read time, so it is never a stale
+    flag someone forgot to clear.
+    """
+
+    __tablename__ = "saved_items"
+    __table_args__ = (UniqueConstraint("user_id", "kind", "stable_key",
+                                       name="uq_saved_user_kind_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), index=True)  # opportunity|supervisor
+    stable_key: Mapped[str] = mapped_column(String(512), index=True)
+    snapshot: Mapped[str] = mapped_column(Text)                # JSON of the record
+    # The user's own additions. Neither is required.
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default="interested")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow,
+                                                 onupdate=utcnow)
+
+
 # ---------------------------------------------------------------------------
 # 3.7 digest_preferences
 # ---------------------------------------------------------------------------

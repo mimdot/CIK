@@ -37,7 +37,7 @@ from core import observe
 from api.routes import (account, admin, apikeys, assistant, auth, bookmarks,
                         email as email_router, fields as fields_router,
                         invites, matches, opportunities, pipeline, preferences,
-                        profile, supervisors)
+                        profile, saved, supervisors)
 from api.routes.pipeline import jobs_router
 from api.routes.v1 import router as v1_router
 from core.config import FIELD_PROFILE, list_field_profiles
@@ -321,6 +321,7 @@ app.include_router(opportunities.router)
 app.include_router(matches.router)
 app.include_router(supervisors.router)
 app.include_router(bookmarks.router)
+app.include_router(saved.router)
 app.include_router(preferences.router)
 app.include_router(fields_router.router)
 app.include_router(pipeline.router)

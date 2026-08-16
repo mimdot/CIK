@@ -82,6 +82,30 @@ export interface Bookmark {
   opportunity: Opportunity | null;
 }
 
+export type SavedKind = "opportunity" | "supervisor";
+export type SavedStatus = "interested" | "applied" | "rejected";
+
+/**
+ * A saved opportunity or supervisor.
+ *
+ * `record` is the snapshot taken when it was saved, not a live lookup — so the
+ * entry still reads correctly after the source page is gone, which is exactly
+ * when you want it. `still_listed` is the live answer to "is this posting
+ * still up?", recomputed on every read rather than stored.
+ */
+export interface SavedItem {
+  id: number;
+  kind: SavedKind;
+  stable_key: string;
+  record: Record<string, unknown>;
+  note: string | null;
+  status: SavedStatus;
+  still_listed: boolean;
+  /** The id of the live row that currently carries this key, if any. */
+  record_id: number | null;
+  created_at: string | null;
+}
+
 export interface Fields {
   default: string;
   profiles: string[];
