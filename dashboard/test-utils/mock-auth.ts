@@ -20,6 +20,12 @@ export function mockAuthApi(extra: Record<string, unknown> = {}): object {
     ApiError: MockApiError,
     getToken: jest.fn(() => "test-token"),
     fetchMe: jest.fn(() => Promise.resolve(AUTHED_USER)),
+    // LoginForm asks which sign-in mode this deployment uses before rendering
+    // a form, so any suite that can fall through to it needs this stubbed.
+    fetchAuthConfig: jest.fn(() =>
+      Promise.resolve({ auth_mode: "password", invite_required: false }),
+    ),
+    logout: jest.fn(() => Promise.resolve()),
     ...extra,
   };
 }

@@ -123,6 +123,39 @@ npm run tauri:build          # bundle .AppImage / .deb / .dmg / .msi
 
 ---
 
+## Signing in: the shared access code
+
+The desktop build asks for an **email and a shared access code** (default
+`1819`) instead of a password. It sits *in front of* the normal account
+system, which is unchanged: a real account is created on first sight, so
+profiles, bookmarks and everything else work exactly as before. No password is
+chosen, and none is stored.
+
+### It is not security, and nothing here pretends otherwise
+
+**The code ships inside a binary you hand to people.** `strings` recovers it in
+seconds, and it will end up posted somewhere public. It is a front door that
+asks for something rather than nothing — that is all it is for.
+
+So: do not put data, paid features, or any real trust boundary behind it. If
+you need one, that is what accounts and invite codes are for.
+
+### Changing it, and switching back to passwords
+
+`CIK_ACCESS_CODE` controls the whole thing, read at request time so no rebuild
+is needed:
+
+| `CIK_ACCESS_CODE` | Sign-in | `POST /api/auth/access` |
+|---|---|---|
+| set (desktop default `1819`) | email + code | available |
+| unset or empty | email + password | **404** |
+
+The frontend asks `GET /api/auth/config` which mode to render, so the same
+build serves both — when you get a server, leave `CIK_ACCESS_CODE` unset there
+and it presents the ordinary password form with no code change.
+
+---
+
 ## Proxy setup (restricted networks / Iran / V2RayN)
 
 The engine routes everything through one proxy, configured in

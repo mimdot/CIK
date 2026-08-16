@@ -14,6 +14,11 @@ jest.mock("@/lib/api", () => ({
   getToken: jest.fn(),
   login: jest.fn(),
   registerWithInvite: jest.fn(),
+  signInWithAccessCode: jest.fn(),
+  // LoginForm asks the API which sign-in form to render before showing one.
+  fetchAuthConfig: jest.fn(() =>
+    Promise.resolve({ auth_mode: "password", invite_required: false }),
+  ),
   fetchMe: jest.fn(),
   apiBase: jest.fn(() => "http://127.0.0.1:8000"),
   apiStartupError: jest.fn(() => null),

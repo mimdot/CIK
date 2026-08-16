@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError, login, registerWithInvite } from "@/lib/api";
+import {
+  ApiError,
+  fetchAuthConfig,
+  login,
+  registerWithInvite,
+  signInWithAccessCode,
+} from "@/lib/api";
 
 export default function LoginForm({
   onAuth,
@@ -13,10 +19,44 @@ export default function LoginForm({
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"login" | "register" | null>(null);
   const [intent, setIntent] = useState<"login" | "register">("login");
+  // null until the API has told us. Rendering the password form first and
+  // swapping it would flash a field the desktop user must not fill in.
+  const [mode, setMode] = useState<"access_code" | "password" | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    fetchAuthConfig()
+      .then((cfg) => {
+        if (live) setMode(cfg.auth_mode);
+      })
+      // An unreachable API is AuthGate's problem to report, not this form's.
+      // Falling back to the password form keeps a server deployment working
+      // even if this one call fails.
+      .catch(() => {
+        if (live) setMode("password");
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  async function submitAccessCode() {
+    setError(null);
+    setBusy("login");
+    try {
+      await signInWithAccessCode(email, accessCode.trim());
+      onAuth?.();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Something went wrong");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function submit(mode: "login" | "register") {
     setIntent(mode);
@@ -39,6 +79,69 @@ export default function LoginForm({
     } finally {
       setBusy(null);
     }
+  }
+
+  if (mode === null) {
+    return (
+      <div className="mx-auto mt-8 w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
+
+  if (mode === "access_code") {
+    return (
+      <div className="mx-auto mt-8 w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
+        <h2 className="mb-1 text-lg font-semibold">Welcome</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Enter your email and the access code to get started.
+        </p>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submitAccessCode();
+          }}
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="accessCode">Access code</Label>
+            <Input
+              id="accessCode"
+              inputMode="numeric"
+              autoComplete="off"
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value)}
+              placeholder="The code you were given"
+              required
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Your email is stored on this computer so you are not asked again.
+            You can sign out at any time.
+          </p>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={busy !== null} aria-label="Continue">
+            {busy ? "Signing in…" : "Continue"}
+          </Button>
+        </form>
+      </div>
+    );
   }
 
   return (

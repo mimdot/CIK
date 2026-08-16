@@ -89,6 +89,29 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class AccessRequest(BaseModel):
+    """Email + the shared entry code. Deliberately no password field.
+
+    The code is not a password and must never be stored as one — see
+    ``api.routes.auth.access_code`` for why it is not a secret at all.
+    """
+
+    email: str
+    code: str
+
+
+class AuthConfigOut(BaseModel):
+    """How this deployment expects people to sign in.
+
+    Lets one frontend serve both surfaces: the desktop build runs with a shared
+    access code configured, a server deployment does not, and the sign-in form
+    renders whichever the API reports instead of guessing from the platform.
+    """
+
+    auth_mode: str  # "access_code" | "password"
+    invite_required: bool
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

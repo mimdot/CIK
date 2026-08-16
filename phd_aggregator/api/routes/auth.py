@@ -12,6 +12,7 @@ with an identical response whether or not the email exists (no enumeration).
 
 from __future__ import annotations
 
+import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -21,9 +22,10 @@ from sqlalchemy.orm import Session
 
 from api.deps import COOKIE_NAME, get_current_user, get_db
 from api.routes.invites import invites_required, validate_invite_code
-from api.schemas import (ForgotPasswordRequest, GenericActionResponse,
-                         LoginRequest, RegisterRequest, ResetPasswordRequest,
-                         TokenResponse, UserOut, VerifyEmailRequest)
+from api.schemas import (AccessRequest, AuthConfigOut, ForgotPasswordRequest,
+                         GenericActionResponse, LoginRequest, RegisterRequest,
+                         ResetPasswordRequest, TokenResponse, UserOut,
+                         VerifyEmailRequest)
 from api.security import (create_access_token, generate_secure_token,
                           hash_password, hash_token, log_audit, login_limiter,
                           register_limiter, reset_limiter, verify_limiter,
@@ -244,6 +246,110 @@ def login(body: LoginRequest, request: Request, response: Response,
     _set_auth_cookie(response, token)
     _set_csrf_cookie(response)
     return TokenResponse(access_token=token)
+
+
+def access_code() -> str:
+    """The shared entry code, or "" when that gate is switched off.
+
+    **This is not a secret, and nothing may be built as though it were.** It
+    ships inside a desktop binary that anyone can run `strings` on, so it is
+    extractable in seconds and will circulate publicly. It exists so the front
+    door asks for something rather than nothing. Never put data, a paid
+    feature, or any real trust boundary behind it — the account system does
+    that, and this sits in front of the account system, not instead of it.
+
+    Read from the environment on every call, not captured at import, so it can
+    be changed by setting ``CIK_ACCESS_CODE`` without rebuilding anything.
+    Unset or empty means classic email + password registration, which is what
+    a server deployment uses — so switching back later is one variable.
+    """
+    return (os.environ.get("CIK_ACCESS_CODE") or "").strip()
+
+
+@router.get("/config", response_model=AuthConfigOut)
+def auth_config() -> AuthConfigOut:
+    """How to sign in here, so the frontend renders the right form.
+
+    Asked rather than assumed: the same built frontend runs on the desktop
+    (shared code) and on a server (email + password), and the platform is not
+    what decides — the configuration is.
+    """
+    code = access_code()
+    return AuthConfigOut(
+        auth_mode="access_code" if code else "password",
+        invite_required=invites_required(),
+    )
+
+
+@router.post("/access", response_model=TokenResponse)
+def access(body: AccessRequest, request: Request, response: Response,
+           session: Session = Depends(get_db)) -> TokenResponse:
+    """Sign in with an email and the shared access code.
+
+    Sits *in front of* the normal account system rather than replacing it: a
+    real user row is created on first sight, so profiles, bookmarks and
+    everything else keep working exactly as they do with a password.
+    """
+    configured = access_code()
+    if not configured:
+        # Not merely rejected — absent. A server deployment should not expose
+        # a code endpoint at all.
+        raise HTTPException(status_code=404,
+                            detail="Access-code sign-in is not enabled here")
+
+    ip = _client_ip(request)
+    if not login_limiter.check(ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts — try again later",
+            headers=_rate_limit_headers(login_limiter, ip))
+    response.headers.update(_rate_limit_headers(login_limiter, ip))
+
+    email = _normalize_email(body.email)
+    if not _EMAIL_RE.fullmatch(email):
+        raise HTTPException(status_code=422, detail="Invalid email address")
+
+    if not secrets.compare_digest(body.code.strip(), configured):
+        log_audit(session, action="auth.access_failed", actor_type="user",
+                  actor_id=None, target_type="user", target_id=None, ip=ip,
+                  user_agent=_client_agent(request))
+        session.commit()
+        raise HTTPException(status_code=401, detail="That access code is not right")
+
+    repo = UserRepo(session)
+    user = repo.get_by_email(email)
+    if user is None:
+        # No password is stored for a code account, because the code is not a
+        # password and must not quietly become one. A random hash nobody holds
+        # the input for keeps /login closed for this row: the only way in is
+        # the code endpoint, which is exactly as strong as the code.
+        user = repo.create(email, hash_password(secrets.token_urlsafe(32)))
+        log_audit(session, action="auth.access_register", actor_type="user",
+                  actor_id=user.id, target_type="user", target_id=user.id,
+                  ip=ip, user_agent=_client_agent(request))
+
+    log_audit(session, action="auth.access", actor_type="user",
+              actor_id=user.id, target_type="user", target_id=user.id,
+              ip=ip, user_agent=_client_agent(request))
+    session.commit()
+
+    token = create_access_token(user.id)
+    _set_auth_cookie(response, token)
+    _set_csrf_cookie(response)
+    return TokenResponse(access_token=token)
+
+
+@router.post("/logout", response_model=GenericActionResponse)
+def logout(response: Response) -> GenericActionResponse:
+    """Drop the session cookies.
+
+    There was no way to sign out at all before this — the session cookie is
+    httpOnly, so the frontend cannot clear it itself and a user who entered the
+    wrong email was stuck with it until the token expired.
+    """
+    response.delete_cookie(COOKIE_NAME, path="/")
+    response.delete_cookie("csrf_token", path="/")
+    return GenericActionResponse(status="ok")
 
 
 @router.post("/refresh", response_model=TokenResponse)

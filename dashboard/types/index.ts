@@ -99,6 +99,12 @@ export interface TokenResponse {
   token_type: string;
 }
 
+/** How this deployment expects people to sign in. See `fetchAuthConfig`. */
+export interface AuthConfig {
+  auth_mode: "access_code" | "password";
+  invite_required: boolean;
+}
+
 export interface Paginated<T> {
   items: T[];
   total: number;

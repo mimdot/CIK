@@ -5,6 +5,7 @@ import type {
   AdminMetrics,
   AnomalySnapshot,
   ApiKey,
+  AuthConfig,
   ApiKeyCreateResult,
   ApiKeyUsage,
   AssistantDraft,
@@ -292,6 +293,40 @@ export async function login(email: string, password: string): Promise<string> {
 
 export function fetchMe(): Promise<User> {
   return request<User>("/api/auth/me");
+}
+
+/**
+ * How this deployment expects people to sign in.
+ *
+ * Asked, never inferred from the platform: the same frontend is served by the
+ * desktop sidecar (shared access code) and by a server (email + password), and
+ * it is the API's configuration that decides which.
+ */
+export function fetchAuthConfig(): Promise<AuthConfig> {
+  return request<AuthConfig>("/api/auth/config", undefined, false);
+}
+
+/** Sign in with an email and the shared access code. No password involved. */
+export async function signInWithAccessCode(
+  email: string,
+  code: string,
+): Promise<string> {
+  const data = await request<TokenResponse>(
+    "/api/auth/access",
+    { method: "POST", body: JSON.stringify({ email, code }) },
+    false,
+  );
+  setToken(data.access_token);
+  return data.access_token;
+}
+
+/** Drop the session. The cookie is httpOnly, so only the API can clear it. */
+export async function logout(): Promise<void> {
+  try {
+    await request<{ status: string }>("/api/auth/logout", { method: "POST" });
+  } finally {
+    clearToken();
+  }
 }
 
 // --- profile ------------------------------------------------------------------

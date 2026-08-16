@@ -24,6 +24,11 @@ const SIDECAR_NAME: &str = "cik-api.exe";
 #[cfg(not(target_os = "windows"))]
 const SIDECAR_NAME: &str = "cik-api";
 
+/// The shared code the desktop build ships with, used only when the user has
+/// not set `CIK_ACCESS_CODE` themselves. Anyone can read it out of this binary;
+/// that is understood and accepted, because it gates nothing that matters.
+const DEFAULT_ACCESS_CODE: &str = "1819";
+
 static SIDECAR_CHILD: Mutex<Option<Child>> = Mutex::new(None);
 /// Resolved once the sidecar answers /health. Until then the frontend must not
 /// be told a base URL, because a call to a port nobody is listening on fails as
@@ -219,6 +224,14 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
         .env("DATABASE_URL", format!("sqlite:///{}", db_path.display()))
         .env("CIK_SECRET_KEY", random_hex(32))
         .env("CIK_INVITE_REQUIRED", "0")
+        // The shared entry code. NOT a secret — it lives in this binary and
+        // `strings` will find it in seconds, so it is a front door, never a
+        // security boundary. Taken from the environment when the user sets one,
+        // so the code can be changed without rebuilding the app.
+        .env(
+            "CIK_ACCESS_CODE",
+            std::env::var("CIK_ACCESS_CODE").unwrap_or_else(|_| DEFAULT_ACCESS_CODE.into()),
+        )
         .env("CIK_COOKIE_SECURE", "0")
         .env("CIK_SCHEDULER_ENABLED", "0")
         .env("CIK_JSON_LOGS", "0")

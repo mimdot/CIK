@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { fetchMe } from "@/lib/api";
-import { Bookmark, KeyRound, LayoutDashboard, Settings, Shield, User, Users, Workflow } from "lucide-react";
+import { fetchMe, logout } from "@/lib/api";
+import { Bookmark, KeyRound, LayoutDashboard, LogOut, Settings, Shield, User, Users, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // `adminOnly` pages are operator tooling, not features an ordinary user needs.
@@ -68,6 +68,19 @@ export default function Nav() {
               </Link>
             );
           })}
+          {/* Sign out lived nowhere before this. The session cookie is
+              httpOnly, so a user who signed in with the wrong email had no way
+              to get back out short of waiting for the token to expire. */}
+          <button
+            type="button"
+            onClick={() => {
+              void logout().finally(() => window.location.assign("/"));
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="size-4" aria-hidden />
+            <span>Sign out</span>
+          </button>
         </nav>
       </div>
     </header>
