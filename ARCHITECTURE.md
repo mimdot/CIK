@@ -34,7 +34,7 @@ gaps (per your instruction to flag conflicts rather than rebuild).
 |---|---|---|---|---|
 | **CLI** | `python phd_aggregator.py …` | terminal + self-contained `phd_positions.html` | direct in-process import of the package | function calls |
 | **Live / web** | `uvicorn api.app:app` + `npm run dev` (dashboard) | Next.js dev/prod server | FastAPI (`api.app:app`) + SQLite/Postgres + optional Redis | **HTTP** (`NEXT_PUBLIC_API_URL`, default `http://localhost:8000`) |
-| **Desktop** | `npm run tauri:dev` / bundled app | static Next export (`dashboard/out/`) in a Tauri webview | PyInstaller `cik-api` sidecar (`api/run.py`) on `127.0.0.1:8000` | **HTTP** to localhost |
+| **Desktop** | `./run.sh` (repo root) / bundled app | static Next export (`dashboard/out/`) in a Tauri webview | PyInstaller `cik-api` sidecar (`api/run.py`) on `127.0.0.1:8000` | **HTTP** to localhost |
 
 ### CLI
 `phd_aggregator.py` → `main()` → `build_config()` (3-layer: built-in defaults →
@@ -62,6 +62,8 @@ package directly; there is no server.
 kills the child on exit. `lib/api.ts` detects `window.__TAURI__` and points
 `API_BASE` at `http://localhost:8000`. `tauri.conf.json` serves the static
 export from `../out` and declares `sidecar/api/cik-api` as `externalBin`.
+`./run.sh` at the repo root builds all three pieces (only when stale) and
+launches.
 
 **Frontend↔backend is HTTP over localhost on every surface** — no IPC, no
 subprocess-per-request, no direct Python import from the UI.
@@ -91,20 +93,25 @@ auth, keeps working from cached rows and looks healthy.
 
 1. `setup()` spawns `boot_and_watch` on a background thread so the window paints
    immediately instead of freezing while a PyInstaller onefile unpacks.
-2. `spawn_sidecar()` picks a port — 8000 if free, otherwise an OS-assigned one —
+2. `sidecar_path()` resolves `cik-api` **next to `current_exe()`** — where Tauri
+   puts `externalBin` on every layout. Not `BaseDirectory::Executable`: that is
+   `dirs::executable_dir()`, the user's `~/.local/bin`, and using it meant the
+   app never found its own backend (and on macOS/Windows, where that directory
+   is `None`, could not even resolve a path).
+3. `spawn_sidecar()` picks a port — 8000 if free, otherwise an OS-assigned one —
    and starts `cik-api` with the desktop env (`NO_PROXY`/`no_proxy` include
    `localhost,127.0.0.1,::1` so a system-wide SOCKS/HTTP proxy cannot swallow
    loopback traffic).
-3. `wait_for_health()` polls `GET /health` over raw TCP until it answers 200
+4. `wait_for_health()` polls `GET /health` over raw TCP until it answers 200
    (90 s budget). **Only then** is a base URL published. Before this existed the
    port was injected immediately and any call made during the unpack window
    failed as "cannot reach the API server".
-4. `on_page_load` re-injects `window.__CIK_API_BASE__` on **every** page load.
+5. `on_page_load` re-injects `window.__CIK_API_BASE__` on **every** page load.
    The previous one-shot `eval()` at setup was thrown away by the first
    navigation, after which the frontend fell back to `:8000` — the wrong port
    whenever the shell had picked another.
-5. If the child dies while the app is open, the watcher restarts it.
-6. On failure the shell publishes `window.__CIK_API_ERROR__` with the reason and
+6. If the child dies while the app is open, the watcher restarts it.
+7. On failure the shell publishes `window.__CIK_API_ERROR__` with the reason and
    the tail of `<app-data>/api.log`; `AuthGate` renders that instead of asking
    the user whether the backend they cannot start is running.
 

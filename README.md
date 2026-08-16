@@ -21,7 +21,7 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full map.
 |---|---|---|
 | **CLI** | The aggregator + supervisor finder, writes CSV/JSON/HTML | `python phd_aggregator/phd_aggregator.py` |
 | **Local web** | Next.js dashboard + FastAPI backend | `uvicorn api.app:app` + `npm run dev` |
-| **Desktop** | Tauri app bundling the dashboard + a FastAPI sidecar | `npm run tauri:dev` (in `dashboard/`) |
+| **Desktop** | Tauri app bundling the dashboard + a FastAPI sidecar | `./run.sh` (repo root) |
 
 All three share the same Python engine (`phd_aggregator/` package). The web and
 desktop apps talk to the backend over HTTP (localhost).
@@ -97,12 +97,28 @@ docker compose -f docker-compose.prod.yml up   # hardened prod
 
 The desktop app ships the dashboard as a static export plus a PyInstaller
 **`cik-api`** sidecar (the FastAPI backend) that it launches on
-`127.0.0.1:8000`. Build/run:
+`127.0.0.1:8000`.
+
+```bash
+./run.sh                     # from the repo root — builds what is missing, then starts
+```
+
+That is the whole thing. It builds the sidecar, the dashboard export and the
+Tauri shell only when they are out of date (so the second run starts in well
+under a second), and installs a **Career Intelligence** menu entry — after the
+first run you can launch it with one click instead.
+
+```bash
+./run.sh --rebuild           # force a full rebuild first
+./run.sh --no-launch         # build + install the menu entry, don't start
+```
+
+For development and for distributable installers, the Tauri CLI is still there:
 
 ```bash
 cd dashboard
-npm run tauri:dev            # dev
-npm run tauri:build          # bundle .AppImage / .dmg / .msi
+npm run tauri:dev            # dev, with hot reload
+npm run tauri:build          # bundle .AppImage / .deb / .dmg / .msi
 ```
 
 ---
