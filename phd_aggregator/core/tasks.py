@@ -65,6 +65,12 @@ def _apply_progress(prog: dict, event: dict) -> None:
         prog["total"] = event.get("total", 0)
         prog["completed"] = 0
         prog["sources"] = []
+    elif event.get("event") == "stage":
+        # What the run is doing RIGHT NOW. A supervisor search over one field
+        # and one country is a single "pair", so pair counting alone sits at
+        # 0/1 for minutes — which is exactly the "is it working or stuck?"
+        # the spinner already failed to answer.
+        prog["stage"] = event.get("label")
     elif event.get("event") == "funnel":
         # End-of-run accounting: found -> filtered -> deduped -> stored, with
         # the reason for every drop. Surfaced so the UI headline number and
@@ -456,7 +462,8 @@ def enqueue_pipeline_job(country: str | None = None,
 def run_supervisor_sync_job(countries: list[str],
                             field: str | None = None,
                             quick: bool = True,
-                            limit: int | None = None) -> int:
+                            limit: int | None = None,
+                            job_id: str | None = None) -> int:
     """Aggregate + upsert supervisor candidates; returns the number upserted.
 
     rq/thread worker entrypoint for :func:`enqueue_supervisor_job`. Runs the
@@ -467,9 +474,16 @@ def run_supervisor_sync_job(countries: list[str],
     from cli.commands import sync_supervisors
     from db.init import resolve_db_url
 
+    # A supervisor search runs for minutes. Without a token it could not be
+    # stopped, and without progress the dialog could only show a spinner — the
+    # user had no way to tell a working search from a stuck one.
+    cancel = cancel_mod.get(job_id) or cancel_mod.register(job_id) if job_id else None
+    on_progress = _inproc_progress_callback(job_id) if job_id else None
+
     upserted, _ = sync_supervisors(countries, field=field,
                                    db_url=resolve_db_url(), quick=quick,
-                                   limit=limit)
+                                   limit=limit, cancel=cancel,
+                                   on_progress=on_progress)
     return upserted
 
 
@@ -479,13 +493,23 @@ def _fallback_supervisor_run(job_id: str, countries: list[str],
                              limit: int | None = None) -> None:
     is_final: Optional[bool] = None
     try:
-        records = run_supervisor_sync_job(countries, field, quick, limit)
+        records = run_supervisor_sync_job(countries, field, quick, limit,
+                                          job_id=job_id)
+        token = cancel_mod.get(job_id)
+        stopped = bool(token and token.is_cancelled())
         with _in_memory_jobs_lock:
-            if _in_memory_jobs.get(job_id, {}).get("status") != "cancelled":
-                _in_memory_jobs[job_id] = {"job_id": job_id,
-                                           "status": "completed",
-                                           "records": records,
-                                           "attempts": attempt}
+            prev = _in_memory_jobs.get(job_id, {})
+            if prev.get("status") != "cancelled" or stopped:
+                # A cancelled run is a SHORTENED one, not a discarded one:
+                # everything upserted before the stop is already saved, so it
+                # reports its record count like any other completed run.
+                _in_memory_jobs[job_id] = {
+                    "job_id": job_id,
+                    "status": "cancelled" if stopped else "completed",
+                    "records": records,
+                    "attempts": attempt,
+                    "progress": prev.get("progress"),
+                }
         is_final = True
     except Exception as exc:
         log.warning("supervisor sync job %s failed (attempt %s/%s): %s",

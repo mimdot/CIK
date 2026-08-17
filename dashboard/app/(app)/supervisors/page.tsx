@@ -370,7 +370,11 @@ export default function SupervisorsPage() {
             <DialogTitle>Supervisor search</DialogTitle>
             <DialogDescription>
               {run.status === "starting" && "Starting the search…"}
-              {run.status === "running" && "Searching literature for candidates…"}
+              {run.status === "running" &&
+                (run.cancelling
+                  ? "Stopping — finishing the field in flight…"
+                  : "Searching literature for candidates…")}
+              {run.status === "cancelled" && "Search stopped."}
               {run.status === "completed" && "Search completed."}
               {run.status === "failed" && "Search failed."}
             </DialogDescription>
@@ -391,6 +395,14 @@ export default function SupervisorsPage() {
                 {run.status ?? "idle"}
               </Badge>
             </div>
+            {run.busy && run.progress?.stage && (
+              <p
+                className="truncate font-mono text-xs text-muted-foreground"
+                data-testid="run-stage"
+              >
+                {run.progress.stage}
+              </p>
+            )}
             {run.busy && (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Finding candidates</span>
@@ -403,6 +415,45 @@ export default function SupervisorsPage() {
                 </span>
               </div>
             )}
+            {run.progress && run.progress.total > 0 && (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Fields searched</span>
+                  <span className="tabular-nums" data-testid="run-progress-count">
+                    {run.progress.completed} / {run.progress.total}
+                  </span>
+                </div>
+                {/* One row per field x country pair as it lands. This is the
+                    difference between "the engine is working" and "the engine
+                    is wedged", which an elapsed counter alone cannot tell you.
+                    States are drawn with weight and words, not a second hue —
+                    the palette has one accent and no status colours. */}
+                <ul
+                  className="max-h-40 overflow-y-auto border p-2 text-xs"
+                  data-testid="run-progress-list"
+                >
+                  {run.progress.sources.map((sp) => (
+                    <li
+                      key={sp.source}
+                      className="flex items-center justify-between gap-2 py-0.5"
+                    >
+                      <span className="truncate">{sp.source}</span>
+                      <span
+                        className={
+                          sp.status === "error"
+                            ? "text-destructive"
+                            : sp.records > 0
+                              ? "font-bold tabular-nums"
+                              : "text-muted-foreground tabular-nums"
+                        }
+                      >
+                        {sp.status === "error" ? "failed" : sp.records}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {run.reconnecting && (
               <p
                 className="text-xs text-muted-foreground"
@@ -410,6 +461,12 @@ export default function SupervisorsPage() {
               >
                 Lost contact with the backend — retrying. The search is still
                 running; it does not happen in this window.
+              </p>
+            )}
+            {run.status === "cancelled" && (
+              <p className="border p-2 text-muted-foreground">
+                Search stopped. The supervisors found before you stopped it have
+                been kept and are listed below.
               </p>
             )}
             {run.records != null && (
@@ -430,7 +487,19 @@ export default function SupervisorsPage() {
             </p>
           </div>
           <DialogFooter showCloseButton={run.status !== "starting" && !run.busy}>
-            {run.status === "completed" && (
+            {/* Stop is cooperative: the field in flight finishes, nothing new
+                starts, and every supervisor already saved is kept. Without
+                this a long search could only be escaped by killing the app. */}
+            {run.busy && (
+              <Button
+                variant="outline"
+                onClick={() => void run.cancel()}
+                disabled={run.cancelling}
+              >
+                {run.cancelling ? "Stopping…" : "Stop search"}
+              </Button>
+            )}
+            {(run.status === "completed" || run.status === "cancelled") && (
               <Button onClick={() => run.close()}>Done</Button>
             )}
           </DialogFooter>

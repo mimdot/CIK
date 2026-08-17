@@ -216,12 +216,14 @@ export default function OpportunitiesPage() {
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      {/* Filters sit on one flush-left row. Refresh used to be given the
+          remaining 2-3 grid columns, so it stretched to ~560px — a button the
+          width of a paragraph reads as a banner, not a control. */}
+      <div className="flex flex-wrap items-end gap-3">
         <FilterInput label="Country" value={country} onChange={setCountry} options={countries} />
         <FilterInput label="Source" value={source} onChange={setSource} options={sources} />
         <Button
           variant="outline"
-          className="sm:col-span-2 lg:col-span-3 lg:self-end"
           onClick={() => void load()}
         >
           Refresh
@@ -229,7 +231,7 @@ export default function OpportunitiesPage() {
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {notice && <p className="text-sm text-emerald-600">{notice}</p>}
+      {notice && <p className="text-sm font-bold">{notice}</p>}
 
       {live.length > 0 && (
         <section aria-labelledby="live-heading" className="flex flex-col gap-3">
@@ -328,6 +330,11 @@ export default function OpportunitiesPage() {
                 </span>
               </div>
             )}
+            {run.busy && run.progress?.stage && (
+              <p className="truncate font-mono text-xs text-muted-foreground" data-testid="run-stage">
+                {run.progress.stage}
+              </p>
+            )}
             {run.progress && run.progress.total > 0 && (
               <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between gap-3">
@@ -344,12 +351,14 @@ export default function OpportunitiesPage() {
                     >
                       <span className="truncate">{s.source}</span>
                       <span
+                        // No status green: the palette has one accent and no
+                        // second hue. Weight carries "found something".
                         className={
                           s.status === "error"
                             ? "text-destructive"
                             : s.status === "skipped"
                               ? "text-muted-foreground"
-                              : "text-emerald-600"
+                              : "font-bold tabular-nums"
                         }
                       >
                         {s.status === "error"
@@ -531,7 +540,7 @@ function FilterInput({
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={id}>{label}</Label>
       <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
-        <SelectTrigger id={id} className="w-full">
+        <SelectTrigger id={id} className="w-44">
           <SelectValue placeholder={`All ${label.toLowerCase()}s`} />
         </SelectTrigger>
         <SelectContent>

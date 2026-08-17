@@ -293,6 +293,10 @@ export interface LiveResult {
 export interface RunProgress {
   total: number;
   completed: number;
+  /** What the run is doing right now, e.g. "astronomy / Germany: querying
+   *  openalex". Pair counting alone sits at 0/1 for minutes on a single-field
+   *  search, which cannot distinguish working from stuck. */
+  stage?: string | null;
   sources: SourceProgress[];
   funnel?: RunFunnel | null;
   /** Results so far, appended as each source finishes (Phase 6A). */

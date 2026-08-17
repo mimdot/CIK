@@ -282,7 +282,7 @@ export default function AdminPage() {
 
         {opsMsg && (
           <div
-            className="rounded-md border border-emerald-600/30 bg-emerald-600/10 p-3 text-sm text-emerald-700"
+            className="border p-3 text-sm font-bold"
             data-testid="ops-msg"
           >
             {opsMsg}

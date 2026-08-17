@@ -69,7 +69,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             className={cn(
               "pointer-events-auto flex items-start gap-2.5 rounded-lg border bg-background p-3 text-sm shadow-lg ring-1 ring-foreground/10",
               t.variant === "destructive" && "border-destructive/40 text-destructive",
-              t.variant === "success" && "border-emerald-500/40",
+              t.variant === "success" && "border-foreground/40",
             )}
           >
             <span className="mt-0.5 shrink-0">{ICONS[t.variant]}</span>

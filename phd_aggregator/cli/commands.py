@@ -177,6 +177,8 @@ def sync_supervisors(
     db_url: str = DEFAULT_DB_URL,
     quick: bool = False,
     limit: Optional[int] = None,
+    cancel=None,
+    on_progress=None,
 ) -> tuple[int, int]:
     """
     Sweep all field profiles (or a specific one with ``field``), run the
@@ -187,6 +189,16 @@ def sync_supervisors(
     desktop "run online search" button. ``quick=True`` lightens the OpenAlex
     pool/enrich settings so an interactive search from the UI finishes in
     reasonable time; the CLI keeps the deeper production settings.
+
+    ``cancel`` is any object with ``is_cancelled()`` (see :mod:`core.cancel`);
+    it is polled between field/country pairs, so a cancelled search stops after
+    the pair in flight rather than running to completion. Everything already
+    upserted stays — a cancelled run is a shortened one, not a discarded one.
+
+    ``on_progress`` receives the same event shape the pipeline emits, so the
+    run dialog can render a supervisor search with the machinery it already has
+    for the opportunities engine: one ``start`` event, then one ``source``
+    event per field/country pair as it lands.
 
     Returns ``(upserted, total_candidates)``.
     """
@@ -231,10 +243,28 @@ def sync_supervisors(
     author_enrich = (limit or DEFAULT_SUPERVISOR_LIMIT) if quick else 80
     recent_works = 10 if quick else 25
 
+    if on_progress:
+        on_progress({"event": "start", "total": len(profiles) * len(countries)})
+
+    stopped = False
     for profile_name in profiles:
+        if stopped:
+            break
         prof = P.load_field_profile(profile_name) or {}
         for country in countries:
+            # Cooperative cancel, checked between pairs: the pair in flight
+            # finishes its current request and nothing new is started.
+            if cancel is not None and cancel.is_cancelled():
+                log.info("[sync] cancelled — stopping before %s / %s",
+                         profile_name, country)
+                stopped = True
+                break
             t0 = time.time()
+            # Reported to the run dialog in the finally below, so a pair shows
+            # up whichever way it leaves the loop — found nobody, raised, or
+            # completed normally.
+            pair_status = "error"
+            pair_records = 0
             try:
                 cfg = P.build_config(
                     argparse.Namespace(no_config=True, debug=False, phd_only=False, field=None)
@@ -261,6 +291,9 @@ def sync_supervisors(
                     n_papers = 0
 
                     for s in P._supervisor_chain(cfg, token):
+                        if on_progress:
+                            on_progress({"event": "stage",
+                                         "label": f"{label} / {country}: querying {s}"})
                         if s == "ads" and token:
                             docs = P.ads_supervisor_docs(cfg, http, token, keywords, country)
                             n_papers = len(docs)
@@ -294,6 +327,7 @@ def sync_supervisors(
                     if not ranked:
                         log.warning("[sync] %s / %s: no candidates from any source",
                                     label, country)
+                        pair_status = "done"
                         continue
 
                     # Phase 4B: drop researchers whose recent work does not
@@ -308,6 +342,11 @@ def sync_supervisors(
                                  "candidate(s) with no topic overlap",
                                  label, country, before_gate - len(ranked))
 
+                    if on_progress:
+                        on_progress({
+                            "event": "stage",
+                            "label": f"{label} / {country}: saving {len(ranked)} candidate(s)",
+                        })
                     # Map ranked candidates to Supervisor data and upsert
                     for r in ranked:
                         fit = compute_fit(
@@ -347,6 +386,8 @@ def sync_supervisors(
                                         sup_data.get("name"), e)
 
                     total_candidates += len(ranked)
+                    pair_records = len(ranked)
+                    pair_status = "done"
                     log.info("[sync] %s / %s: %d candidates (src=%s, %.1fs)",
                              label, country, len(ranked), src, time.time() - t0)
                 finally:
@@ -355,6 +396,15 @@ def sync_supervisors(
             except Exception as exc:
                 log.error("Sync failed for %s / %s: %s", profile_name, country, exc)
                 continue
+            finally:
+                if on_progress:
+                    on_progress({
+                        "event": "source",
+                        "source": f"{profile_name} · {country}",
+                        "status": pair_status,
+                        "records": pair_records,
+                        "duration": round(time.time() - t0, 1),
+                    })
 
     session.commit()
     session.close()
