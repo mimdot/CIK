@@ -58,12 +58,17 @@ export function PositionTypeTabs({ value, onChange }: PositionTypeTabsProps) {
               title={t.description}
               onClick={() => t.enabled && onChange(t.name)}
               className={cn(
-                "inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                // Selected reads as INK, not accent: the accent belongs to
+                // the primary action ("Search for positions"), and the spec
+                // allows one accent element per view. Selection is carried by
+                // a filled ink field and weight, which is unambiguous without
+                // spending the accent.
+                "inline-flex items-center gap-2 border px-4 py-2 text-sm transition-colors",
                 active
-                  ? "border-primary bg-primary/10 text-primary"
+                  ? "border-foreground bg-foreground font-bold text-background"
                   : t.enabled
-                    ? "hover:bg-muted"
-                    : "cursor-not-allowed opacity-60",
+                    ? "font-medium hover:bg-muted"
+                    : "cursor-not-allowed font-medium opacity-60",
               )}
             >
               {t.label}

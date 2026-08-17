@@ -128,20 +128,28 @@ _HTML_TEMPLATE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Astronomy PhD positions</title>
+<title>Astra — positions</title>
 <style>
+  /* Astra identity spec, Mark 5E. Ground/surface/ink/accent only: there is no
+     second hue in this system, so the old status green/orange/blue are all
+     rendered with weight and rules instead. Nothing is rounded. */
   :root {
-    --bg: #f4f6fb; --card: #ffffff; --ink: #16213a; --muted: #61708b;
-    --accent: #4353ff; --accent-soft: #eceeff; --ok: #0d8a4f; --warn: #c7761b;
-    --bad: #c02942; --chip: #eef1f7; --border: #e3e8f2;
+    --bg: #f3f2f2; --card: #eae9e9; --ink: #201e1d; --muted: #605d5d;
+    --accent: #ec3013; --accent-soft: #fff2ef; --accent-text: #ae1800;
+    --chip: #eae9e9; --border: rgba(32,30,29,.4);
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { background: linear-gradient(120deg, #1b2440, #31418f);
-           color: #fff; padding: 26px 28px 20px; }
-  header h1 { margin: 0 0 4px; font-size: 22px; }
-  header .sub { color: #b9c4ea; font-size: 13px; }
+         font: 15px/1.55 Archivo, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--ink); color: #f3f2f2; padding: 22px 28px 18px;
+           display: flex; align-items: center; gap: 14px; }
+  header svg { flex: none; }
+  header h1 { margin: 0; font-size: 22px; font-weight: 800;
+              letter-spacing: -.02em; text-transform: uppercase; }
+  header .desc { font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+                 color: #9b9797; }
+  header .sub { margin-left: auto; color: #9b9797; font-size: 12px;
+                font-family: ui-monospace, Menlo, monospace; text-align: right; }
   .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
               padding: 14px 28px; background: var(--card);
               border-bottom: 1px solid var(--border); position: sticky; top: 0;
@@ -149,34 +157,35 @@ _HTML_TEMPLATE = r"""<!doctype html>
   .controls label { font-size: 12px; color: var(--muted); display: block;
                     margin-bottom: 2px; }
   .controls select, .controls input[type=search] {
-    padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
-    background: #fff; font-size: 14px; color: var(--ink); min-width: 140px; }
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 0;
+    background: var(--card); font-size: 14px; color: var(--ink); min-width: 140px; }
   .controls input[type=search] { min-width: 220px; }
   #count { margin-left: auto; font-size: 13px; color: var(--muted); }
   main { padding: 20px 28px 60px; display: grid; gap: 14px;
          grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
   .card { background: var(--card); border: 1px solid var(--border);
-          border-radius: 12px; padding: 16px 16px 13px; display: flex;
-          flex-direction: column; gap: 8px; position: relative;
-          box-shadow: 0 1px 2px rgba(20,30,70,.05); }
+          border-radius: 0; padding: 16px 16px 13px; display: flex;
+          flex-direction: column; gap: 8px; position: relative; }
   .card h2 { margin: 0; font-size: 15.5px; line-height: 1.35; }
   .card h2 a { color: var(--ink); text-decoration: none; }
   .card h2 a:hover { color: var(--accent); }
   .meta { font-size: 13px; color: var(--muted); }
-  .desc { font-size: 13px; color: #3c4a66; }
+  .desc { font-size: 13px; color: var(--ink); }
   .rowline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .chip { background: var(--chip); color: #45526e; border-radius: 999px;
-          padding: 2px 9px; font-size: 11.5px; }
-  .chip.anchor { background: var(--accent-soft); color: var(--accent); }
-  .chip.src { background: #e8f4ee; color: var(--ok); }
-  .badge-new { position: absolute; top: -8px; right: 12px; background: var(--bad);
-               color: #fff; font-size: 10.5px; font-weight: 700;
-               letter-spacing: .5px; padding: 2px 8px; border-radius: 999px; }
-  .score { font-weight: 700; color: var(--accent); font-size: 12.5px; }
+  .chip { background: var(--chip); color: var(--muted); border-radius: 0;
+          border: 1px solid var(--border); padding: 2px 9px; font-size: 11.5px; }
+  .chip.anchor { background: var(--accent-soft); color: var(--accent-text);
+                 border-color: var(--accent); }
+  .chip.src { background: var(--chip); color: var(--ink); }
+  .badge-new { position: absolute; top: -1px; right: 12px; background: var(--accent);
+               color: #f3f2f2; font-size: 10.5px; font-weight: 800;
+               letter-spacing: .5px; padding: 2px 8px; border-radius: 0; }
+  .score { font-weight: 800; color: var(--accent-text); font-size: 12.5px; }
   .dl { font-size: 12.5px; font-weight: 600; }
-  .dl.far { color: var(--ok); } .dl.soon { color: var(--warn); }
-  .dl.verysoon { color: var(--bad); } .dl.none { color: var(--muted);
-  font-weight: 400; }
+  .dl { font-family: ui-monospace, Menlo, monospace; }
+  .dl.far { color: var(--muted); } .dl.soon { color: var(--ink); font-weight: 800; }
+  .dl.verysoon { color: var(--accent-text); font-weight: 800; }
+  .dl.none { color: var(--muted); font-weight: 400; }
   footer { text-align: center; color: var(--muted); font-size: 12px;
            padding: 12px; }
   @media (max-width: 640px) { main { grid-template-columns: 1fr; } }
@@ -184,9 +193,18 @@ _HTML_TEMPLATE = r"""<!doctype html>
 </head>
 <body>
 <header>
-  <h1>Astronomy &amp; Astrophysics PhD positions</h1>
-  <div class="sub">Generated __GENERATED__ &middot; __TOTAL__ positions &middot;
-    sorted by relevance &middot; all data local (no network calls)</div>
+  <svg width="30" height="30" viewBox="0 0 100 100" fill="none" role="img" aria-label="Astra">
+    <line x1="14" y1="80" x2="48" y2="34" stroke="#f3f2f2" stroke-width="7"/>
+    <line x1="48" y1="34" x2="87" y2="53" stroke="#f3f2f2" stroke-width="7"/>
+    <rect x="0" y="66" width="28" height="28" fill="#f3f2f2"/>
+    <rect x="74" y="40" width="26" height="26" fill="#f3f2f2"/>
+    <rect x="32" y="18" width="32" height="32" fill="#ff563c"/>
+  </svg>
+  <div>
+    <h1>Astra</h1>
+    <div class="desc">Positions &amp; supervisors</div>
+  </div>
+  <div class="sub">__GENERATED__ &middot; __TOTAL__ positions<br>sorted by relevance &middot; all data local</div>
 </header>
 <div class="controls">
   <div><label>Search</label>
@@ -208,8 +226,9 @@ _HTML_TEMPLATE = r"""<!doctype html>
   <span id="count"></span>
 </div>
 <main id="cards"></main>
-<footer>phd_aggregator.py &middot; relevance = tiered astronomy taxonomy
-  (core anchors &times; title weighting)</footer>
+<footer>Astra &middot; your academic constellation &middot; relevance = tiered
+  field taxonomy (core anchors &times; title weighting) &middot;
+  <em>Per aspera ad astra</em></footer>
 <script id="data" type="application/json">__DATA__</script>
 <script>
 (function () {

@@ -13,7 +13,14 @@ export function SiteFooter() {
   return (
     <footer className="mt-auto border-t">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <p>{BRAND.topLine}</p>
+        <p className="flex flex-col gap-0.5">
+          {/* The top line is the brand statement, not running copy: wordmark
+              weight on "Astra", the tagline beneath it. */}
+          <span className="font-heading text-sm font-extrabold uppercase tracking-[-0.01em] text-foreground">
+            {BRAND.name}
+          </span>
+          <span>{BRAND.tagline}</span>
+        </p>
         <nav aria-label="About and contact" className="flex flex-wrap gap-4">
           <a
             href={GITHUB_URL}
