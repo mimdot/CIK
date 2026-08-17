@@ -1,5 +1,13 @@
-name: Tauri Release
+name: Astra Release
 
+# Cutting a release:
+#   git tag v1.0.0 && git push origin v1.0.0
+# Builds Astra Desktop for Linux, macOS (Intel + Apple Silicon) and Windows,
+# then publishes the installers to a GitHub Release.
+#
+# Each job builds the PyInstaller sidecar ON its own platform, because
+# PyInstaller cannot cross-compile: a Windows cik-api.exe can only be produced
+# on Windows. That is also why this cannot be tested locally from Linux.
 on:
   push:
     tags:
@@ -8,151 +16,166 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   build:
-    name: Build Tauri App
+    name: Build ${{ matrix.artifact_name }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux
           - platform: 'ubuntu-latest'
             target: 'x86_64-unknown-linux-gnu'
-            artifact_name: 'career-intelligence-linux'
-            tauri_target: ''
-          # macOS Intel
-          - platform: 'macos-13'
+            artifact_name: 'astra-linux'
+            sidecar_ext: ''
+          - platform: 'macos-13'          # Intel
             target: 'x86_64-apple-darwin'
-            artifact_name: 'career-intelligence-macos-x64'
-            tauri_target: '--target x86_64-apple-darwin'
-          # macOS Apple Silicon
-          - platform: 'macos-latest'
+            artifact_name: 'astra-macos-x64'
+            sidecar_ext: ''
+          - platform: 'macos-latest'      # Apple Silicon
             target: 'aarch64-apple-darwin'
-            artifact_name: 'career-intelligence-macos-arm64'
-            tauri_target: '--target aarch64-apple-darwin'
-          # Windows
+            artifact_name: 'astra-macos-arm64'
+            sidecar_ext: ''
           - platform: 'windows-latest'
             target: 'x86_64-pc-windows-msvc'
-            artifact_name: 'career-intelligence-windows'
-            tauri_target: '--target x86_64-pc-windows-msvc'
-            sidecar_suffix: '.exe'
+            artifact_name: 'astra-windows'
+            sidecar_ext: '.exe'
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: dashboard/package-lock.json
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install system dependencies (Linux)
+      # Tauri's Linux prerequisites. macOS uses WKWebView and Windows uses
+      # WebView2 (shipped with Windows 10/11) — neither needs anything here,
+      # and the old `brew install webkit2gtk-4.1` was a Linux package that
+      # could only ever fail on a mac.
+      - name: System dependencies (Linux only)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libgtk-3-dev \
-            libglib2.0-dev \
-            libsoup2.4-dev \
-            libjavascriptcoregtk-4.1-dev \
-            pkg-config \
-            python3-pip
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            libgtk-3-dev libglib2.0-dev libjavascriptcoregtk-4.1-dev pkg-config
 
-      - name: Install system dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install python@3.12 webkit2gtk-4.1
-
-      - name: Install system dependencies (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          # WebView2 is required for Tauri on Windows
-          # It's typically pre-installed on Windows 10/11, but we ensure it
-          # by downloading the Evergreen bootstrapper if needed
-          echo "WebView2 should be available on Windows 10/11"
-          # Install Python for PyInstaller
-          choco install python --version=3.12 -y
-
-      - name: Cache Tauri dependencies
+      - name: Cache cargo + target
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/bin
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             dashboard/src-tauri/target
-          key: ${{ runner.os }}-tauri-${{ hashFiles('dashboard/src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('dashboard/src-tauri/Cargo.lock') }}
 
       - name: Install frontend dependencies
         working-directory: dashboard
         run: npm ci
 
-      - name: Build FastAPI sidecar (PyInstaller)
+      # THE SIDECAR. `shell: bash` is required — windows-latest defaults to
+      # PowerShell, where `mkdir -p` and `chmod` are not what is written here.
+      #
+      # requirements.txt is the part that was missing: without the app's own
+      # dependencies installed, PyInstaller freezes a bundle whose imports do
+      # not resolve, and the shipped API fails at startup on every platform.
+      - name: Build the API sidecar (PyInstaller)
+        shell: bash
         working-directory: phd_aggregator
         run: |
-          pip install --break-system-packages pyinstaller
-          pyinstaller cik-api.spec
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+          python -m PyInstaller --noconfirm cik-api.spec
           mkdir -p ../dashboard/src-tauri/sidecar/api
-          SUFFIX="${{ matrix.sidecar_suffix }}"
-          cp dist/cik-api ../dashboard/src-tauri/sidecar/api/cik-api-${{ matrix.target }}$SUFFIX
-          chmod +x ../dashboard/src-tauri/sidecar/api/cik-api-${{ matrix.target }}$SUFFIX
+          SRC="dist/cik-api${{ matrix.sidecar_ext }}"
+          DEST="../dashboard/src-tauri/sidecar/api/cik-api-${{ matrix.target }}${{ matrix.sidecar_ext }}"
+          test -f "$SRC" || { echo "PyInstaller produced no $SRC"; ls -la dist; exit 1; }
+          cp "$SRC" "$DEST"
+          chmod +x "$DEST" || true
 
-      - name: Build Tauri App
+      - name: Build Astra Desktop
         working-directory: dashboard
-        run: |
-          npm run tauri build ${{ matrix.tauri_target }}
+        env:
+          TAURI: 'true'
+        run: npx tauri build --target ${{ matrix.target }}
 
+      # Always pass --target above, so the bundle path is the same shape on
+      # every platform. Previously Linux passed no target and its bundle landed
+      # in target/release/bundle while the upload looked in
+      # target/<triple>/release/bundle — so the Linux artifact was always empty.
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: |
-            dashboard/src-tauri/target/${{ matrix.target }}/release/bundle/**/*
+          path: dashboard/src-tauri/target/${{ matrix.target }}/release/bundle/**/*
+          if-no-files-found: error
           retention-days: 7
 
   release:
-    name: Create GitHub Release
+    name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: List artifacts
-        run: find artifacts -type f
+      - name: What was built
+        run: find artifacts -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' -o -name '*.msi' -o -name '*.exe' \) -exec ls -lh {} \;
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          name: Astra ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            **Astra — your academic constellation**
+
+            Astra finds academic positions and supervisors — PhD openings,
+            postdocs, funded programmes and the people running them — and keeps
+            the search on your own machine.
+
+            ### Which file do I download?
+
+            | Your system | File |
+            |---|---|
+            | Windows 10/11 | `.exe` (installer) or `.msi` |
+            | macOS (Apple Silicon) | `*aarch64.dmg` |
+            | macOS (Intel) | `*x64.dmg` |
+            | Linux (any) | `.AppImage` — `chmod +x` it and run |
+            | Debian / Ubuntu | `.deb` |
+            | Fedora / RHEL | `.rpm` |
+
+            Downloads are large (~150–300 MB): the whole search engine and its
+            Python runtime are bundled, so Astra needs no separate install and
+            works offline.
+
+            Windows shows a SmartScreen warning because the app is not
+            code-signed. Choose **More info -> Run anyway**.
           files: |
             artifacts/**/*.AppImage
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
             artifacts/**/*.dmg
             artifacts/**/*.msi
             artifacts/**/*.exe
-            artifacts/**/*.tar.gz
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

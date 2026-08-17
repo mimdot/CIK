@@ -1,19 +1,63 @@
+<div align="center">
+
+<img src="dashboard/src-tauri/icons/astra/128x128.png" width="88" alt="Astra">
+
 # Astra
 
 **Your academic constellation**
 
+[![Release](https://img.shields.io/github/v/release/mimdot/CIK?label=download&color=ec3013)](https://github.com/mimdot/CIK/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-201e1d.svg)](LICENSE)
+[![CI](https://github.com/mimdot/CIK/actions/workflows/ci.yml/badge.svg)](https://github.com/mimdot/CIK/actions/workflows/ci.yml)
+
 Astra finds academic positions and supervisors — PhD openings, postdocs, funded
-programmes and the people running them — and keeps the search on your own
-machine.
+programmes and the people running them — and keeps the search on your own machine.
+
+</div>
+
+---
+
+## Download
+
+**[⬇ Get the latest release](https://github.com/mimdot/CIK/releases/latest)**
+
+| Your system | File to download |
+|---|---|
+| **Windows 10/11** | `.exe` installer (or `.msi`) |
+| **macOS** — Apple Silicon | `…aarch64.dmg` |
+| **macOS** — Intel | `…x64.dmg` |
+| **Linux** — any | `.AppImage` &nbsp;→&nbsp; `chmod +x` then run |
+| **Debian / Ubuntu** | `.deb` |
+| **Fedora / RHEL** | `.rpm` |
+
+No separate install is needed: the whole search engine and its Python runtime
+are bundled, which is why the download is 150–300 MB. It works offline.
+
+On first launch, sign in with your email and the access code you were given.
+
+<details>
+<summary><b>Windows says "Windows protected your PC"</b></summary>
+
+Astra is not code-signed (a certificate costs a few hundred dollars a year).
+Click **More info → Run anyway**. The installer is built in the open by
+[this workflow](.github/workflows/tauri-release.yml) straight from the tagged
+source, so you can check exactly what produced it.
+</details>
+
+---
+
+## What it does
 
 Academic openings are scattered across faculty pages, mailing lists and PDF
 calls. Astra collects them, matches them to your field and stage, and shows you
-who supervises what — so the search becomes a shortlist you can act on. Runs as
-a command, a local dashboard or a desktop app; your data never leaves your
-machine.
+who supervises what — so the search becomes a shortlist you can act on.
 
-Listings are scored against an editable per-field taxonomy, deduplicated,
-freshness-filtered, and (optionally) matched against your research profile.
+- **Positions** from academic job boards, deduplicated and freshness-filtered
+- **Supervisors** ranked by an explainable 0–100 fit, from NASA ADS / OpenAlex / arXiv
+- **Scored against your field**, using an editable per-field keyword taxonomy
+- **Saved items** that survive a re-crawl, with notes and an application status
+- **Runs anywhere**: a command, a local dashboard, or a desktop app
+- **Yours alone** — see [PRIVACY.md](PRIVACY.md)
 
 | Surface | What it is |
 |---|---|
@@ -26,11 +70,31 @@ freshness-filtered, and (optionally) matched against your research profile.
 > proxy, with polite rate limiting and robots.txt handling. No CAPTCHA solving,
 > no ban evasion — a blocked source is skipped and logged.
 
-See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the full map.
+---
+
+## Build it yourself
+
+```bash
+git clone https://github.com/mimdot/CIK.git && cd CIK
+./run.sh
+```
+
+That is the whole thing — it builds whatever is missing and launches. See
+[Running each surface](#running-each-surface) for the individual pieces, and
+[ARCHITECTURE.md](ARCHITECTURE.md) for the full map.
+
+| | |
+|---|---|
+| Changes per release | [CHANGELOG.md](CHANGELOG.md) |
+| How your data is handled | [PRIVACY.md](PRIVACY.md) |
+| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Licence | [MIT](LICENSE) |
 
 ---
 
-## Three ways to run it
+## Running each surface
+
+### Three ways to run it
 
 | | What it is | Start |
 |---|---|---|

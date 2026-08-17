@@ -263,6 +263,19 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
     const NO_PROXY: &str = "localhost,127.0.0.1,::1,0.0.0.0";
     cmd.env("NO_PROXY", NO_PROXY).env("no_proxy", NO_PROXY);
 
+    // The sidecar is a console-subsystem binary (cik-api.spec sets
+    // console=True so uvicorn's stdio can be redirected into api.log). On
+    // Windows that means spawning it pops a black console window next to the
+    // app and leaves it there for the session. main.rs already hides the
+    // shell's own console via `windows_subsystem`, but that says nothing about
+    // a child.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
     // Forward a proxy if the user set one (e.g. V2RayN SOCKS for restricted
     // networks) — the packaged sidecar has no config.yaml on its CWD.
     if let Ok(proxy) = std::env::var("CIK_PROXY") {
