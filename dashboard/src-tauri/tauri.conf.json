@@ -7,7 +7,7 @@
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "TAURI=true npm run build"
+    "beforeBuildCommand": "npx cross-env TAURI=true npm run build"
   },
   "app": {
     "windows": [

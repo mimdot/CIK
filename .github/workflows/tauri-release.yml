@@ -127,14 +127,28 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: build
+    # `always()` on purpose: `needs` alone would skip the release entirely if
+    # ANY platform failed, so a Windows build error meant Linux and macOS users
+    # got nothing either — which is exactly what happened on the first v1.0.0
+    # attempt. Publish whatever built; a missing platform is better than a
+    # missing release, and the failed job is visible in Actions.
+    if: always() && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           path: artifacts
+
+      - name: Fail only if NOTHING built
+        run: |
+          n=$(find artifacts -type f \( -name '*.AppImage' -o -name '*.deb' \
+              -o -name '*.rpm' -o -name '*.dmg' -o -name '*.msi' -o -name '*.exe' \) \
+              2>/dev/null | wc -l)
+          echo "installers found: $n"
+          [ "$n" -gt 0 ] || { echo "no installers were produced by any platform"; exit 1; }
 
       - name: What was built
         run: find artifacts -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' -o -name '*.msi' -o -name '*.exe' \) -exec ls -lh {} \;

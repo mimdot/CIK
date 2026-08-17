@@ -21,14 +21,33 @@ programmes and the people running them — and keeps the search on your own mach
 
 **[⬇ Get the latest release](https://github.com/mimdot/CIK/releases/latest)**
 
+### Which surface can I run?
+
+| | Linux | macOS | Windows |
+|---|---|---|---|
+| **Astra CLI** (`astra`) | ✅ | ✅ | ✅ |
+| **Astra Dashboard** (local web) | ✅ | ✅ | ✅ |
+| **Astra Desktop** (installer) | ✅ tested on Ubuntu | ⚠️ builds, untested | ⚠️ builds, untested |
+
+The **CLI and the local dashboard run anywhere Python 3.11+ does** — they are
+pure Python plus a Next.js frontend, with nothing platform-specific in them.
+
+The **desktop app** is built for all three platforms by CI from the same
+source, but so far it has only been *run* on Linux (Ubuntu). The macOS and
+Windows installers are produced and published; nobody has yet installed one and
+clicked through it. If you try one, please
+[open an issue](https://github.com/mimdot/CIK/issues) — good or bad.
+
+### Desktop installers
+
 | Your system | File to download |
 |---|---|
-| **Windows 10/11** | `.exe` installer (or `.msi`) |
-| **macOS** — Apple Silicon | `…aarch64.dmg` |
-| **macOS** — Intel | `…x64.dmg` |
 | **Linux** — any | `.AppImage` &nbsp;→&nbsp; `chmod +x` then run |
 | **Debian / Ubuntu** | `.deb` |
 | **Fedora / RHEL** | `.rpm` |
+| **macOS** — Apple Silicon | `…aarch64.dmg` |
+| **macOS** — Intel | `…x64.dmg` |
+| **Windows 10/11** | `.exe` installer (or `.msi`) |
 
 No separate install is needed: the whole search engine and its Python runtime
 are bundled, which is why the download is 150–300 MB. It works offline.
@@ -42,6 +61,20 @@ Astra is not code-signed (a certificate costs a few hundred dollars a year).
 Click **More info → Run anyway**. The installer is built in the open by
 [this workflow](.github/workflows/tauri-release.yml) straight from the tagged
 source, so you can check exactly what produced it.
+</details>
+
+<details>
+<summary><b>No installer for my platform? Run the CLI or the dashboard instead</b></summary>
+
+Both work everywhere and need no packaging:
+
+```bash
+git clone https://github.com/mimdot/CIK.git && cd CIK
+cd phd_aggregator && pip install -r requirements.txt
+python phd_aggregator.py --help
+```
+
+See [Running each surface](#running-each-surface).
 </details>
 
 ---

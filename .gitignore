@@ -74,3 +74,7 @@ dashboard/src-tauri/sidecar/api/*-x86_64-*
 dashboard/src-tauri/sidecar/api/*-apple-*
 dashboard/src-tauri/sidecar/api/*-pc-windows-*
 dashboard/src-tauri/gen/
+
+# Local dev-tool state, not part of the product
+.claude/
+.codegraph/
