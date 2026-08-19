@@ -28,7 +28,13 @@ jobs:
             target: 'x86_64-unknown-linux-gnu'
             artifact_name: 'astra-linux'
             sidecar_ext: ''
-          - platform: 'macos-13'          # Intel
+          # Intel Mac. `macos-13` until this release, which is a label GitHub
+          # retired in December 2025 — so the Intel build had stopped being
+          # produced at all, silently, while the README and the project page
+          # both still offered an "…x64.dmg". `macos-15-intel` is the
+          # replacement GitHub named for x86_64 macOS. (Apple has dropped
+          # Intel; GitHub retires this one after macOS 15, in autumn 2027.)
+          - platform: 'macos-15-intel'
             target: 'x86_64-apple-darwin'
             artifact_name: 'astra-macos-x64'
             sidecar_ext: ''
@@ -42,6 +48,12 @@ jobs:
             sidecar_ext: '.exe'
 
     runs-on: ${{ matrix.platform }}
+    # `release` below needs every matrix job to FINISH, and `if: always()` only
+    # covers finishing badly — it does nothing for a job that never starts. A
+    # retired or busy runner label would otherwise hold the whole release at
+    # GitHub's six-hour default. An hour is generous: the slowest platform here
+    # takes about twenty-five minutes.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
