@@ -41,15 +41,15 @@ jest.mock(
   { virtual: true },
 );
 
-const w = window as unknown as { __CIK_DESKTOP__?: boolean };
+const w = window as unknown as { __ASTRA_DESKTOP__?: boolean };
 
 function asDesktop() {
-  w.__CIK_DESKTOP__ = true;
+  w.__ASTRA_DESKTOP__ = true;
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  delete w.__CIK_DESKTOP__;
+  delete w.__ASTRA_DESKTOP__;
 });
 
 describe("isExternalHref", () => {

@@ -4,7 +4,7 @@ Thanks for helping! The engine's design goal is **one self-contained function
 per source, one YAML file per field** — adding either is a small, single-file
 change that never requires touching the pipeline. Please keep that contract.
 
-- Code lives in `phd_aggregator/` (Python engine + FastAPI) and `dashboard/`
+- Code lives in `astra/` (Python engine + FastAPI) and `dashboard/`
   (Next.js). See [ARCHITECTURE.md](ARCHITECTURE.md) for the map.
 - **Never bundle a refactor and a behaviour change in one commit.** Keep commits
   small and reviewable.
@@ -18,9 +18,9 @@ Everything must stay green before and after your change:
 
 ```bash
 # Python engine
-cd phd_aggregator
-python phd_aggregator.py --self-test      # offline pipeline self-test
-CIK_TESTING=1 pytest -q                    # full suite (offline fixtures)
+cd astra
+python astra.py --self-test      # offline pipeline self-test
+ASTRA_TESTING=1 pytest -q                    # full suite (offline fixtures)
 
 # Dashboard
 cd dashboard
@@ -36,7 +36,7 @@ If you add pipeline behaviour, add a check to the self-test and a pytest for it.
 A field profile is pure data — copy the template and edit it:
 
 ```bash
-cd phd_aggregator
+cd astra
 cp fields/template.yaml fields/marine_biology.yaml
 ```
 
@@ -120,13 +120,13 @@ at all, the run says so plainly and carries on with the general ones:
 ### Verify it
 
 ```bash
-python phd_aggregator.py --field marine_biology --limit-per-source 30 --debug
+python astra.py --field marine_biology --limit-per-source 30 --debug
 ```
 
 `--debug` logs every keep/drop decision; the run header prints exactly which
 boards were chosen and which were skipped as not relevant. Check both.
 
-Or scaffold interactively with `python phd_aggregator.py --new-field
+Or scaffold interactively with `python astra.py --new-field
 marine_biology`. The dashboard picks the profile up automatically (it reads
 `fields/` through `/api/fields`) — the field selector, the subfield
 multi-select and the keyword picker all populate themselves, and your
@@ -138,13 +138,13 @@ needed to ship a new field.
 ## Worked example 2 — add a job-board source (one function)
 
 Sources are plain functions registered with `@register_source`, in
-`phd_aggregator/sources/<name>.py`. They receive the config and a polite HTTP
+`astra/sources/<name>.py`. They receive the config and a polite HTTP
 client (proxy, robots.txt, throttling, retries, anti-bot fallbacks all built
 in) and return **raw** records — the pipeline does all filtering/scoring/dedup.
 Fetching is concurrent, so a source must not rely on global state.
 
 ```python
-# phd_aggregator/sources/eso.py
+# astra/sources/eso.py
 @register_source("eso")
 def source_eso(cfg: Config, http: Http) -> list[dict]:
     """[FEED] ESO recruitment portal — official RSS at /jobs.rss."""
@@ -181,10 +181,10 @@ Checklist:
    (`config.yaml`).
 5. Keep drifting URLs/selectors in clearly marked constants with a
    "verified &lt;date&gt;" note.
-6. Test: `python phd_aggregator.py --source eso --debug`.
+6. Test: `python astra.py --source eso --debug`.
 
 The engine's fuller extension contract (seed adapters, anti-bot chain details)
-lives in [phd_aggregator/CONTRIBUTING.md](phd_aggregator/CONTRIBUTING.md).
+lives in [astra/CONTRIBUTING.md](astra/CONTRIBUTING.md).
 
 ---
 

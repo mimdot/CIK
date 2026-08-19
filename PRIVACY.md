@@ -11,9 +11,9 @@ Everything lives in a single SQLite database on your own computer:
 
 | Platform | Location |
 |---|---|
-| Linux | `~/.local/share/com.careerintelligence.kit/phd_data.db` |
-| macOS | `~/Library/Application Support/com.careerintelligence.kit/` |
-| Windows | `%APPDATA%\com.careerintelligence.kit\` |
+| Linux | `~/.local/share/com.astra.app/astra.db` |
+| macOS | `~/Library/Application Support/com.astra.app/` |
+| Windows | `%APPDATA%\com.astra.app\` |
 
 That file holds your email address, your research profile (field and
 keywords), the positions and supervisors the engine found, and anything you

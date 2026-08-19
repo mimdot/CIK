@@ -1,0 +1,53 @@
+# Line endings, pinned in the repository rather than left to each machine.
+#
+# Astra is now developed on Linux AND Windows, and git's line-ending behaviour
+# is otherwise a per-contributor setting (`core.autocrlf`). That is fine until
+# one Windows contributor has it off, at which point `run.sh` is committed with
+# CRLF and Linux answers every invocation with
+#
+#     /usr/bin/env: 'bash\r': No such file or directory
+#
+# which reads like a missing interpreter and is not one. These rules make the
+# outcome a property of the repo, so nobody has to configure anything.
+
+# Normalise every text file to LF in the repository. Working-tree endings stay
+# native unless overridden below.
+* text=auto
+
+# Must be LF everywhere, including in a Windows working tree: these are run by
+# bash, and bash does not tolerate a carriage return in the shebang or in
+# `case` labels. Git for Windows, WSL and CI all run them as-is.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.bash      text eol=lf
+
+# Must be CRLF: Windows PowerShell 5.1 is fussy about here-strings with LF
+# endings, and these files only ever run on Windows anyway.
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# Never touched. Without these, `text=auto` can corrupt a file it wrongly
+# guesses is text — an icon or a SQLite database is not recoverable from that.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.icns      binary
+*.pdf       binary
+*.zip       binary
+*.gz        binary
+*.exe       binary
+*.dll       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.otf       binary
+*.db        binary
+*.sqlite    binary
+*.AppImage  binary
+*.deb       binary
+*.rpm       binary
+*.dmg       binary
+*.msi       binary

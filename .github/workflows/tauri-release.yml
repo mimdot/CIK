@@ -6,7 +6,7 @@ name: Astra Release
 # then publishes the installers to a GitHub Release.
 #
 # Each job builds the PyInstaller sidecar ON its own platform, because
-# PyInstaller cannot cross-compile: a Windows cik-api.exe can only be produced
+# PyInstaller cannot cross-compile: a Windows astra-api.exe can only be produced
 # on Windows. That is also why this cannot be tested locally from Linux.
 on:
   push:
@@ -88,20 +88,29 @@ jobs:
       # THE SIDECAR. `shell: bash` is required — windows-latest defaults to
       # PowerShell, where `mkdir -p` and `chmod` are not what is written here.
       #
-      # requirements.txt is the part that was missing: without the app's own
-      # dependencies installed, PyInstaller freezes a bundle whose imports do
-      # not resolve, and the shipped API fails at startup on every platform.
+      # Installing the app's own dependencies is the part that was once
+      # missing: without them PyInstaller freezes a bundle whose imports do not
+      # resolve, and the shipped API fails at startup on every platform.
+      #
+      # requirements-DESKTOP.txt, not requirements.txt. The full manifest adds
+      # Playwright, LiteLLM, pandas, psycopg2 and the Redis/RQ queue — roughly
+      # 400 MB that astra-api.spec then EXCLUDES from the bundle, so it is
+      # downloaded and thrown away on every platform. It is also where the
+      # Windows job is most likely to fall over: psycopg2 wants a compiler and
+      # Playwright wants a browser download, neither of which the sidecar uses.
+      # Verified: with exactly this list the frozen binary starts and /health
+      # answers {"status":"ok"}.
       - name: Build the API sidecar (PyInstaller)
         shell: bash
-        working-directory: phd_aggregator
+        working-directory: astra
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-desktop.txt
           python -m pip install pyinstaller
-          python -m PyInstaller --noconfirm cik-api.spec
+          python -m PyInstaller --noconfirm astra-api.spec
           mkdir -p ../dashboard/src-tauri/sidecar/api
-          SRC="dist/cik-api${{ matrix.sidecar_ext }}"
-          DEST="../dashboard/src-tauri/sidecar/api/cik-api-${{ matrix.target }}${{ matrix.sidecar_ext }}"
+          SRC="dist/astra-api${{ matrix.sidecar_ext }}"
+          DEST="../dashboard/src-tauri/sidecar/api/astra-api-${{ matrix.target }}${{ matrix.sidecar_ext }}"
           test -f "$SRC" || { echo "PyInstaller produced no $SRC"; ls -la dist; exit 1; }
           cp "$SRC" "$DEST"
           chmod +x "$DEST" || true

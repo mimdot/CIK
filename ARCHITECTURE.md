@@ -7,13 +7,13 @@
 
 ## 0. Reconciliation with the standing brief (read this first)
 
-The brief describes *"a large Python core (`phd_aggregator.py`, ~25,000 lines,
+The brief describes *"a large Python core (`astra.py`, ~25,000 lines,
 largely AI-generated in bulk)"* plus a desktop app and a local live version, and
 asks (Phase 3) to *split the monolith into a package*.
 
 **That split has already happened.** On disk today:
 
-- `phd_aggregator/phd_aggregator.py` is **528 lines** — a thin CLI shim that
+- `astra/astra.py` is **528 lines** — a thin CLI shim that
   re-exports a real package (`api/ core/ db/ cli/ sources/ supervisors/
   matching/ pipeline/ fields/ toolkit/`), ~27.8k LOC total across many files.
 - The desktop app is **Tauri** (Rust shell + PyInstaller FastAPI sidecar).
@@ -32,12 +32,12 @@ gaps (per your instruction to flag conflicts rather than rebuild).
 
 | Surface | Start command | Frontend | Backend | Talks via |
 |---|---|---|---|---|
-| **CLI** | `python phd_aggregator.py …` | terminal + self-contained `phd_positions.html` | direct in-process import of the package | function calls |
+| **CLI** | `python astra.py …` | terminal + self-contained `astra_positions.html` | direct in-process import of the package | function calls |
 | **Live / web** | `uvicorn api.app:app` + `npm run dev` (dashboard) | Next.js dev/prod server | FastAPI (`api.app:app`) + SQLite/Postgres + optional Redis | **HTTP** (`NEXT_PUBLIC_API_URL`, default `http://localhost:8000`) |
-| **Desktop** | `./run.sh` (repo root) / bundled app | static Next export (`dashboard/out/`) in a Tauri webview | PyInstaller `cik-api` sidecar (`api/run.py`) on `127.0.0.1:8000` | **HTTP** to localhost |
+| **Desktop** | `./run.sh` (repo root) / bundled app | static Next export (`dashboard/out/`) in a Tauri webview | PyInstaller `astra-api` sidecar (`api/run.py`) on `127.0.0.1:8000` | **HTTP** to localhost |
 
 ### CLI
-`phd_aggregator.py` → `main()` → `build_config()` (3-layer: built-in defaults →
+`astra.py` → `main()` → `build_config()` (3-layer: built-in defaults →
 `config.yaml` → `fields/<profile>.yaml` → CLI flags) → dispatch to `self_test`,
 `find_supervisors`, DB helpers, or `pipeline.run.run()`. The CLI imports the
 package directly; there is no server.
@@ -56,13 +56,13 @@ package directly; there is no server.
 
 ### Desktop (Tauri)
 `dashboard/src-tauri/src/lib.rs` `spawn_sidecar()` launches the bundled
-`cik-api` binary on `127.0.0.1:8000` with a per-launch random `CIK_SECRET_KEY`,
-`DATABASE_URL=sqlite://<app-data>/phd_data.db`, invites off, insecure cookies
+`astra-api` binary on `127.0.0.1:8000` with a per-launch random `ASTRA_SECRET_KEY`,
+`DATABASE_URL=sqlite://<app-data>/astra.db`, invites off, insecure cookies
 (local HTTP), scheduler off; it streams sidecar logs to `<app-data>/api.log` and
 kills the child on exit. `lib/api.ts` `apiBase()` uses the base the shell
-injects as `window.__CIK_API_BASE__`, falling back to the web default.
+injects as `window.__ASTRA_API_BASE__`, falling back to the web default.
 `tauri.conf.json` serves the static
-export from `../out` and declares `sidecar/api/cik-api` as `externalBin`.
+export from `../out` and declares `sidecar/api/astra-api` as `externalBin`.
 `./run.sh` at the repo root builds the sidecar and the app (only when stale)
 and launches. It builds through the **Tauri CLI**, never plain `cargo build`:
 the latter yields a binary that opens a window and renders nothing, because
@@ -96,20 +96,20 @@ auth, keeps working from cached rows and looks healthy.
 
 1. `setup()` spawns `boot_and_watch` on a background thread so the window paints
    immediately instead of freezing while a PyInstaller onefile unpacks.
-2. `sidecar_path()` resolves `cik-api` **next to `current_exe()`** — where Tauri
+2. `sidecar_path()` resolves `astra-api` **next to `current_exe()`** — where Tauri
    puts `externalBin` on every layout. Not `BaseDirectory::Executable`: that is
    `dirs::executable_dir()`, the user's `~/.local/bin`, and using it meant the
    app never found its own backend (and on macOS/Windows, where that directory
    is `None`, could not even resolve a path).
 3. `spawn_sidecar()` picks a port — 8000 if free, otherwise an OS-assigned one —
-   and starts `cik-api` with the desktop env (`NO_PROXY`/`no_proxy` include
+   and starts `astra-api` with the desktop env (`NO_PROXY`/`no_proxy` include
    `localhost,127.0.0.1,::1` so a system-wide SOCKS/HTTP proxy cannot swallow
    loopback traffic).
 4. `wait_for_health()` polls `GET /health` over raw TCP until it answers 200
    (90 s budget). **Only then** is a base URL published. Before this existed the
    port was injected immediately and any call made during the unpack window
    failed as "cannot reach the API server".
-5. `on_page_load` re-injects `window.__CIK_API_BASE__` on **every** page load.
+5. `on_page_load` re-injects `window.__ASTRA_API_BASE__` on **every** page load.
    The previous one-shot `eval()` at setup was thrown away by the first
    navigation, after which the frontend fell back to `:8000` — the wrong port
    whenever the shell had picked another.
@@ -117,11 +117,11 @@ auth, keeps working from cached rows and looks healthy.
    used to require `window.__TAURI__` first, which Tauri v2 defines only under
    `app.withGlobalTauri` (unset here) — so the gate was always false and every
    port the shell picked other than 8000 was unreachable. `AuthGate` also waits
-   while `__CIK_API_READY__ === false` with no error, instead of racing the
+   while `__ASTRA_API_READY__ === false` with no error, instead of racing the
    sidecar's unpack and reporting "cannot reach the API server" on every cold
    start.
 7. If the child dies while the app is open, the watcher restarts it.
-8. On failure the shell publishes `window.__CIK_API_ERROR__` with the reason and
+8. On failure the shell publishes `window.__ASTRA_API_ERROR__` with the reason and
    the tail of `<app-data>/api.log`; `AuthGate` renders that instead of asking
    the user whether the backend they cannot start is running.
 
@@ -137,11 +137,11 @@ the supervisor search found 89 German candidates, failed to save all 89 with
 
 ---
 
-## 2. Backend package map (`phd_aggregator/`)
+## 2. Backend package map (`astra/`)
 
 | Package | Role |
 |---|---|
-| `phd_aggregator.py` | CLI shim + `parse_args`/`main`/`new_field_wizard`; re-exports the package for back-compat. |
+| `astra.py` | CLI shim + `parse_args`/`main`/`new_field_wizard`; re-exports the package for back-compat. |
 | `core/` | Cross-cutting: `config` (3-layer loader, field profiles), `http` (proxy/anti-bot `Http`, robots, SSRF guard), `llm` (`LLMRouter`, litellm), `profile_schema`/`profile` (`UserProfile`, `extract_profile`), `taxonomy` (relevance scoring), `records`, `cache` (Redis/in-mem result cache), `tasks` (rq/thread jobs + digest scheduler), `digest`, `email`, `ratelimit`, `anomaly`, `source_monitor`, `observe`, `env`, `utils`. |
 | `sources/` | One file per job board (euraxess, nature_careers, jobs_ac_uk, findaphd, academictransfer, academicjobsonline, aas, jrecin, eso, esa, linkedin, uni_departments, seed_urls) + `base.py` (`@register_source`, `SOURCES` registry) + `stubs.py` (iau/astrobetter, disabled). |
 | `pipeline/` | `run.py` (the orchestrator: fetch→filter→freshness→dedupe→sort→score→write CSV/JSON/HTML), `filter`, `dedupe`, `freshness`, `parse_page` (JSON-LD/OpenGraph/readability). |
@@ -181,7 +181,7 @@ The **same** `pipeline.run.run()` is invoked two ways:
 
 So the API path runs the crawl **off the request thread** (UI never blocks), and
 since the 2026-08-13 pass the crawl itself is concurrent (`ThreadPoolExecutor`,
-`CIK_SOURCE_CONCURRENCY`, default 6) and streams per-source progress events.
+`ASTRA_SOURCE_CONCURRENCY`, default 6) and streams per-source progress events.
 
 ### The source layer is NOT field-aware (the core defect)
 
@@ -228,7 +228,7 @@ the same scorer and emails the top matches.
 
 - **Dead / unwired (intentional):** `sources/stubs.py` (`iau`, `astrobetter` —
   registered but disabled), `toolkit/` (emails/professors/scholarships, CLI-only,
-  no API route), the bulk re-exports in `phd_aggregator.py` (a test pins them).
+  no API route), the bulk re-exports in `astra.py` (a test pins them).
 - **Duplication:** none material. One module per source; no competing
   fetcher/parser/filter implementations. (The brief's "P0 competing versions"
   does not exist on disk.)

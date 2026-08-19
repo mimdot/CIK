@@ -3,9 +3,9 @@
 **/__pycache__/
 **/*.pyc
 .env
-phd_data.db
-phd_positions*.csv
-phd_positions*.html
-phd_positions*.json
+astra.db
+astra_positions*.csv
+astra_positions*.html
+astra_positions*.json
 dashboard/
 tests/

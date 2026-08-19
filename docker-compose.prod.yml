@@ -8,7 +8,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     volumes:
-      - cik-pgdata:/var/lib/postgresql/data
+      - astra-pgdata:/var/lib/postgresql/data
 
   redis:
     restart: unless-stopped
@@ -20,10 +20,10 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     environment:
-      CIK_SECRET_KEY: ${CIK_SECRET_KEY:?CIK_SECRET_KEY must be set in production}
+      ASTRA_SECRET_KEY: ${ASTRA_SECRET_KEY:?ASTRA_SECRET_KEY must be set in production}
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS must list the production dashboard origin}
       API_WORKERS: ${API_WORKERS:-1}
-      CIK_SCHEDULER_ENABLED: ${CIK_SCHEDULER_ENABLED:-1}
+      ASTRA_SCHEDULER_ENABLED: ${ASTRA_SCHEDULER_ENABLED:-1}
       DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
       DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-20}
       SENTRY_DSN: ${SENTRY_DSN:-}
@@ -40,7 +40,7 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST:-}
       ASSISTANT_DAILY_LIMIT: ${ASSISTANT_DAILY_LIMIT:-50}
       LLM_MONTHLY_CAP_USD: ${LLM_MONTHLY_CAP_USD:-}
-      CIK_JSON_LOGS: ${CIK_JSON_LOGS:-1}
+      ASTRA_JSON_LOGS: ${ASTRA_JSON_LOGS:-1}
     expose:
       - "8000"
     stop_grace_period: 30s
@@ -50,8 +50,8 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     environment:
-      CIK_JOB_RETRIES: ${CIK_JOB_RETRIES:-2}
-      CIK_JOB_RETRY_DELAY: ${CIK_JOB_RETRY_DELAY:-2}
+      ASTRA_JOB_RETRIES: ${ASTRA_JOB_RETRIES:-2}
+      ASTRA_JOB_RETRY_DELAY: ${ASTRA_JOB_RETRY_DELAY:-2}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
       DASHBOARD_URL: ${DASHBOARD_URL:-}
@@ -80,7 +80,7 @@ services:
   # Automatic TLS via Let's Encrypt (docs/DEPLOYMENT.md, section 2).
   caddy:
     image: caddy:2-alpine
-    container_name: cik-caddy
+    container_name: astra-caddy
     restart: unless-stopped
     ports:
       - "80:80"

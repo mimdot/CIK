@@ -1,6 +1,6 @@
 # Deployment Guide
 
-Production deployment options for the Career Intelligence Kit: Docker Compose
+Production deployment options for the Astra: Docker Compose
 (recommended), or manual systemd services. Covers PostgreSQL, Redis, the rq
 worker, environment variables, and SSL/TLS.
 
@@ -59,7 +59,7 @@ service; `postgres` adds the database. To route the API at PostgreSQL, set in
 `.env`:
 
 ```dotenv
-DATABASE_URL=postgresql://cik:CHANGE_ME@postgres:5432/cik
+DATABASE_URL=postgresql://astra:CHANGE_ME@postgres:5432/astra
 ```
 
 ### Run migrations
@@ -121,36 +121,36 @@ API origin in `CORS_ORIGINS`.
 
 ## 3. Manual deployment (systemd)
 
-### 3.1 API unit — `/etc/systemd/system/cik-api.service`
+### 3.1 API unit — `/etc/systemd/system/astra-api.service`
 
 ```ini
 [Unit]
-Description=Career Intelligence API
+Description=Astra API
 After=network.target
 
 [Service]
-User=cik
-WorkingDirectory=/opt/cik/phd_aggregator
-EnvironmentFile=/etc/cik/cik.env
-ExecStart=/opt/cik/phd_aggregator/.venv/bin/uvicorn api.app:app --host 127.0.0.1 --port 8000 --workers 2
+User=astra
+WorkingDirectory=/opt/astra/astra
+EnvironmentFile=/etc/astra/astra.env
+ExecStart=/opt/astra/astra/.venv/bin/uvicorn api.app:app --host 127.0.0.1 --port 8000 --workers 2
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-### 3.2 Worker unit — `/etc/systemd/system/cik-worker.service`
+### 3.2 Worker unit — `/etc/systemd/system/astra-worker.service`
 
 ```ini
 [Unit]
-Description=Career Intelligence rq worker
+Description=Astra rq worker
 After=network.target
 
 [Service]
-User=cik
-WorkingDirectory=/opt/cik/phd_aggregator
-EnvironmentFile=/etc/cik/cik.env
-ExecStart=/opt/cik/phd_aggregator/.venv/bin/rq worker default
+User=astra
+WorkingDirectory=/opt/astra/astra
+EnvironmentFile=/etc/astra/astra.env
+ExecStart=/opt/astra/astra/.venv/bin/rq worker default
 Restart=always
 
 [Install]
@@ -159,11 +159,11 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now cik-api cik-worker
+sudo systemctl enable --now astra-api astra-worker
 ```
 
-`/etc/cik/cik.env` holds the same vars as `.env` (plus `REDIS_URL`,
-`DATABASE_URL`, `CIK_SECRET_KEY`).
+`/etc/astra/astra.env` holds the same vars as `.env` (plus `REDIS_URL`,
+`DATABASE_URL`, `ASTRA_SECRET_KEY`).
 
 ### 3.3 Dashboard
 
@@ -187,21 +187,21 @@ bounded `QueuePool` automatically:
 Verify with `GET /api/admin/pool-status` (admin). Create the database:
 
 ```bash
-createdb cik
-psql cik -c "CREATE USER cik WITH PASSWORD 'CHANGE_ME';"
-psql cik -c "GRANT ALL PRIVILEGES ON DATABASE cik TO cik;"
+createdb astra
+psql astra -c "CREATE USER astra WITH PASSWORD 'CHANGE_ME';"
+psql astra -c "GRANT ALL PRIVILEGES ON DATABASE astra TO astra;"
 ```
 
 ### Migrations (Alembic)
 
 ```bash
-cd phd_aggregator
+cd astra
 alembic upgrade head      # apply all migrations
 alembic revision --autogenerate -m "describe change"   # after model edits
 alembic downgrade -1      # roll back one step
 ```
 
-Migrations directory: `phd_aggregator/alembic/`. The initial migration creates
+Migrations directory: `astra/alembic/`. The initial migration creates
 all tables; a second adds the user `role` column.
 
 ---
@@ -233,16 +233,16 @@ in-memory cache and `core/tasks.py` runs jobs in-process. Redis adds:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | **App / security** | | |
-| `CIK_SECRET_KEY` | *(dev, insecure)* | JWT signing key. Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `ASTRA_SECRET_KEY` | *(dev, insecure)* | JWT signing key. Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `CORS_ORIGINS` | `*` (dev) | Comma-separated allowed origins; enables the auth cookie |
 | `SENTRY_DSN` | *(off)* | Sentry error tracking DSN |
 | `INVITES_REQUIRED` | *(off)* | `1`/`true` → registration requires an invite code |
 | `RESEND_API_KEY` | *(off → dev mode)* | Resend key; unset = email sends are logged, not sent |
 | `RESEND_WEBHOOK_SECRET` | *(off → no verify)* | Verifies Resend webhook signatures |
-| `EMAIL_FROM` | `Career Intelligence <no-reply@example.com>` | From-address for sent emails |
+| `EMAIL_FROM` | `Astra <no-reply@example.com>` | From-address for sent emails |
 | `DASHBOARD_URL` | `https://dashboard.example.com` | Public dashboard origin (digest links, reset links) |
 | **Database** | | |
-| `DATABASE_URL` | `sqlite:///phd_data.db` | SQLAlchemy URL (SQLite or PostgreSQL) |
+| `DATABASE_URL` | `sqlite:///astra.db` | SQLAlchemy URL (SQLite or PostgreSQL) |
 | **Cache + jobs** | | |
 | `REDIS_URL` | *(unset → in-memory)* | Redis URL for cache + rq queue |
 | **LLM** | | |
@@ -292,9 +292,9 @@ records an `email_events` row. Sends are always off the request path.
 
 ## 8. Backups
 
-- **PostgreSQL:** `pg_dump cik > cik-$(date +%F).sql` regularly; or snapshot the
-  `cik-pgdata` volume.
-- **SQLite:** stop writes, then copy `phd_data.db` (or use the SQLite backup
+- **PostgreSQL:** `pg_dump astra > astra-$(date +%F).sql` regularly; or snapshot the
+  `astra-pgdata` volume.
+- **SQLite:** stop writes, then copy `astra.db` (or use the SQLite backup
   API).
 
 ---
@@ -305,6 +305,6 @@ records an `email_events` row. Sends are always off the request path.
 # after pulling new code:
 alembic upgrade head
 # first admin + seed:
-python phd_aggregator.py --db "$DATABASE_URL" --make-admin you@example.com
-python phd_aggregator.py --db "$DATABASE_URL" --seed-db phd_positions.json
+python astra.py --db "$DATABASE_URL" --make-admin you@example.com
+python astra.py --db "$DATABASE_URL" --seed-db astra_positions.json
 ```

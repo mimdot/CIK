@@ -9,8 +9,8 @@ import { ApiError, apiBase, apiStartupError, fetchMe } from "@/lib/api";
 /**
  * True while the desktop shell is still bringing the backend up.
  *
- * The shell publishes `__CIK_API_READY__ = false` with no error for as long as
- * the sidecar is starting, and only fills in `__CIK_API_ERROR__` once it has
+ * The shell publishes `__ASTRA_API_READY__ = false` with no error for as long as
+ * the sidecar is starting, and only fills in `__ASTRA_API_ERROR__` once it has
  * genuinely given up. A PyInstaller onefile needs seconds to unpack before
  * uvicorn binds, so the first `fetchMe()` on a cold start always loses that
  * race — without this the app greeted every launch with "Cannot reach the API
@@ -23,10 +23,10 @@ import { ApiError, apiBase, apiStartupError, fetchMe } from "@/lib/api";
 function backendStarting(): boolean {
   if (typeof window === "undefined") return false;
   const w = window as unknown as {
-    __CIK_API_READY__?: boolean;
-    __CIK_API_ERROR__?: string | null;
+    __ASTRA_API_READY__?: boolean;
+    __ASTRA_API_ERROR__?: string | null;
   };
-  return w.__CIK_API_READY__ === false && !w.__CIK_API_ERROR__;
+  return w.__ASTRA_API_READY__ === false && !w.__ASTRA_API_ERROR__;
 }
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {

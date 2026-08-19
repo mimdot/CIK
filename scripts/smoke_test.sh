@@ -3,7 +3,7 @@
 # Verifies the stack is actually serving and that the core user journey works:
 # register -> login -> build profile -> list matches -> cleanup.
 #
-# Set CIK_SMOKE_TEST=1 to have the throwaway account removed at the end, and
+# Set ASTRA_SMOKE_TEST=1 to have the throwaway account removed at the end, and
 # API_URL / DASHBOARD_URL to point at the deployed stack (defaults localhost).
 set -euo pipefail
 

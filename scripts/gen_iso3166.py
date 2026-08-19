@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate phd_aggregator/core/iso3166.py from pycountry.
+"""Regenerate astra/core/iso3166.py from pycountry.
 
 The country table is VENDORED, not depended on: this app is used from behind a
 censored connection where PyPI is often unreachable, and a 249-entry tuple is
@@ -19,7 +19,7 @@ import os
 import sys
 
 TARGET = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                      "phd_aggregator", "core", "iso3166.py")
+                      "astra", "core", "iso3166.py")
 
 HEADER = '''"""core.iso3166 — the ISO-3166-1 country list, vendored as data.
 

@@ -104,7 +104,7 @@ describe("AuthGate", () => {
     );
     mockStartupError.mockReturnValue(
       "the backend process exited (exit status: 1) before it was ready.\n\n" +
-        "Backend log (/home/me/.local/share/cik/api.log):\n" +
+        "Backend log (/home/me/.local/share/astra/api.log):\n" +
         "ModuleNotFoundError: No module named 'feedparser'",
     );
     render(

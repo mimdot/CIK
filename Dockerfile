@@ -1,5 +1,5 @@
-# Career Intelligence Kit — API (Sprint 05, B1; hardened Sprint 10, A2).
-# Build: docker build -t cik-api .
+# Astra — API (Sprint 05, B1; hardened Sprint 10, A2).
+# Build: docker build -t astra-api .
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 libasound2 libxshmfence1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY phd_aggregator/requirements.txt ./requirements.txt
+COPY astra/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Playwright browsers land in a shared, world-readable location so the
@@ -21,8 +21,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN playwright install chromium --with-deps
 
-COPY phd_aggregator/ ./phd_aggregator/
-WORKDIR /app/phd_aggregator
+COPY astra/ ./astra/
+WORKDIR /app/astra
 
 # Non-root runtime (Sprint 10, A2). The /data volume (DB, cache, profiles,
 # seed files) must be writable by this user; compose mounts it and the image
@@ -33,7 +33,7 @@ RUN useradd --create-home --uid 10001 appuser \
 USER appuser
 
 # Number of uvicorn workers. Keep at 1 unless you run Redis AND set
-# CIK_SCHEDULER_ENABLED=0 on the extra workers (see docs/DEPLOYMENT.md).
+# ASTRA_SCHEDULER_ENABLED=0 on the extra workers (see docs/DEPLOYMENT.md).
 ENV API_WORKERS=1
 
 EXPOSE 8000

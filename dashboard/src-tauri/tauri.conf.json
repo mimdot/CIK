@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Astra",
   "version": "1.0.0",
-  "identifier": "com.careerintelligence.kit",
+  "identifier": "com.astra.app",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
@@ -36,7 +36,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "sidecar/api/cik-api"
+      "sidecar/api/astra-api"
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"

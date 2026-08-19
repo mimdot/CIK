@@ -8,33 +8,33 @@ __pycache__/
 venv/
 *.log
 emails/
-phd_positions*.json
-phd_positions*.csv
-phd_positions*.html
+astra_positions*.json
+astra_positions*.csv
+astra_positions*.html
 
 # Secrets and personal data
 .env
 .env.*
 !.env.example
-phd_aggregator/vpn.txt
-phd_aggregator/applicant.yaml
-phd_aggregator/*.yaml
-!phd_aggregator/applicant.example.yaml
-!phd_aggregator/config.yaml
+astra/vpn.txt
+astra/applicant.yaml
+astra/*.yaml
+!astra/applicant.example.yaml
+!astra/config.yaml
 # Shipped data, not user data: the position-type registry (Phase 2C). The
 # blanket *.yaml rule above exists to keep applicant.yaml / vpn.txt out of
 # git, and would otherwise silently drop any new data file added here.
-!phd_aggregator/position_types.yaml
+!astra/position_types.yaml
 
 # Runtime state
-phd_aggregator/.seen_positions.json
-phd_aggregator/phd_positions_selftest*.csv
-phd_aggregator/phd_positions_selftest*.html
-phd_aggregator/phd_positions_selftest*.json
+astra/.seen_positions.json
+astra/astra_positions_selftest*.csv
+astra/astra_positions_selftest*.html
+astra/astra_positions_selftest*.json
 
 # SQLite runtime DBs (recreated on first run; see DEFAULT_DB_URL)
-phd_data.db
-phd_data.db.bak
+astra.db
+astra.db.bak
 
 # HTTP conditional-GET cache (M2)
 .http_cache.sqlite
@@ -46,18 +46,18 @@ phd_data.db.bak
 *.db-shm
 
 # Supervisor finder outputs (supervisors_<field>_<country>.*)
-phd_aggregator/supervisors_*.csv
-phd_aggregator/supervisors_*.json
-phd_aggregator/supervisors_*.html
+astra/supervisors_*.csv
+astra/supervisors_*.json
+astra/supervisors_*.html
 
 # Build / packaging artifacts (PyInstaller sidecar, zips, logs)
-phd_aggregator/build/
-phd_aggregator/dist/
+astra/build/
+astra/dist/
 *.zip
 nohup.out
 
 # Uploaded CVs — never commit user data (Phase 2B upload dir)
-phd_aggregator/uploads/
+astra/uploads/
 uploads/
 
 # Agent/tooling workspaces
@@ -67,12 +67,15 @@ uploads/
 # not part of the published repo. See Extra/README.md for what's in here.
 Extra/
 
-# Tauri: PyInstaller sidecar binary + generated files (rebuilt by `tauri build`)
-dashboard/src-tauri/sidecar/api/cik-api
-dashboard/src-tauri/sidecar/api/cik-api.exe
-dashboard/src-tauri/sidecar/api/*-x86_64-*
-dashboard/src-tauri/sidecar/api/*-apple-*
-dashboard/src-tauri/sidecar/api/*-pc-windows-*
+# Tauri: the staged PyInstaller sidecars + generated files (rebuilt by
+# `tauri build`, run.sh and run.ps1).
+#
+# The whole directory, not a list of per-triple patterns. It holds nothing but
+# build output now that the bash wrapper is gone — lib.rs spawns the sidecar
+# itself — and each staged binary is 150-350 MB, well over GitHub's 100 MB
+# hard limit. A pattern list only has to miss one new target triple
+# (aarch64-pc-windows-msvc, say) for a push to be rejected outright.
+dashboard/src-tauri/sidecar/
 dashboard/src-tauri/gen/
 
 # Local dev-tool state, not part of the product

@@ -1,4 +1,4 @@
-# Career Intelligence Kit — API Reference
+# Astra — API Reference
 
 Base URL: `http://localhost:8000` (dev). The dashboard reads
 `NEXT_PUBLIC_API_URL` when deployed separately.
@@ -459,7 +459,7 @@ See the project root `.env.example`. Key ones:
 
 | Variable | Purpose |
 |----------|---------|
-| `CIK_SECRET_KEY` | JWT signing key (required in production) |
+| `ASTRA_SECRET_KEY` | JWT signing key (required in production) |
 | `DATABASE_URL` | SQLAlchemy database URL |
 | `LLM_DEFAULT_MODEL` | Primary LLM model id |
 | `LLM_FALLBACK_MODEL` | Fallback LLM model id |

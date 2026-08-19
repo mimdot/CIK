@@ -1,4 +1,4 @@
-# Career Intelligence Kit — Caddy reverse proxy (Sprint 10, B1).
+# Astra — Caddy reverse proxy (Sprint 10, B1).
 # Terminates TLS (Let's Encrypt, automatic issuance + renewal) and routes:
 #   api.example.com        -> api:8000
 #   dashboard.example.com  -> dashboard:3000

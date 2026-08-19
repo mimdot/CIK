@@ -32,7 +32,7 @@ anything else.
 
 ## 3. JSON logs + request ids
 
-Production runs with `CIK_JSON_LOGS=1` (`docker-compose.prod.yml`), emitting one
+Production runs with `ASTRA_JSON_LOGS=1` (`docker-compose.prod.yml`), emitting one
 JSON object per line with `time`, `level`, `logger`, `message`, and `request_id`.
 Every HTTP request also:
 

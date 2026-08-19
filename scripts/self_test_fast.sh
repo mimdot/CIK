@@ -5,10 +5,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "== 1. Offline CLI self-test =="
-(cd phd_aggregator && python3 phd_aggregator.py --self-test)
+(cd astra && python3 astra.py --self-test)
 
 echo "== 2. Backend unit/integration tests =="
-(cd phd_aggregator && python3 -m pytest tests/ -q)
+(cd astra && python3 -m pytest tests/ -q)
 
 echo "== 3. Dashboard unit tests =="
 (cd dashboard && npm test -- --runInBand)

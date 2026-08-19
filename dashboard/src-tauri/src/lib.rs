@@ -1,6 +1,6 @@
-// Career Intelligence desktop shell.
+// Astra desktop shell.
 //
-// The packaged app embeds a FastAPI "cik-api" sidecar (a PyInstaller onefile)
+// The packaged app embeds a FastAPI "astra-api" sidecar (a PyInstaller onefile)
 // as a Tauri external binary. This module spawns it once at startup with the
 // environment a desktop user needs (SQLite in the app-data dir, open
 // registration, plain-HTTP cookies, Tauri CORS origins) and kills it on exit.
@@ -18,17 +18,41 @@ use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
 // Name of the bundled sidecar binary (externalBin basename). On Windows the
-// bundle ships it as `cik-api.exe`; everywhere else plain `cik-api`.
+// bundle ships it as `astra-api.exe`; everywhere else plain `astra-api`.
 #[cfg(target_os = "windows")]
-const SIDECAR_NAME: &str = "cik-api.exe";
+const SIDECAR_NAME: &str = "astra-api.exe";
 #[cfg(not(target_os = "windows"))]
-const SIDECAR_NAME: &str = "cik-api";
+const SIDECAR_NAME: &str = "astra-api";
 
 /// The single shared entry code. It is fixed at 1819, not user-definable:
 /// the desktop app is a local, single-user tool and this code is a front door,
 /// never a security boundary. Anyone can read it out of this binary with
 /// `strings`; that is understood and accepted.
 const ACCESS_CODE: &str = "1819";
+
+/// Windows: the job object the sidecar is confined to, as a raw handle value.
+///
+/// A PyInstaller onefile is TWO processes here. The bootloader unpacks the
+/// bundle into `%TEMP%\_MEIxxxxxx` and then launches the real application as
+/// its own child; `Child` refers only to the bootloader. `Child::kill()` is
+/// `TerminateProcess`, which ends that parent and leaves the child running —
+/// verified, not theorised: after killing the parent, the orphan was still
+/// answering `/health` an hour later, still holding port 8000, the SQLite
+/// database, and 389 MB of extracted files.
+///
+/// Every launch therefore left another live backend behind. The next start
+/// found 8000 busy, picked a random port, and added one more. Worse, it
+/// silently defeated `sweep_stale_extractions`, whose whole design is to
+/// delete only directories nobody has open — and somebody always did.
+///
+/// A job object fixes it at the OS level: processes started by a member of a
+/// job join that job automatically, and `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`
+/// makes Windows terminate every member when the last handle to the job goes
+/// away. That covers the ordinary exit AND the case no handler can: Astra
+/// being force-quit, since closing the handle is something the kernel does for
+/// us when the process dies.
+#[cfg(windows)]
+static SIDECAR_JOB: Mutex<isize> = Mutex::new(0);
 
 static SIDECAR_CHILD: Mutex<Option<Child>> = Mutex::new(None);
 /// Resolved once the sidecar answers /health. Until then the frontend must not
@@ -167,6 +191,65 @@ fn random_hex(n: usize) -> String {
     out
 }
 
+/// Put a freshly spawned process, and everything it goes on to start, into a
+/// kill-on-close job object.
+///
+/// Best-effort by design: if any step fails the app still works, it just falls
+/// back to the old single-process kill. Losing the backend is not worth a
+/// failed launch.
+#[cfg(windows)]
+fn confine_to_job(child: &Child) {
+    use std::os::windows::io::AsRawHandle;
+
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+
+    // SAFETY: all four calls are plain Win32 FFI over locally owned arguments.
+    // On every failure path the handle is closed before returning; on success
+    // it is stored in SIDECAR_JOB and closed only by kill_sidecar. Closing a
+    // job that has no members yet terminates nothing.
+    unsafe {
+        let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+        if job.is_null() {
+            log::warn!("could not create a job object; the sidecar's child process \
+                        will have to be killed by hand");
+            return;
+        }
+
+        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        // addr_of!, not `&raw const`: the latter needs Rust 1.82 and this
+        // crate declares rust-version = "1.77.2".
+        let ok = SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            std::ptr::addr_of!(info).cast(),
+            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        );
+        if ok == 0 {
+            log::warn!("could not set kill-on-close on the job object");
+            CloseHandle(job);
+            return;
+        }
+
+        // Assigned immediately after spawn, and that timing matters: only
+        // processes started AFTER this call inherit the job. The bootloader
+        // spends seconds unpacking ~150 MB before it launches anything, so the
+        // window is comfortable, but it is not infinite.
+        if AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE) == 0 {
+            log::warn!("could not assign the sidecar to the job object");
+            CloseHandle(job);
+            return;
+        }
+
+        *SIDECAR_JOB.lock().unwrap_or_else(|p| p.into_inner()) = job as isize;
+    }
+}
+
 /// Resolve the bundled sidecar binary path: next to the *running executable*,
 /// which is where Tauri places `externalBin` on every platform (usr/bin for the
 /// deb and AppImage, Contents/MacOS for .app, the install dir on Windows, and
@@ -186,6 +269,86 @@ fn sidecar_path() -> Result<PathBuf, String> {
         .ok_or_else(|| format!("{} has no parent directory", exe.display()))
 }
 
+/// The app-data identity before the Astra rename. Tauri derives the app-data
+/// directory name from the bundle identifier, so changing the identifier to
+/// `com.astra.app` would otherwise have stranded every existing install's
+/// account, database and saved items in a directory the app no longer reads.
+const LEGACY_APP_DIR: &str = "com.careerintelligence.kit";
+const LEGACY_DB_NAME: &str = "phd_data.db";
+
+/// Rename `from` to `to`, but only when `from` exists and `to` does not.
+///
+/// Returns true when a rename actually happened, so the caller can log the one
+/// launch that migrates rather than every launch afterwards.
+fn rename_if_absent(from: &std::path::Path, to: &std::path::Path) -> bool {
+    if !from.exists() || to.exists() {
+        return false;
+    }
+    match std::fs::rename(from, to) {
+        Ok(()) => true,
+        Err(e) => {
+            log::error!("could not move {} to {}: {e}", from.display(), to.display());
+            false
+        }
+    }
+}
+
+/// Carry a pre-Astra app-data directory over to the current one, once.
+///
+/// Called from `setup` before the sidecar thread starts, so the backend only
+/// ever opens the migrated database. Nothing is deleted — everything is
+/// *renamed*, so a failure leaves the old data intact and recoverable by hand.
+/// Each step is skipped when its target already exists, making a normal launch
+/// a handful of `exists()` calls.
+fn migrate_legacy_app_data(app: &tauri::AppHandle) {
+    let Ok(new_dir) = app.path().app_data_dir() else {
+        return;
+    };
+    let Some(legacy_dir) = new_dir.parent().map(|p| p.join(LEGACY_APP_DIR)) else {
+        return;
+    };
+    // Tauri v2 uses the identifier verbatim on every platform, so an identical
+    // path means the identifier was never actually renamed. Nothing to do.
+    if legacy_dir == new_dir {
+        return;
+    }
+
+    // The whole directory when the new one has not been created yet. If a
+    // launch already created an empty new directory, fall through and move the
+    // database out of the old one instead, so data is never left behind.
+    if rename_if_absent(&legacy_dir, &new_dir) {
+        log::info!("migrated app data from {} to {}", legacy_dir.display(), new_dir.display());
+    } else if legacy_dir.join(LEGACY_DB_NAME).exists() && !new_dir.join("astra.db").exists() {
+        let _ = std::fs::create_dir_all(&new_dir);
+        for suffix in ["", "-wal", "-shm"] {
+            rename_if_absent(
+                &legacy_dir.join(format!("{LEGACY_DB_NAME}{suffix}")),
+                &new_dir.join(format!("astra.db{suffix}")),
+            );
+        }
+        log::info!("migrated database out of {}", legacy_dir.display());
+    }
+
+    // The database keeps its own name inside whichever directory it now sits
+    // in. SQLite's write-ahead log and shared-memory files must travel with
+    // it, or SQLite treats a stale -wal as belonging to a different database.
+    for suffix in ["", "-wal", "-shm"] {
+        rename_if_absent(
+            &new_dir.join(format!("{LEGACY_DB_NAME}{suffix}")),
+            &new_dir.join(format!("astra.db{suffix}")),
+        );
+    }
+
+    // Exported run artefacts. Regenerated on the next run, but renaming them
+    // keeps the folder from showing two products' worth of filenames.
+    for ext in ["csv", "html", "json"] {
+        rename_if_absent(
+            &new_dir.join(format!("phd_positions.{ext}")),
+            &new_dir.join(format!("astra_positions.{ext}")),
+        );
+    }
+}
+
 /// Start the FastAPI sidecar against the app-data SQLite database.
 fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
     let app_data = app
@@ -194,7 +357,7 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
         .map_err(|e| format!("cannot resolve app data dir: {e}"))?;
     std::fs::create_dir_all(&app_data).map_err(|e| format!("cannot create app data dir: {e}"))?;
 
-    let db_path = app_data.join("phd_data.db");
+    let db_path = app_data.join("astra.db");
     let log_path = app_data.join("api.log");
 
     let binary = sidecar_path()?;
@@ -223,14 +386,14 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
     let mut cmd = Command::new(&binary);
     cmd.current_dir(&app_data)
         .env("DATABASE_URL", format!("sqlite:///{}", db_path.display()))
-        .env("CIK_SECRET_KEY", random_hex(32))
-        .env("CIK_INVITE_REQUIRED", "0")
+        .env("ASTRA_SECRET_KEY", random_hex(32))
+        .env("ASTRA_INVITE_REQUIRED", "0")
         // The shared entry code is fixed at 1819, not read from the
         // environment, so no environment setting can change what a user must
         // type to get in.
-        .env("CIK_ACCESS_CODE", ACCESS_CODE)
-        .env("CIK_COOKIE_SECURE", "0")
-        .env("CIK_SCHEDULER_ENABLED", "0")
+        .env("ASTRA_ACCESS_CODE", ACCESS_CODE)
+        .env("ASTRA_COOKIE_SECURE", "0")
+        .env("ASTRA_SCHEDULER_ENABLED", "0")
         // CV reading is the only feature that can reach an AI provider, and it
         // is off in the desktop build so nobody spends tokens on it yet. The
         // code is all still there: set CV_PARSING_ENABLED=1 in the environment
@@ -246,11 +409,11 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
             "ASSISTANT_ENABLED",
             std::env::var("ASSISTANT_ENABLED").unwrap_or_else(|_| "0".into()),
         )
-        .env("CIK_JSON_LOGS", "0")
+        .env("ASTRA_JSON_LOGS", "0")
         .env("CORS_ORIGINS", CORS)
-        .env("CIK_API_HOST", "127.0.0.1")
-        .env("CIK_API_PORT", &port_str)
-        .env("CIK_VERSION", env!("CARGO_PKG_VERSION"))
+        .env("ASTRA_API_HOST", "127.0.0.1")
+        .env("ASTRA_API_PORT", &port_str)
+        .env("ASTRA_VERSION", env!("CARGO_PKG_VERSION"))
         .stdout(Stdio::from(log_file.try_clone().map_err(|e| e.to_string())?))
         .stderr(Stdio::from(log_file));
 
@@ -263,7 +426,7 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
     const NO_PROXY: &str = "localhost,127.0.0.1,::1,0.0.0.0";
     cmd.env("NO_PROXY", NO_PROXY).env("no_proxy", NO_PROXY);
 
-    // The sidecar is a console-subsystem binary (cik-api.spec sets
+    // The sidecar is a console-subsystem binary (astra-api.spec sets
     // console=True so uvicorn's stdio can be redirected into api.log). On
     // Windows that means spawning it pops a black console window next to the
     // app and leaves it there for the session. main.rs already hides the
@@ -278,8 +441,8 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
 
     // Forward a proxy if the user set one (e.g. V2RayN SOCKS for restricted
     // networks) — the packaged sidecar has no config.yaml on its CWD.
-    if let Ok(proxy) = std::env::var("CIK_PROXY") {
-        cmd.env("CIK_PROXY", proxy);
+    if let Ok(proxy) = std::env::var("ASTRA_PROXY") {
+        cmd.env("ASTRA_PROXY", proxy);
     }
 
     {
@@ -293,6 +456,11 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
             binary.display()
         )
     })?;
+
+    // Before anything else touches the child: the PyInstaller bootloader is
+    // about to start a second process, and that one is the real backend.
+    #[cfg(windows)]
+    confine_to_job(&child);
 
     let mut guard = SIDECAR_CHILD
         .lock()
@@ -314,6 +482,28 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
 /// tmpfs completely and making every subsequent launch die with
 /// "Failed to extract … decompression resulted in return code -1".
 fn kill_sidecar() {
+    // Windows first, and unconditionally: the job holds the REAL backend (the
+    // bootloader's child), so terminating it is the part that actually stops
+    // the server. Doing it before the Child handling below means the orphan is
+    // gone even if `take()` finds nothing.
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+        use windows_sys::Win32::System::JobObjects::TerminateJobObject;
+
+        let mut guard = SIDECAR_JOB.lock().unwrap_or_else(|p| p.into_inner());
+        let job = *guard;
+        if job != 0 {
+            *guard = 0;
+            // SAFETY: `job` is the handle stored by confine_to_job and is
+            // cleared here, so it is terminated and closed exactly once.
+            unsafe {
+                TerminateJobObject(job as HANDLE, 0);
+                CloseHandle(job as HANDLE);
+            }
+        }
+    }
+
     let Some(mut child) = SIDECAR_CHILD
         .lock()
         .unwrap_or_else(|p| p.into_inner())
@@ -396,13 +586,62 @@ fn sweep_stale_extractions() {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+/// The Windows half of the same problem, and here it is the *only* half.
+///
+/// `kill_sidecar` sends SIGTERM on Unix so the PyInstaller bootloader can
+/// unlink its own extraction directory. Windows has no SIGTERM: `Child::kill`
+/// is `TerminateProcess`, which gives the child no chance to run anything. So
+/// on Windows the ~389 MB `%TEMP%\_MEIxxxxxx` directory is left behind on
+/// EVERY exit, not just after a crash — and unlike Linux's tmpfs it is on
+/// disk, so nothing reclaims it at reboot either. A few weeks of daily use is
+/// several gigabytes of C: drive.
+///
+/// Deleting straight away would be reckless: a second Astra window, or any
+/// other PyInstaller app on the machine, has a live `_MEI` directory in the
+/// same place, and `remove_dir_all` would delete whatever files were not
+/// currently open before failing partway through — corrupting a running app.
+///
+/// So: rename first. Windows refuses to rename a directory that has open
+/// handles beneath it, which makes the rename a lock test that costs nothing
+/// and cannot half-succeed. Only a directory we managed to move out of the
+/// way is one nobody is using, and only that one is deleted.
+#[cfg(target_os = "windows")]
+fn sweep_stale_extractions() {
+    let tmp = std::env::temp_dir();
+    let Ok(entries) = std::fs::read_dir(&tmp) else {
+        return;
+    };
+    let mut freed = 0u64;
+    for (n, entry) in entries.flatten().enumerate() {
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !name.starts_with("_MEI") || !path.is_dir() {
+            continue;
+        }
+        // A distinctive staging name: if this process dies between the rename
+        // and the delete, the leftover is obviously ours and the next run
+        // sweeps it (it still starts with _MEI).
+        let staged = tmp.join(format!("_MEI-astra-sweep-{}-{n}", std::process::id()));
+        if std::fs::rename(&path, &staged).is_err() {
+            continue; // in use by a live process — leave it alone
+        }
+        if std::fs::remove_dir_all(&staged).is_ok() {
+            freed += 1;
+        }
+    }
+    if freed > 0 {
+        log::info!("swept {freed} stale PyInstaller extraction dir(s) from %TEMP%");
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 fn sweep_stale_extractions() {}
 
 /// Push the current backend state into a page.
 ///
 /// Called on EVERY page load, not once at startup: the old code injected
-/// `window.__CIK_API_BASE__` a single time during setup, and any navigation
+/// `window.__ASTRA_API_BASE__` a single time during setup, and any navigation
 /// after that threw the global away. The frontend then fell back to :8000 —
 /// which is the wrong port whenever 8000 was busy and the shell picked another,
 /// and answers nothing, which surfaces as "Cannot reach the API server".
@@ -413,16 +652,16 @@ fn state_js() -> String {
         .unwrap_or_else(|p| p.into_inner())
         .clone()
         .unwrap_or_default();
-    // `__CIK_DESKTOP__` marks the webview for the frontend, which must know it
+    // `__ASTRA_DESKTOP__` marks the webview for the frontend, which must know it
     // is not in a browser: a plain <a href> to an external site and the
     // blob-download trick both do nothing here, so those paths have to go
     // through the Tauri plugins instead. Set on every page load and never
     // cleared, because it is a fact about the host, not about the backend.
-    let head = "window.__CIK_DESKTOP__=true;";
+    let head = "window.__ASTRA_DESKTOP__=true;";
     match port {
         Some(p) => format!(
-            "{head}window.__CIK_API_BASE__='http://127.0.0.1:{p}';\
-             window.__CIK_API_READY__=true;window.__CIK_API_ERROR__=null;"
+            "{head}window.__ASTRA_API_BASE__='http://127.0.0.1:{p}';\
+             window.__ASTRA_API_READY__=true;window.__ASTRA_API_ERROR__=null;"
         ),
         // Clear the base as well as flagging not-ready. The sidecar is
         // restarted on a FRESHLY PICKED port, so a base left over from the
@@ -431,8 +670,8 @@ fn state_js() -> String {
         // server" while the shell is busy bringing the backend back. Undefined
         // is the honest answer here: not ready, and no address to try.
         None => format!(
-            "{head}window.__CIK_API_BASE__=undefined;\
-             window.__CIK_API_READY__=false;window.__CIK_API_ERROR__={};",
+            "{head}window.__ASTRA_API_BASE__=undefined;\
+             window.__ASTRA_API_READY__=false;window.__ASTRA_API_ERROR__={};",
             serde_json::to_string(&error).unwrap_or_else(|_| "\"\"".into())
         ),
     }
@@ -469,7 +708,7 @@ fn publish_state(app: &tauri::AppHandle) {
         .clone()
         .unwrap_or_default();
     let _ = app.emit(
-        "cik://api-state",
+        "astra://api-state",
         serde_json::json!({
             "ready": port.is_some(),
             "base": port.map(|p| format!("http://127.0.0.1:{p}")),
@@ -496,12 +735,12 @@ fn boot_and_watch(app: tauri::AppHandle) {
 
         match outcome {
             Ok(port) => {
-                log::info!("cik-api sidecar healthy on 127.0.0.1:{port}");
+                log::info!("astra-api sidecar healthy on 127.0.0.1:{port}");
                 *API_PORT.lock().unwrap_or_else(|p| p.into_inner()) = Some(port);
                 publish_state(&app);
             }
             Err(err) => {
-                log::error!("cik-api sidecar unavailable: {err}");
+                log::error!("astra-api sidecar unavailable: {err}");
                 *API_ERROR.lock().unwrap_or_else(|p| p.into_inner()) = Some(err);
                 publish_state(&app);
                 return; // a start failure is not something retrying fixes
@@ -513,7 +752,7 @@ fn boot_and_watch(app: tauri::AppHandle) {
         loop {
             std::thread::sleep(Duration::from_secs(2));
             if let Some(status) = child_exit_status() {
-                log::warn!("cik-api sidecar exited ({status}) — restarting");
+                log::warn!("astra-api sidecar exited ({status}) — restarting");
                 break;
             }
         }
@@ -560,6 +799,9 @@ pub fn run() {
             // Reclaim anything a previous run could not clean up before we
             // add another 389 MB of our own.
             sweep_stale_extractions();
+            // Before anything can open the database: carry over the app data
+            // from the pre-Astra bundle identifier.
+            migrate_legacy_app_data(app.handle());
             let handle = app.handle().clone();
             std::thread::spawn(move || boot_and_watch(handle));
             Ok(())

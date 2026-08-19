@@ -27,15 +27,24 @@ programmes and the people running them — and keeps the search on your own mach
 |---|---|---|---|
 | **Astra CLI** (`astra`) | ✅ | ✅ | ✅ |
 | **Astra Dashboard** (local web) | ✅ | ✅ | ✅ |
-| **Astra Desktop** (installer) | ✅ tested on Ubuntu | ⚠️ builds, untested | ⚠️ builds, untested |
+| **Astra Desktop** (installer) | ✅ tested on Ubuntu | ⚠️ builds, untested | ✅ built and run on Windows 11 |
 
-The **CLI and the local dashboard run anywhere Python 3.11+ does** — they are
+The **CLI and the local dashboard run anywhere Python 3.12+ does** — they are
 pure Python plus a Next.js frontend, with nothing platform-specific in them.
+(3.12 is a floor, not a preference: the engine uses PEP 701 f-strings, which
+are a `SyntaxError` on 3.11.)
 
 The **desktop app** is built for all three platforms by CI from the same
-source, but so far it has only been *run* on Linux (Ubuntu). The macOS and
-Windows installers are produced and published; nobody has yet installed one and
-clicked through it. If you try one, please
+source. Linux (Ubuntu) and Windows 11 have both been built and run; macOS has
+not — its installer is produced and published, but nobody has yet opened one.
+
+Two caveats on Windows, so the tick above is not read as more than it is. The
+build was made and run **from source** (`.\run.ps1`); the packaged `.msi` /
+setup `.exe` that CI publishes has not itself been installed. And v1.0.0's
+Windows support, though written, had plainly never been executed — bringing it
+up found four faults that only a real run could surface, including a `run.ps1`
+that could not detect Python at all and a backend that kept running after the
+app was closed. See the changelog. If you try a build, please
 [open an issue](https://github.com/mimdot/CIK/issues) — good or bad.
 
 ### Desktop installers
@@ -70,8 +79,8 @@ Both work everywhere and need no packaging:
 
 ```bash
 git clone https://github.com/mimdot/CIK.git && cd CIK
-cd phd_aggregator && pip install -r requirements.txt
-python phd_aggregator.py --help
+cd astra && pip install -r requirements.txt
+python astra.py --help
 ```
 
 See [Running each surface](#running-each-surface).
@@ -112,6 +121,17 @@ git clone https://github.com/mimdot/CIK.git && cd CIK
 ./run.sh
 ```
 
+On Windows, same idea, PowerShell instead:
+
+```powershell
+git clone https://github.com/mimdot/CIK.git
+cd CIK
+.\run.ps1
+```
+
+Prerequisites, the Windows-specific parts of the build, and troubleshooting
+are in **[docs/WINDOWS.md](docs/WINDOWS.md)**.
+
 That is the whole thing — it builds whatever is missing and launches. See
 [Running each surface](#running-each-surface) for the individual pieces, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for the full map.
@@ -131,29 +151,38 @@ That is the whole thing — it builds whatever is missing and launches. See
 
 | | What it is | Start |
 |---|---|---|
-| **CLI** | The aggregator + supervisor finder, writes CSV/JSON/HTML | `python phd_aggregator/phd_aggregator.py` |
+| **CLI** | The aggregator + supervisor finder, writes CSV/JSON/HTML | `python astra/astra.py` |
 | **Local web** | Next.js dashboard + FastAPI backend | `uvicorn api.app:app` + `npm run dev` |
-| **Desktop** | Tauri app bundling the dashboard + a FastAPI sidecar | `./run.sh` (repo root) |
+| **Desktop** | Tauri app bundling the dashboard + a FastAPI sidecar | `./run.sh` — or `.\run.ps1` on Windows (repo root) |
 
-All three share the same Python engine (`phd_aggregator/` package). The web and
+All three share the same Python engine (`astra/` package). The web and
 desktop apps talk to the backend over HTTP (localhost).
 
 ---
 
 ## Install
 
-**Python engine** (3.11+):
+**Python engine** (3.12+):
 
 ```bash
-cd phd_aggregator
+cd astra
 pip install -r requirements.txt
 # optional but recommended for JS-heavy boards:
 playwright install chromium
 ```
 
-Hard deps are `requests beautifulsoup4 feedparser pandas`; everything else
-degrades gracefully (see `requirements.txt`, extras are marked). The API/web
-stack additionally uses `fastapi uvicorn sqlalchemy` (also in requirements).
+Hard deps are `requests beautifulsoup4 feedparser`; everything else degrades
+gracefully (see `requirements.txt`, extras are marked). The API/web stack
+additionally uses `fastapi uvicorn sqlalchemy` (also in requirements).
+
+Building the **desktop app** does not need most of that. `astra-api.spec`
+excludes Playwright, LiteLLM, pandas and psycopg2 from the bundle, and a
+single-user local install never reaches Redis or the RQ worker queue — so
+installing the full list first downloads ~400 MB that is then discarded:
+
+```bash
+pip install -r requirements-desktop.txt   # what the bundled app actually imports
+```
 
 **Dashboard** (Node 20+):
 
@@ -173,24 +202,24 @@ gitignored `.env`.
 ### CLI
 
 ```bash
-cd phd_aggregator
-python phd_aggregator.py                       # full run (config.yaml + defaults)
-python phd_aggregator.py --field biology       # switch field at runtime
-python phd_aggregator.py --list-fields         # installed field profiles
-python phd_aggregator.py --new-field marine_biology   # scaffold your own field
-python phd_aggregator.py --find-supervisors --field astronomy --country Germany
-python phd_aggregator.py --self-test           # offline pipeline test (no network)
+cd astra
+python astra.py                       # full run (config.yaml + defaults)
+python astra.py --field biology       # switch field at runtime
+python astra.py --list-fields         # installed field profiles
+python astra.py --new-field marine_biology   # scaffold your own field
+python astra.py --find-supervisors --field astronomy --country Germany
+python astra.py --self-test           # offline pipeline test (no network)
 ```
 
-Outputs are written next to `output_path` (`phd_positions.csv/.json` + a
-self-contained `phd_positions.html` dashboard). Fetching is **concurrent** by
-default; set `CIK_SOURCE_CONCURRENCY=1` to force the old sequential behaviour.
+Outputs are written next to `output_path` (`astra_positions.csv/.json` + a
+self-contained `astra_positions.html` dashboard). Fetching is **concurrent** by
+default; set `ASTRA_SOURCE_CONCURRENCY=1` to force the old sequential behaviour.
 
 ### Local web (dashboard + API)
 
 ```bash
 # terminal 1 — backend
-cd phd_aggregator
+cd astra
 uvicorn api.app:app --reload            # OpenAPI docs at http://localhost:8000/docs
 
 # terminal 2 — frontend
@@ -208,7 +237,7 @@ docker compose -f docker-compose.prod.yml up   # hardened prod
 ### Desktop (Tauri)
 
 The desktop app ships the dashboard as a static export plus a PyInstaller
-**`cik-api`** sidecar (the FastAPI backend) that it launches on
+**`astra-api`** sidecar (the FastAPI backend) that it launches on
 `127.0.0.1:8000`.
 
 ```bash
@@ -224,6 +253,23 @@ first run you can launch it with one click instead.
 ./run.sh --rebuild           # force a full rebuild first
 ./run.sh --no-launch         # build + install the menu entry, don't start
 ```
+
+**On Windows** use `run.ps1`, which does the same job with the same switches
+and installs a Start Menu shortcut instead of a `.desktop` entry:
+
+```powershell
+.\run.ps1
+.\run.ps1 -Rebuild
+.\run.ps1 -NoLaunch
+```
+
+Read [docs/WINDOWS.md](docs/WINDOWS.md) first — Windows needs Python 3.12+, the
+MSVC Rust toolchain and the C++ build tools, and that page also explains the
+three places the build is deliberately different there.
+
+A build leaves several GB of regenerable output behind. `./scripts/clean.sh`
+(or `.\scripts\clean.ps1`) frees it; `--dry-run` / `-DryRun` shows what it
+would take first, and neither touches your database, profile or exports.
 
 For development and for distributable installers, the Tauri CLI is still there:
 
@@ -254,16 +300,16 @@ you need one, that is what accounts and invite codes are for.
 
 ### Changing it, and switching back to passwords
 
-`CIK_ACCESS_CODE` controls the whole thing, read at request time so no rebuild
+`ASTRA_ACCESS_CODE` controls the whole thing, read at request time so no rebuild
 is needed:
 
-| `CIK_ACCESS_CODE` | Sign-in | `POST /api/auth/access` |
+| `ASTRA_ACCESS_CODE` | Sign-in | `POST /api/auth/access` |
 |---|---|---|
 | set (desktop default `1819`) | email + code | available |
 | unset or empty | email + password | **404** |
 
 The frontend asks `GET /api/auth/config` which mode to render, so the same
-build serves both — when you get a server, leave `CIK_ACCESS_CODE` unset there
+build serves both — when you get a server, leave `ASTRA_ACCESS_CODE` unset there
 and it presents the ordinary password form with no code change.
 
 ---
@@ -271,7 +317,7 @@ and it presents the ordinary password form with no code change.
 ## Proxy setup (restricted networks / Iran / V2RayN)
 
 The engine routes everything through one proxy, configured in
-`phd_aggregator/config.yaml`:
+`astra/config.yaml`:
 
 ```yaml
 proxy: "socks5h://127.0.0.1:10808"   # V2RayN SOCKS inbound (remote DNS)
@@ -314,7 +360,7 @@ errors out; the dashboard's search dialog says so and links to the token page.
 
 ## Field profiles
 
-A field profile (`phd_aggregator/fields/<name>.yaml`) is the editable knowledge
+A field profile (`astra/fields/<name>.yaml`) is the editable knowledge
 for a subject: `core_anchors` / `context_terms` / `negative_terms` /
 `search_terms` / `weights` / `threshold` (+ optional `subfields`, `departments`,
 supervisor settings). 11 profiles ship (astronomy, physics, biology, chemistry,
@@ -366,7 +412,7 @@ opportunity against it with an explanation of what matched.
 
 **Privacy:** CV parsing stays local by default and is never sent to a
 third-party service without explicit opt-in. Uploaded files are gitignored
-(`phd_aggregator/uploads/`) and never committed.
+(`astra/uploads/`) and never committed.
 
 > Note: today the profile builder takes **pasted text**. Robust PDF/DOCX **file
 > upload** is planned.
@@ -377,9 +423,9 @@ third-party service without explicit opt-in. Uploaded files are gitignored
 
 ```bash
 # Python engine
-cd phd_aggregator
-python phd_aggregator.py --self-test          # offline pipeline self-test
-CIK_TESTING=1 pytest -q                        # full suite (offline fixtures)
+cd astra
+python astra.py --self-test          # offline pipeline self-test
+ASTRA_TESTING=1 pytest -q                        # full suite (offline fixtures)
 
 # Dashboard
 cd dashboard
@@ -395,8 +441,8 @@ documented, single-file change. See **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 ## More docs
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — entry points, package map, data flow.
-- **[phd_aggregator/README.md](phd_aggregator/README.md)** — deep CLI reference.
-- **[phd_aggregator/CONTRIBUTING.md](phd_aggregator/CONTRIBUTING.md)** — the
+- **[astra/README.md](astra/README.md)** — deep CLI reference.
+- **[astra/CONTRIBUTING.md](astra/CONTRIBUTING.md)** — the
   engine's extension contract (sources, seed adapters).
 - `docs/` — the original design docs (project overview, PRD, roadmap).
 </content>

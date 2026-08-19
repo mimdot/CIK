@@ -1,6 +1,6 @@
 # API Reference
 
-The Career Intelligence API is a FastAPI app. Base URL is `http://localhost:8000`
+The Astra API is a FastAPI app. Base URL is `http://localhost:8000`
 in dev (`NEXT_PUBLIC_API_URL` / `CORS_ORIGINS` control it in production).
 Interactive OpenAPI docs are served at **`/docs`** (Swagger) and `/redoc`.
 

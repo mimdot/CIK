@@ -1,6 +1,6 @@
 # Getting Started
 
-The Career Intelligence Kit aggregates open PhD/postdoc positions, matches them
+The Astra aggregates open PhD/postdoc positions, matches them
 against a research profile you describe, and serves the results through a REST
 API and a Next.js dashboard. This guide gets you from an empty machine to seeing
 your first matches.
@@ -28,7 +28,7 @@ your first matches.
 The fastest path starts the API and dashboard together:
 
 ```bash
-git clone <your-repo> && cd career_intelligence_kit
+git clone <your-repo> && cd astra
 cp .env.example .env                 # then edit .env
 
 # Optional: enable Redis-backed caching + background jobs + PostgreSQL
@@ -62,7 +62,7 @@ The API health probe is at http://localhost:8000/health.
 ### 3.1 Backend (API + crawler)
 
 ```bash
-cd phd_aggregator
+cd astra
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
@@ -106,8 +106,8 @@ npm run dev        # http://localhost:3000
 Invite management is admin-only. Bootstrap one admin from the CLI:
 
 ```bash
-cd phd_aggregator
-python phd_aggregator.py --db sqlite:///phd_data.db --make-admin you@example.com
+cd astra
+python astra.py --db sqlite:///astra.db --make-admin you@example.com
 ```
 
 Then log in as that user and visit http://localhost:3000/admin to create invite
@@ -121,16 +121,16 @@ The monolith-style CLI covers the crawler, profile engine and supervisor finder
 without the API:
 
 ```bash
-python phd_aggregator.py --self-test          # offline smoke test
-python phd_aggregator.py                      # full aggregation run
-python phd_aggregator.py --list-sources       # registered sources
-python phd_aggregator.py --list-fields        # installed field profiles
-python phd_aggregator.py --field astronomy --country Germany
-python phd_aggregator.py --seed-db phd_positions.json          # load results into the DB
-python phd_aggregator.py --build-profile "<your CV text>"      # LLM profile extraction
-python phd_aggregator.py --show-profile                         # print the active profile
-python phd_aggregator.py --find-supervisors --field astronomy --country Germany
-python phd_aggregator.py --make-admin you@example.com          # promote a user to admin
+python astra.py --self-test          # offline smoke test
+python astra.py                      # full aggregation run
+python astra.py --list-sources       # registered sources
+python astra.py --list-fields        # installed field profiles
+python astra.py --field astronomy --country Germany
+python astra.py --seed-db astra_positions.json          # load results into the DB
+python astra.py --build-profile "<your CV text>"      # LLM profile extraction
+python astra.py --show-profile                         # print the active profile
+python astra.py --find-supervisors --field astronomy --country Germany
+python astra.py --make-admin you@example.com          # promote a user to admin
 ```
 
 Add `--db <DATABASE_URL>` to any DB-touching command to point at a non-default
@@ -142,8 +142,8 @@ database (e.g. PostgreSQL).
 
 | Env var | Default | Purpose |
 |---------|---------|---------|
-| `DATABASE_URL` | `sqlite:///phd_data.db` | SQLAlchemy URL (SQLite or PostgreSQL) |
-| `CIK_SECRET_KEY` | *(dev, insecure)* | JWT signing key — **set in production** |
+| `DATABASE_URL` | `sqlite:///astra.db` | SQLAlchemy URL (SQLite or PostgreSQL) |
+| `ASTRA_SECRET_KEY` | *(dev, insecure)* | JWT signing key — **set in production** |
 | `CORS_ORIGINS` | `*` (dev) | Comma-separated allowed origins |
 | `REDIS_URL` | *(unset → in-memory)* | Redis for cache + rq job queue |
 | `INVITES_REQUIRED` | *(unset → optional)* | `1`/`true` = registration needs an invite |
@@ -159,7 +159,7 @@ See [docs/DEPLOYMENT.md](DEPLOYMENT.md) for the full reference.
 
 ```bash
 # Backend (all 516+ tests)
-cd phd_aggregator && python -m pytest
+cd astra && python -m pytest
 
 # Dashboard
 cd dashboard && npm test

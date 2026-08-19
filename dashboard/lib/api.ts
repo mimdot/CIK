@@ -41,7 +41,7 @@ import type {
 // Resolve the API base per call (so late injection is picked up).
 //
 // The desktop shell picks a free port for the sidecar and injects the resolved
-// base as `window.__CIK_API_BASE__`. That global is the authority whenever it
+// base as `window.__ASTRA_API_BASE__`. That global is the authority whenever it
 // is present: it only ever exists in the desktop shell, and it names the port
 // the sidecar actually bound.
 //
@@ -52,8 +52,8 @@ import type {
 // of the shell's port-picking was dead code on the frontend side.
 export function apiBase(): string {
   if (typeof window !== "undefined") {
-    const injected = (window as unknown as { __CIK_API_BASE__?: string })
-      .__CIK_API_BASE__;
+    const injected = (window as unknown as { __ASTRA_API_BASE__?: string })
+      .__ASTRA_API_BASE__;
     if (typeof injected === "string" && injected) return injected;
   }
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -71,11 +71,11 @@ export function apiBase(): string {
 export function apiStartupError(): string | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as {
-    __CIK_API_ERROR__?: string | null;
-    __CIK_API_READY__?: boolean;
+    __ASTRA_API_ERROR__?: string | null;
+    __ASTRA_API_READY__?: boolean;
   };
-  if (w.__CIK_API_READY__ === false && w.__CIK_API_ERROR__) {
-    return w.__CIK_API_ERROR__;
+  if (w.__ASTRA_API_READY__ === false && w.__ASTRA_API_ERROR__) {
+    return w.__ASTRA_API_ERROR__;
   }
   return null;
 }

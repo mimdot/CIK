@@ -572,7 +572,7 @@ describe("OpportunitiesPage", () => {
           after_freshness: 63,
           after_dedupe: 63,
           storage_error: "RuntimeError: database is locked",
-          storage_rescue_path: "/home/me/phd_positions.rescue-20260815T101500Z.json",
+          storage_rescue_path: "/home/me/astra_positions.rescue-20260815T101500Z.json",
           dropped: {
             position_type: 0, off_field: 0, expired: 0,
             country: 0, stale: 0, duplicate: 0,
@@ -588,7 +588,7 @@ describe("OpportunitiesPage", () => {
     // Losing a completed crawl is the worst failure there is. If the database
     // refused it, the user must be told the exact file it survived in.
     expect(await screen.findByTestId("run-rescue-path")).toHaveTextContent(
-      "/home/me/phd_positions.rescue-20260815T101500Z.json",
+      "/home/me/astra_positions.rescue-20260815T101500Z.json",
     );
   });
 

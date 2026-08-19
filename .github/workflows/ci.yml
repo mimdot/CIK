@@ -17,17 +17,17 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: |
-            phd_aggregator/requirements.txt
-            phd_aggregator/requirements-dev.txt
+            astra/requirements.txt
+            astra/requirements-dev.txt
       - name: Install backend deps
         # requirements-dev.txt pulls in requirements.txt AND the test runner.
         # Installing only the runtime manifest is what made this job fail with
         # "No module named pytest" — the suite never ran at all.
-        run: pip install -r phd_aggregator/requirements-dev.txt
+        run: pip install -r astra/requirements-dev.txt
       - name: Offline CLI self-test
-        run: cd phd_aggregator && python3 phd_aggregator.py --self-test
+        run: cd astra && python3 astra.py --self-test
       - name: Backend tests
-        run: cd phd_aggregator && python3 -m pytest tests/ -q
+        run: cd astra && python3 -m pytest tests/ -q
 
   frontend:
     name: Dashboard (test + lint + typecheck + build)
@@ -59,7 +59,7 @@ jobs:
       - name: pip-audit
         run: |
           python3 -m venv /tmp/a && /tmp/a/bin/pip install -q pip-audit \
-            && /tmp/a/bin/pip-audit -r phd_aggregator/requirements.txt
+            && /tmp/a/bin/pip-audit -r astra/requirements.txt
       - uses: actions/setup-node@v4
         with:
           node-version: "20"

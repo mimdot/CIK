@@ -1,0 +1,470 @@
+# fields/biology.yaml — biology & life sciences (molecular/cell biology,
+# genetics & genomics, neuroscience, ecology & evolution, microbiology,
+# biochemistry, bioinformatics, plant science, cancer biology ...)
+# =============================================================================
+# Matching rules (see the relevance engine in astra.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("biolog" catches biology/biological/biologist);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words.
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#   departments     the uni_departments sweep-list (top biology groups)
+# =============================================================================
+name: biology
+description: Biology & life sciences — molecular and cell biology, genetics and
+  genomics, biochemistry and structural biology, neuroscience, microbiology and
+  immunology, ecology and evolution, bioinformatics and systems biology,
+  plant science and cancer biology
+core_anchors:
+- biology
+- biolog
+- biological
+- molecular biology
+- molecular bioscien
+- cell biology
+- cellular biology
+- cellular biolog
+- developmental biology
+- developmental biolog
+- stem cell
+- regenerative medicine
+- tissue engineering
+- genetics
+- genetic
+- genomics
+- genomic
+- epigenetics
+- epigenetic
+- gene regulation
+- gene expression
+- genome editing
+- crispr
+- molecular genetics
+- population genetics
+- biochemical
+- biochemistry
+- biochemistr
+- structural biology
+- structural biolog
+- biophysics
+- biophysic
+- enzyme
+- protein engineer
+- proteomics
+- proteomic
+- transcriptomics
+- transcriptomic
+- metabolomics
+- metabolomic
+- single-cell
+- single cell
+- sequencing
+- microbiology
+- microbiol
+- bacteriology
+- bacteriolog
+- virology
+- virolog
+- mycology
+- mycolog
+- parasitology
+- parasitolog
+- immunology
+- immunolog
+- immunother
+- vaccine
+- neurobiology
+- neurobiolog
+- neuroscience
+- neuroscien
+- neurogenetics
+- neurogenetic
+- neural development
+- cognitive neuroscience
+- physiology
+- physiolog
+- endocrinology
+- endocrinolog
+- evolutionary biology
+- evolutionary biolog
+- evolution
+- phylogenetics
+- phylogenomic
+- ecology
+- ecolog
+- ecosystem
+- biodiversity
+- conservation biology
+- conservation biolog
+- zoology
+- zoolog
+- entomology
+- entomolog
+- ornithology
+- ichthyolog
+- marine biology
+- marine biolog
+- aquatic biology
+- freshwater ecology
+- plant science
+- plant biology
+- plant biolog
+- botany
+- botan
+- plant physiology
+- plant molecular biology
+- agronomy
+- crop science
+- forestry
+- soil biolog
+- bioinformatics
+- computational biology
+- computational biolog
+- systems biology
+- systems biolog
+- synthetic biology
+- synthetic biolog
+- mathematical biology
+- mathematical biolog
+- cancer biology
+- cancer biolog
+- oncology
+- tumor biology
+- tumour biology
+- carcinogenesis
+- aging research
+- ageing research
+- longevity
+context_terms:
+- molecular
+- cellular
+- organism
+- cell culture
+- in vitro
+- in vivo
+- ex vivo
+- model organism
+- mouse
+- drosophila
+- zebrafish
+- xenopus
+- caenorhabditis
+- yeast
+- escherichia coli
+- assay
+- knockout
+- knock-out
+- knockdown
+- antibody
+- immunostaining
+- microscopy
+- live imaging
+- flow cytometry
+- single molecule
+- omics
+- rna
+- dna
+- protein
+- peptide
+- lipid
+- metabolism
+- signaling
+- signal transduction
+- pathway
+- receptor
+- transcription factor
+- mutation
+- allele
+- phenotype
+- genotype
+- screening
+- crispr-cas9
+- small molecule
+- drug
+- therapeutic
+- clinical
+- cohort
+- biomarker
+- bioinformatics
+- machine learning
+- statistics
+- data analysis
+negative_terms:
+- astronomy
+- astrophysic
+- cosmolog
+- galaxy
+- planetary science
+- particle physics
+- nuclear physics
+- quantum physics
+- plasma physics
+- condensed matter
+- organic chemistry
+- organometallic
+- synthetic chemistry
+- catalysis
+- electrochemistry
+- polymer chemistry
+- materials science
+- semiconductor
+- nanomaterial
+- photonic
+- mechanical engineering
+- civil engineering
+- electrical engineering
+- chemical engineering
+- petroleum engineering
+- computer vision
+- natural language processing
+- software engineering
+- machine learning engineering
+- economics
+- finance
+- quantitative finance
+- psychology
+- sociology
+search_terms:
+- biology
+- molecular biology
+- cell biology
+- genetics
+- genomics
+- neuroscience
+- ecology
+- evolution
+- microbiology
+- immunology
+- bioinformatics
+- biochemistry
+- plant science
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: q-bio.*
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex fields 11 (Agricultural & Biological Sciences) + 13 (Biochemistry,
+# Genetics & Molecular Biology). supervisor_topics drive the AUTHOR index
+# query — real researchers ranked by h-index and recent activity.
+supervisor_field: 11
+supervisor_topics:
+  - T12713   # Forest Ecology and Biodiversity Studies
+  - T10385   # Plant Diversity and Evolution
+  - T10451   # Mycorrhizal Fungi and Plant Interactions
+  - T10152   # Animal Nutrition and Physiology
+  - T10015   # Genomics and Phylogenetic Studies
+  - T10885   # Gene expression and cancer classification
+  - T10012   # Genetic diversity and population structure
+  - T11289   # Single-cell and spatial transcriptomics
+  - T10268   # Developmental Biology and Gene Regulation
+  - T10269   # Epigenetics and DNA Methylation
+  - T10878   # CRISPR and Genetic Engineering
+  - T10044   # Protein Structure and Dynamics
+  - T10521   # RNA and protein synthesis mechanisms
+  - T11178   # Receptor Mechanisms and Signaling
+  - T10066   # Gut microbiota and health
+  - T10147   # Antibiotic Resistance in Bacteria
+supervisor_senior_signal: last_author
+
+
+# Per-source query knobs for THIS discipline (verified live 2026-08-14).
+#   euraxess.research_fields          EURAXESS `job_research_field` facet IDs
+#   euraxess.adjacent_research_fields one extra PhD-scoped sweep of a
+#                                     neighbouring subject
+#   academicjobsonline.categories     /ajo/<category> listing pages
+source_options:
+  euraxess:
+    research_fields: [38]
+    adjacent_research_fields: [313]
+  academicjobsonline:
+    categories: ['biology']
+
+subfields:
+  molecular_cell:
+    label: Molecular & Cell Biology
+    topics: [T10268, T10521, T11178, T10044]
+    keywords:
+    - molecular biology
+    - cell biology
+    - cellular biolog
+    - signaling
+    - gene regulation
+    - stem cell
+    - protein
+    - microscopy
+  genetics_genomics:
+    label: Genetics & Genomics
+    topics: [T10015, T10012, T10269, T10878]
+    keywords:
+    - genetics
+    - genomics
+    - epigenetics
+    - genome editing
+    - crispr
+    - sequencing
+    - transcriptomics
+    - population genetics
+    - single-cell
+  neurobiology:
+    label: Neuroscience
+    topics: [T10077, T10581, T10241, T10429]
+    keywords:
+    - neuroscience
+    - neurobiology
+    - neural development
+    - cognitive neuroscience
+    - neurogenetics
+  ecology_evolution:
+    label: Ecology & Evolution
+    topics: [T12713, T10385, T10451]
+    keywords:
+    - ecology
+    - evolution
+    - phylogenetics
+    - biodiversity
+    - conservation biology
+    - marine biology
+    - behavioral ecology
+  microbiology_immunology:
+    label: Microbiology & Immunology
+    topics: [T10066, T10147]
+    keywords:
+    - microbiology
+    - immunology
+    - virology
+    - bacteriology
+    - parasitology
+    - vaccine
+    - immunotherapy
+  biochemistry:
+    label: Biochemistry & Structural Biology
+    topics: [T10044, T10521, T11178]
+    keywords:
+    - biochemistry
+    - structural biology
+    - biophysics
+    - enzyme
+    - proteomics
+    - crystallography
+    - cryo-em
+    - nmr
+  bioinformatics:
+    label: Bioinformatics & Systems Biology
+    topics: [T12254, T11289]
+    keywords:
+    - bioinformatics
+    - computational biology
+    - systems biology
+    - machine learning
+    - single-cell
+    - genomics
+  plant_science:
+    label: Plant Science
+    topics: [T10385, T10451, T12713]
+    keywords:
+    - plant science
+    - plant biology
+    - botany
+    - agronomy
+    - crop science
+    - plant physiology
+    - forestry
+  cancer_biology:
+    label: Cancer Biology
+    topics: [T10885, T10268, T10044]
+    keywords:
+    - cancer biology
+    - oncology
+    - tumor biology
+    - carcinogenesis
+    - immunotherapy
+departments:
+  - country: United Kingdom
+    institution: University of Cambridge — Department of Zoology
+    url: https://www.zoo.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Cambridge — Department of Plant Sciences
+    url: https://www.plantsci.cam.ac.uk/
+    field_specific: true
+  - country: United Kingdom
+    institution: University of Oxford — Department of Biology
+    url: https://www.biology.ox.ac.uk/
+    field_specific: true
+  - country: Switzerland
+    institution: ETH Zurich — D-BIOL
+    url: https://biol.ethz.ch/
+    field_specific: true
+  - country: Switzerland
+    institution: EPFL — School of Life Sciences
+    url: https://www.epfl.ch/schools/sv/
+    field_specific: true
+  - country: Germany
+    institution: EMBL — European Molecular Biology Laboratory
+    url: https://www.embl.org/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Molecular Cell Biology and Genetics
+    url: https://www.mpi-cbg.de/
+    field_specific: true
+  - country: Germany
+    institution: Max Planck Institute for Evolutionary Biology
+    url: https://www.evolbio.mpg.de/
+    field_specific: true
+  - country: Germany
+    institution: Heidelberg University — Centre for Molecular Biology (ZMBH)
+    url: https://www.zmbh.uni-heidelberg.de/
+    field_specific: true
+  - country: United Kingdom
+    institution: Wellcome Sanger Institute
+    url: https://www.sanger.ac.uk/
+    field_specific: true
+  - country: Netherlands
+    institution: Wageningen University & Research
+    url: https://www.wur.nl/
+    field_specific: true
+  - country: Sweden
+    institution: Karolinska Institutet
+    url: https://ki.se/
+    field_specific: true
+  - country: Switzerland
+    institution: University of Zurich — Department of Biology
+    url: https://www.biologie.uzh.ch/en.html
+    field_specific: true
+  - country: United Kingdom
+    institution: Imperial College London — Life Sciences
+    url: https://www.imperial.ac.uk/life-sciences
+    field_specific: true
+  - country: Japan
+    institution: University of Tokyo — Department of Biological Sciences
+    url: https://www.bio.s.u-tokyo.ac.jp/en/
+    field_specific: true
+  - country: United States
+    institution: MIT — Department of Biology
+    url: https://biology.mit.edu/
+    field_specific: true
+  - country: United States
+    institution: Stanford University — Biology
+    url: https://biology.stanford.edu/
+    field_specific: true
+  - country: United States
+    institution: University of California, Berkeley — MCB
+    url: https://mcb.berkeley.edu/
+    field_specific: true
+  - country: United States
+    institution: California Institute of Technology — BBE
+    url: https://www.bbe.caltech.edu/
+    field_specific: true

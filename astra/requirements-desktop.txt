@@ -1,0 +1,72 @@
+# Astra desktop — the dependencies the bundled app actually uses.
+#
+# Requires Python 3.12 or newer (the codebase uses PEP 701 f-strings, which
+# are a SyntaxError on 3.11 and below).
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# requirements.txt is the full server install: Postgres, Redis, an RQ worker
+# queue, an LLM client, a headless browser. The desktop app runs none of that
+# — it is one user, one SQLite file, one local process — and astra-api.spec
+# already excludes those packages from the frozen bundle. Installing them
+# before a build therefore downloads ~400 MB that PyInstaller then throws
+# away, and on Windows it is also where the build is most likely to fall over
+# (playwright's browser download and psycopg2's build step are the two usual
+# culprits).
+#
+# Verified, not assumed: with exactly this list and nothing else,
+# `api/run.py` starts and `GET /health` answers `{"status":"ok"}`.
+#
+# requirements.txt is unchanged and still correct for a server deployment,
+# for contributors, and for anyone who wants the optional features below.
+
+# --- core engine -------------------------------------------------------------
+requests>=2.31
+requests[socks]           # SOCKS proxy support (socks5h:// URLs — V2Ray etc.)
+beautifulsoup4>=4.12
+feedparser>=6.0
+pyyaml>=6.0               # config.yaml + fields/*.yaml profiles
+lxml>=4.9                 # faster, more robust HTML parsing
+
+# --- API ---------------------------------------------------------------------
+fastapi>=0.110
+uvicorn>=0.29             # plain, not [standard]: the extras are uvloop
+                          # (POSIX-only) and httptools/watchfiles, none of
+                          # which one local user needs.
+pydantic>=2.0
+sqlalchemy>=2.0
+PyJWT>=2.8
+bcrypt>=4.0
+httpx>=0.24
+sentry-sdk>=1.40          # api/app.py imports this unconditionally; it stays
+                          # inert unless SENTRY_DSN is set.
+
+# --- optional, but small and worth bundling ----------------------------------
+curl_cffi>=0.6            # browser-TLS fingerprint fallback on 403/challenges
+readability-lxml>=0.8     # better main-text extraction for seed URLs
+pdfplumber>=0.11          # CV upload: PDF text extraction
+python-docx>=1.1          # CV upload: DOCX text extraction
+
+# --- deliberately NOT here ---------------------------------------------------
+# Install from requirements.txt if you want any of them.
+#
+# Named in astra-api.spec's EXCLUDES, so PyInstaller drops them even when they
+# are installed — installing them before a build is pure download time:
+#
+#   playwright      142 MB  headless-browser fallback (core.deps guards it)
+#   litellm         111 MB  LLM profile extractor (core.llm imports lazily)
+#   pandas + numpy  103 MB  one date-parsing fallback, already try/excepted
+#   psycopg2-binary   8 MB  PostgreSQL; the desktop app is always SQLite
+#   uvloop           16 MB  uvicorn speed extra; POSIX-only, and this serves
+#                           exactly one user
+#
+# Simply not needed by a single-user local install — nothing excludes them,
+# the code just never reaches them:
+#
+#   redis / rq / rq-scheduler / rq-dashboard
+#                           the job queue. core.tasks falls back to a daemon
+#                           thread when Redis is absent, which is the path the
+#                           desktop app takes.
+#   alembic                 migrations. db.init calls Base.metadata.create_all,
+#                           so a fresh SQLite file gets the full schema (18
+#                           tables) on first request without it.

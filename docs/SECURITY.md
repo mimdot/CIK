@@ -1,6 +1,6 @@
 # Security
 
-Security posture for the Career Intelligence Kit private beta. This is the walkthrough
+Security posture for the Astra private beta. This is the walkthrough
 of every item that must hold before opening the beta. Most items are code already in the
 repo; the "status" column is what to verify at deploy time (docs/BETA_CHECKLIST.md ticks
 them off).
@@ -17,14 +17,14 @@ them off).
 | API keys | Only SHA-256 stored; `cik_` prefix; revoke/rotate; scopes | `api/routes/apikeys.py` |
 | SSRF | Block loopback/private/link-local/link to be fetched by the crawler | `core/http.py` (Sprint 10, D1) |
 | Input | Pydantic v2 validation on every route; OpenAPI-typed bodies | all `api/routes/*` |
-| Secrets | `.env` gitignored; `CIK_SECRET_KEY` enforced in prod compose | `.gitignore`, `docker-compose.prod.yml` |
+| Secrets | `.env` gitignored; `ASTRA_SECRET_KEY` enforced in prod compose | `.gitignore`, `docker-compose.prod.yml` |
 | Invites | `INVITES_REQUIRED=1` gates registration behind an invite code | `api/routes/invites.py` |
 
 ## Detailed checklist
 
 ### Secrets
 - [x] No secrets in the repo: `.env*` is gitignored (only `.env.example` tracked); repo has no committed keys.
-- [ ] Generate a fresh `CIK_SECRET_KEY` at deploy time (`python -c "import secrets; print(secrets.token_urlsafe(48))"`); rotate after any suspected leak.
+- [ ] Generate a fresh `ASTRA_SECRET_KEY` at deploy time (`python -c "import secrets; print(secrets.token_urlsafe(48))"`); rotate after any suspected leak.
 - [ ] Provider keys (Groq/Gemini/ADS) live only in the VPS `.env`, never in CI logs (no CI configured yet).
 - [ ] `BACKUP_AGE_PRIVATE_KEY` lives off the VPS (see `docs/BACKUPS.md`).
 
@@ -44,7 +44,7 @@ them off).
 
 ### Input validation & abuse
 - [x] Every body is a Pydantic model; `422` on malformed input (v1 endpoints use the `{error: {code, message}}` envelope).
-- [x] SSRF guard shipped in `core/http.py`: rejects non-http(s) schemes, private-IP literals, and hostnames resolving to private ranges; unit-tested and configurable via `CIK_SSRF_GUARD`.
+- [x] SSRF guard shipped in `core/http.py`: rejects non-http(s) schemes, private-IP literals, and hostnames resolving to private ranges; unit-tested and configurable via `ASTRA_SSRF_GUARD`.
 - [x] Global per-IP guardrail on `/api/v1` and strict per-key rate limits.
 - [x] Audit log for admin actions, login, register, consent, and erase (`audit_events`).
 

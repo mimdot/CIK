@@ -1,0 +1,151 @@
+# fields/template.yaml — starter profile for a NEW research field
+# =============================================================================
+# HOW TO USE
+#   1. cp fields/template.yaml fields/marine_biology.yaml   (any name works)
+#   2. Fill in the lists below for YOUR field.
+#   3. Run:  python astra.py --field marine_biology
+#
+# You do NOT touch any Python. The aggregator's relevance engine, position-
+# type classifier, freshness layer and dedupe all work unchanged — only the
+# subject-matter knowledge lives here.
+#
+# MATCHING RULES
+#   * lowercase terms match case-insensitively as PREFIXES — "oceanograph"
+#     catches oceanography/oceanographic/oceanographer. Spaces and hyphens
+#     are interchangeable ("coral-reef" == "coral reef").
+#   * ALL-CAPS terms of <= 6 characters match as case-SENSITIVE whole words —
+#     use this for acronyms ("AUV" won't fire inside "flAUVor"... you get it).
+# =============================================================================
+
+name: template
+description: >
+  Commented starter profile. Copy me, rename me, and replace every list with
+  your own field's vocabulary. The example values sketch a marine-biology
+  profile so you can see the intended granularity.
+
+# A post MUST match at least one core anchor (title or description) to
+# qualify at all. Make these UNAMBIGUOUS words for your field — terms that
+# basically never appear outside it. 30-150 entries is typical.
+core_anchors:
+  - marine biolog        # prefix: matches "marine biology", "marine biologist"
+  - oceanograph
+  - coral reef
+  - phytoplankton
+  - deep sea
+  # - AUV                # ALL-CAPS: case-sensitive whole word
+
+# Context terms BOOST a matching post's score but can NEVER qualify a post on
+# their own (methods, instruments, generic modifiers shared with other
+# fields).
+context_terms:
+  - field work
+  - remote sensing
+  - population dynamics
+  - machine learning
+  - time series
+
+# Negative terms DEMOTE posts from neighbouring fields that share vocabulary
+# with yours. They are ignored when a core anchor appears in the TITLE, so
+# genuine crossovers survive.
+negative_terms:
+  - freshwater aquacultur
+  - food science
+  - fish farming
+
+# Typed into each job board's own search box (coverage only — the relevance
+# engine above decides what is kept). Order matters: sources that only take a
+# few queries use the first entries.
+search_terms:
+  - marine biology
+  - oceanography
+  - coral reef
+
+# WHICH BOARDS THIS FIELD USES.
+# -----------------------------------------------------------------------------
+# You almost never need this block. Two things already happen for free:
+#
+#   1. Every GENERAL multi-discipline board (EURAXESS, jobs.ac.uk, FindAPhD,
+#      Nature Careers, AcademicTransfer, AcademicJobsOnline, JREC-IN, LinkedIn,
+#      your seed URLs, the university department sweep) is queried for EVERY
+#      field, using the search_terms above — your field's vocabulary, not
+#      anyone else's.
+#   2. A SPECIALIST board is crawled only for the fields it declares itself.
+#      The AAS Job Register declares astronomy, so a chemistry run never
+#      touches it — and vice versa.
+#
+# Use `sources:` only to claim a specialist board that does not already name
+# your field. Names must match `python astra.py --list-sources`.
+# Unknown names are ignored with a warning, never a crash.
+#
+# sources:
+#   - acs_careers
+#   - rsc_jobs
+#
+# With no dedicated board of your own, the run logs
+#   "no dedicated sources for <field> yet — using the general boards"
+# and still works: general boards + your keywords is a complete search.
+
+# Scoring: keep a post iff (>= 1 core anchor matched) AND (score >= threshold).
+# Title evidence counts far more than description evidence. The defaults are
+# sane — only tune these once you've seen a few runs.
+weights:
+  core_title: 5.0        # per distinct core anchor found in the title
+  core_desc: 2.5         # per distinct core anchor found only in the desc
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+
+# OPTIONAL strict gate: require a core anchor in the TITLE for a post to
+# qualify (description matches then only boost the score). Turn this ON for
+# fields whose vocabulary overlaps other disciplines — e.g. computer science
+# vs astrophysics, where ML-heavy posts from the other field would otherwise
+# surface. Leave it out (or false) to allow description-only qualification.
+# require_title_anchor: true
+
+# Subfields power the supervisor finder:
+#   python astra.py --find-supervisors --field reef_ecology --country Australia
+# `keywords` are searched in paper titles/abstracts (OpenAlex/ADS).
+#
+# Which literature the supervisor finder searches (per profile):
+#   supervisor_source:    auto (default) | openalex | ads | arxiv.
+#                         OpenAlex covers EVERY major and needs NO token —
+#                         use it for anything that is not astronomy/physics.
+#                         NASA ADS indexes only astronomy + physics.
+#   supervisor_ads_db:    ADS database facet — astronomy | physics |
+#                         general (= arXiv e-prints) | all (no filter).
+#   supervisor_arxiv_cat: arXiv category filter for the arXiv fallback;
+#                         "all" searches every category, commas OR several,
+#                         e.g. "econ.*,q-fin.*". Defaults: astronomy / astro-ph*.
+# supervisor_source: openalex
+# supervisor_ads_db: general
+# supervisor_arxiv_cat: q-bio.*
+#
+# Author-direct supervisor ranking (OpenAlex, recommended for non-astro fields):
+# instead of ranking authors by keyword-matched PAPERS, the finder queries the
+# OpenAlex AUTHOR index directly via your curated TOPICS + a country filter,
+# then scores candidates by h-index and recent activity.
+#   supervisor_field:   OpenAlex field id (topics live under this field).
+#   supervisor_topics:  topic ids like T10077 (pick them from
+#                       https://api.openalex.org/topics?filter=field.id:fields/27).
+#   supervisor_senior_signal: none | last_author | corresponding — which
+#                       authorship position marks the PI. Economics/finance
+#                       order alphabetically -> 'none'; biology/chemistry labs
+#                       -> 'corresponding' or 'last_author'; astronomy/physics
+#                       -> 'last_author' (default).
+# supervisor_field: 27
+# supervisor_topics: [T10077, T10581]
+# supervisor_senior_signal: last_author
+subfields:
+  reef_ecology:
+    label: Coral reef ecology
+    keywords:
+      - coral reef
+      - reef ecosystem
+      - coral bleaching
+  deep_sea:
+    label: Deep-sea ecosystems
+    keywords:
+      - deep sea
+      - hydrothermal vent
+      - abyssal

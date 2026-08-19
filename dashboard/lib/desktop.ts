@@ -14,15 +14,15 @@
 /**
  * Are we running inside the desktop shell?
  *
- * `__CIK_DESKTOP__` is injected by the Rust shell on every page load, which is
+ * `__ASTRA_DESKTOP__` is injected by the Rust shell on every page load, which is
  * the signal we control and can rely on. `isTauri` is Tauri v2's own marker,
  * kept as a fallback. Note that `window.__TAURI__` is NOT a valid check here:
  * v2 only defines it under `app.withGlobalTauri`, which this app does not set.
  */
 export function isDesktop(): boolean {
   if (typeof window === "undefined") return false;
-  const w = window as unknown as { __CIK_DESKTOP__?: boolean; isTauri?: boolean };
-  return w.__CIK_DESKTOP__ === true || w.isTauri === true;
+  const w = window as unknown as { __ASTRA_DESKTOP__?: boolean; isTauri?: boolean };
+  return w.__ASTRA_DESKTOP__ === true || w.isTauri === true;
 }
 
 /** Links that must leave the app: real sites, mail clients, diallers. */

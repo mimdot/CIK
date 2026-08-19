@@ -4,6 +4,67 @@ All notable changes to Astra. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Windows. 1.0.0 shipped a Windows target that had never actually been built on
+Windows, and the first attempt found three real faults — one of which loses
+people their accounts on upgrade, on every platform.
+
+### Fixed
+
+- **On Windows, closing Astra did not stop its backend.** A PyInstaller onefile
+  is two processes: the bootloader unpacks the bundle and runs the real
+  application as a child. `Child::kill()` is `TerminateProcess`, which ends only
+  the bootloader — so every exit left the backend alive, still answering
+  `/health`, still holding port 8000, the SQLite database and 389 MB of
+  extracted files. The next launch found 8000 busy, chose a random port, and
+  added another one. It also quietly defeated the `%TEMP%` sweep added in 1.0.0,
+  which by design refuses to delete a directory any process still has open — and
+  one always did. The sidecar is now confined to a **job object** with
+  `KILL_ON_JOB_CLOSE`, so Windows collects the whole tree, including when Astra
+  is force-quit rather than closed. (Linux was never affected: it gets SIGTERM,
+  and the bootloader forwards it.)
+- **Upgrading an older install could no longer log you in.** The desktop app
+  never runs Alembic, so `db.init.reconcile_columns` is what carries an
+  existing database across a schema change — and it refused to add any NOT NULL
+  column. `users.role` is NOT NULL, so a database created before that column
+  stayed one column short for ever, and every sign-in failed with
+  `no such column: users.role` while the reason sat in a log nobody reads. It
+  now backfills such a column from the model's own default, and still reports
+  (rather than invents) a column with no default to fill it with. **Not
+  Windows-specific — this affected every long-lived install.**
+- **`'cross-env' is not recognized as an internal or external command`** on
+  Windows, with the package plainly installed. A `node_modules` tree installed
+  on Linux and copied to Windows arrives with every `.bin` entry a zero-byte
+  file — npm writes symlinks there on Unix and `.cmd` shims on Windows — and
+  with the wrong-OS `@next/swc` and Tauri CLI binaries. `run.ps1` and `run.sh`
+  now probe for the shim instead of merely the directory, and rebuild from the
+  lockfile when it is missing.
+- **`run.ps1` could never find Python**, and so refused to build on any machine
+  at all. It probed each interpreter with
+  `-c 'import sys;print("%d.%d"%sys.version_info[:2])'`, and Windows PowerShell
+  5.1 does not escape embedded double quotes when passing an argument to a
+  native executable — Python received `print(%d.%d%sys.version_info[:2])` and
+  raised a `SyntaxError`, for every candidate, so the script reported "no usable
+  Python found" with a working 3.14 first on PATH. It now asks `--version`,
+  which needs no quoting and has nothing to mis-escape.
+- **`run.ps1` now checks for the MSVC linker up front**, instead of letting a
+  twenty-minute build end in `error: linker 'link.exe' not found`.
+- **Eight tests passed and then errored in teardown on Windows**, with
+  `PermissionError: [WinError 32]`. Leaked SQLAlchemy engines and a
+  `monkeypatch.chdir` into a temporary directory are both invisible on Linux,
+  where an open file can still be unlinked; Windows removes neither. Closed
+  centrally in `tests/conftest.py`.
+- Two tests asserted platform-specific things that were never true on Windows:
+  a path rebuilt with `os.path.join` when the code preserves the separator it
+  was given, and a `read_text()` with no encoding, which is cp1252 there and
+  fails on the first em dash.
+
+### Changed
+
+- `docs/WINDOWS.md` documents the cross-platform `node_modules` trap and how to
+  spot it in one line.
+
 ## [1.0.0] — 2026-08-17
 
 First release under the name **Astra**. The desktop app is the headline: it
@@ -24,7 +85,7 @@ now starts, renders, and every control in it does what it says.
   from the record itself, with a snapshot, so a saved position survives a
   re-crawl and still reads correctly after the source page comes down.
 - **Sign-in with an email and a shared access code**, in front of the existing
-  account system. `CIK_ACCESS_CODE` controls it; leave it unset on a server and
+  account system. `ASTRA_ACCESS_CODE` controls it; leave it unset on a server and
   the ordinary password form comes back. **The code is not security** — see the
   README.
 - **Sign out**, which did not exist anywhere before.

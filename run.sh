@@ -18,7 +18,7 @@
 set -euo pipefail
 
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-ENGINE="$REPO/phd_aggregator"
+ENGINE="$REPO/astra"
 DASH="$REPO/dashboard"
 TAURI="$DASH/src-tauri"
 APP="$TAURI/target/release/app"
@@ -61,7 +61,7 @@ need python3 "install Python 3.11+"
 # Tauri names external binaries with the host target triple; the bundler strips
 # the suffix when it copies them next to the app.
 TRIPLE="$(rustc -vV | awk '/^host:/ {print $2}')"
-SIDECAR="$TAURI/sidecar/api/cik-api-$TRIPLE"
+SIDECAR="$TAURI/sidecar/api/astra-api-$TRIPLE"
 
 # --- 1. the FastAPI sidecar ---------------------------------------------------
 # Every package the frozen sidecar imports. The old list missed db/ (and
@@ -71,24 +71,41 @@ if [ "$FORCE" = 1 ] || stale "$SIDECAR" \
   "$ENGINE/api" "$ENGINE/core" "$ENGINE/sources" "$ENGINE/db" \
   "$ENGINE/matching" "$ENGINE/pipeline" "$ENGINE/supervisors" \
   "$ENGINE/cli" "$ENGINE/toolkit" "$ENGINE/fields" \
-  "$ENGINE/phd_aggregator.py" "$ENGINE/cik-api.spec"; then
+  "$ENGINE/astra.py" "$ENGINE/astra-api.spec"; then
   echo "== building the API sidecar (PyInstaller — several minutes) =="
   python3 -c 'import PyInstaller' 2>/dev/null || {
     echo "FAIL: PyInstaller is missing — pip install -r $ENGINE/requirements.txt" >&2
     exit 1
   }
-  (cd "$ENGINE" && python3 -m PyInstaller --noconfirm cik-api.spec)
+  (cd "$ENGINE" && python3 -m PyInstaller --noconfirm astra-api.spec)
   mkdir -p "$(dirname "$SIDECAR")"
-  install -m 755 "$ENGINE/dist/cik-api" "$SIDECAR"
+  install -m 755 "$ENGINE/dist/astra-api" "$SIDECAR"
 else
   echo "== API sidecar up to date =="
 fi
 
 # --- 2. the app: dashboard export + Tauri shell -------------------------------
-[ -d "$DASH/node_modules" ] || {
-  echo "== installing dashboard dependencies =="
-  (cd "$DASH" && npm install)
-}
+# `-d node_modules` on its own is not the question worth asking. A tree
+# installed on ANOTHER OS and copied here passes that check and then fails on
+# the first tool it runs: npm records .bin entries as symlinks on Linux and as
+# .cmd shims on Windows, so a tree that crossed platforms has entry points that
+# cannot execute (and platform-specific optional binaries — @next/swc-*, the
+# Tauri CLI — built for the wrong OS). Probe the shim that actually has to
+# work. -x follows the symlink, so a dangling one fails here as it should.
+if [ ! -x "$DASH/node_modules/.bin/next" ]; then
+  if [ -d "$DASH/node_modules" ]; then
+    echo "== dashboard dependencies were installed for another platform — reinstalling =="
+    rm -rf "$DASH/node_modules"
+  else
+    echo "== installing dashboard dependencies =="
+  fi
+  # npm ci when there is a lockfile: exact, clean tree, same as CI.
+  if [ -f "$DASH/package-lock.json" ]; then
+    (cd "$DASH" && npm ci)
+  else
+    (cd "$DASH" && npm install)
+  fi
+fi
 
 # Build through the Tauri CLI, never plain `cargo build --release`.
 #
@@ -115,7 +132,7 @@ if [ "$FORCE" = 1 ] \
   || stale "$DASH/out/index.html" "${FRONTEND_SRC[@]}"; then
   echo "== building the app (dashboard + desktop shell) =="
   (cd "$DASH" && TAURI=true npx tauri build --no-bundle)
-  install -m 755 "$SIDECAR" "$TAURI/target/release/cik-api"
+  install -m 755 "$SIDECAR" "$TAURI/target/release/astra-api"
 else
   echo "== app up to date =="
 fi
@@ -123,7 +140,7 @@ fi
 # --- 4. the menu entry (the "one click") --------------------------------------
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 mkdir -p "$APPS"
-cat >"$APPS/career-intelligence.desktop" <<EOF
+cat >"$APPS/astra.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
@@ -136,14 +153,14 @@ Categories=Education;
 StartupWMClass=app
 EOF
 update-desktop-database "$APPS" 2>/dev/null || true
-echo "== menu entry installed: $APPS/career-intelligence.desktop =="
+echo "== menu entry installed: $APPS/astra.desktop =="
 
 [ "$LAUNCH" = 1 ] || exit 0
 
 # The shell kills the sidecar when its window closes, but that handler never
 # runs if the shell is signalled instead (Ctrl-C in this terminal), which would
 # leave the API orphaned on the port. Clean up after ourselves either way.
-trap 'pkill -f "$TAURI/target/release/cik-api" 2>/dev/null || true' EXIT INT TERM
+trap 'pkill -f "$TAURI/target/release/astra-api" 2>/dev/null || true' EXIT INT TERM
 
 echo "== starting Astra =="
 "$APP"

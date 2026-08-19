@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets and personal data
+vpn.txt
+applicant.yaml
+.env
+.env.*
+
+# Runtime state and artifacts
+.seen_positions.json
+astra_positions_selftest*.csv
+astra_positions_selftest*.html
+astra_positions_selftest*.json
+astra_positions_selftest*_state.json
+
+# Run outputs (csv/html/json), collected out of the way
+reza results/

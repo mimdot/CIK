@@ -17,12 +17,12 @@ Do not open invites while any required item is unchecked.
 - [x] `npm test -- --runInBand` green (≥66 tests) — **66 passed 2026-08-11**
 - [x] `npm run lint` green and `npx tsc --noEmit` clean — **both exit 0, 2026-08-11**
 - [x] `next build` compiles green — **2026-08-11**
-- [ ] `pip-audit -r phd_aggregator/requirements.txt` reports 0 vulnerabilities
+- [ ] `pip-audit -r astra/requirements.txt` reports 0 vulnerabilities
 - [ ] `npm audit --audit-level=high` reports 0 vulnerabilities
 
 ## Deploy (on the VPS, per `docs/PROVISIONING.md`)
 
-- [ ] Fresh `CIK_SECRET_KEY` in `.env` (never the example value)
+- [ ] Fresh `ASTRA_SECRET_KEY` in `.env` (never the example value)
 - [ ] `.env` on the box matches `.env.example` shape (no extra/missing vars)
 - [ ] `CORS_ORIGINS` = the real dashboard origin; `NEXT_PUBLIC_API_URL` = https API origin
 - [ ] `API_DOMAIN`/`DASHBOARD_DOMAIN` point at the real hosts
@@ -35,7 +35,7 @@ Do not open invites while any required item is unchecked.
 
 ## Security (built + verify)
 
-- [ ] SSRF guard shipped and covered by tests (`CIK_SSRF_GUARD=1` in `.env`)
+- [ ] SSRF guard shipped and covered by tests (`ASTRA_SSRF_GUARD=1` in `.env`)
 - [ ] Dependency scans clean (see above)
 - [ ] `docs/SECURITY.md` checklist walked end-to-end; known gaps accepted + documented
 - [ ] Reset the admin password after first login; operators use strong passwords
@@ -57,7 +57,7 @@ Do not open invites while any required item is unchecked.
 - [ ] Sentry DSN live + **a test error actually fired an alert** (force one, e.g.
       hit a route with a broken input and watch Sentry)
 - [ ] Uptime checks configured on `/health` + `/ready` (external monitor)
-- [ ] JSON logs enabled (`CIK_JSON_LOGS=1`); a request carries `x-request-id` end-to-end
+- [ ] JSON logs enabled (`ASTRA_JSON_LOGS=1`); a request carries `x-request-id` end-to-end
 - [ ] Cron line installed for backups
 
 ## Beta access

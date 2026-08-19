@@ -7,7 +7,7 @@ in `PROVISIONING.md`; the go/no-go list is in `BETA_CHECKLIST.md`.
 All `docker compose` commands assume:
 
 ```bash
-cd career_intelligence_kit
+cd astra
 COMPOSE="docker compose --profile redis --profile postgres \
          -f docker-compose.yml -f docker-compose.prod.yml"
 ```
@@ -17,13 +17,13 @@ COMPOSE="docker compose --profile redis --profile postgres \
 **Make someone an admin** (they then mint invite codes and see the Admin tab):
 
 ```bash
-$COMPOSE exec api python phd_aggregator.py --make-admin friend@example.com
+$COMPOSE exec api python astra.py --make-admin friend@example.com
 ```
 
 **Get a bearer token as an admin** (for curl, e.g. minting invites):
 
 ```bash
-curl -s https://api.cik.example/api/auth/login \
+curl -s https://api.astra.example/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"you@example.com","password":"..."}' \
   -c cookies.txt
@@ -35,13 +35,13 @@ curl -s https://api.cik.example/api/auth/login \
 Registration is gated by `INVITES_REQUIRED=1` in production. Check status:
 
 ```bash
-curl -s https://api.cik.example/api/invites -H "Authorization: Bearer $TOKEN"
+curl -s https://api.astra.example/api/invites -H "Authorization: Bearer $TOKEN"
 ```
 
 **Mint one invite** (admin):
 
 ```bash
-curl -s -X POST https://api.cik.example/api/invites \
+curl -s -X POST https://api.astra.example/api/invites \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"note":"beta-wave-1"}'
 # -> {"code":"abc...","used":false,...}
@@ -56,8 +56,8 @@ by leaving `INVITES_REQUIRED=1` and simply never minting more codes.
 ## 3. Day-to-day health (2-minute check)
 
 ```bash
-curl -sf https://api.cik.example/health          # liveness
-curl -sf https://api.cik.example/ready           # readiness (DB linked)
+curl -sf https://api.astra.example/health          # liveness
+curl -sf https://api.astra.example/ready           # readiness (DB linked)
 $COMPOSE ps                                       # all containers Up/healthy
 ```
 
@@ -69,7 +69,7 @@ Anomalies — it refreshes every 30 s. Any 5xx or drifted source shows there.
 Run a full crawl+score manually (worker enqueues; harmless to repeat):
 
 ```bash
-curl -s -X POST https://api.cik.example/api/pipeline/run \
+curl -s -X POST https://api.astra.example/api/pipeline/run \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -79,7 +79,7 @@ Admin → Jobs; you can retry it from there or via `POST /api/admin/tasks/{id}/r
 ## 5. Backups
 
 - Nightly script runs from root cron (see `PROVISIONING.md` step 6).
-- Verify daily: `tail -5 /var/log/cik-backup.log` shows `backup complete`.
+- Verify daily: `tail -5 /var/log/astra-backup.log` shows `backup complete`.
 - Restore drill at least weekly during the first month (`docs/BACKUPS.md`).
 - If a backup ever exits 1 (fatal), page the operator: that night has no backup.
 
@@ -90,7 +90,7 @@ git pull                       # fetch the new release tag
 $COMPOSE up -d --build         # rebuild + restart
 $COMPOSE exec api alembic upgrade head    # only if a migration shipped
 $COMPOSE restart worker
-curl -sf https://api.cik.example/health && echo UP
+curl -sf https://api.astra.example/health && echo UP
 ```
 
 Before the upgrade, run all four gates locally (`scripts/self_test.sh`, pytest,
@@ -104,7 +104,7 @@ sent on plain HTTP or cross-origin. Check `CORS_ORIGINS` matches exactly.
 
 ### 7.2 Digests never arrive
 - `$COMPOSE logs worker | grep -i digest` — rq-scheduler cron registered once?
-  (If `API_WORKERS>1`, every extra worker must run with `CIK_SCHEDULER_ENABLED=0`.)
+  (If `API_WORKERS>1`, every extra worker must run with `ASTRA_SCHEDULER_ENABLED=0`.)
 - Check `GET /api/admin/metrics` → email events; confirm the Resend domain is
   verified and low bounce rate.
 

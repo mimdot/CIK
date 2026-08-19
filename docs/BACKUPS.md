@@ -7,7 +7,7 @@ Nightly, encrypted, pruned backups with a tested restore path (Sprint 10, B2).
 `scripts/backup.sh` from a host cron (one line, no container required):
 
 ```
-20 2 * * *  /opt/cik/career_intelligence_kit/scripts/backup.sh >> /var/log/cik-backup.log 2>&1
+20 2 * * *  /opt/astra/astra/scripts/backup.sh >> /var/log/astra-backup.log 2>&1
 ```
 
 It follows the same shape whether the database is PostgreSQL or SQLite:
@@ -27,7 +27,7 @@ stored locally but the upload failed).
 | `DATABASE_URL` | — | SQLAlchemy URL; the script auto-detects Postgres vs SQLite |
 | `PGDUMP_URL` | — | Optional raw `postgresql://` target for `pg_dump` when `DATABASE_URL` is not a PG URL |
 | `BACKUP_OBJECT_STORE` | — | `s3://bucket/path` (needs `aws` CLI) or any absolute directory |
-| `BACKUP_DIR` | `/var/backups/cik` | Local target / staging dir |
+| `BACKUP_DIR` | `/var/backups/astra` | Local target / staging dir |
 | `BACKUP_AGE_PUBLIC_KEY` | *(unset → plain!)* | age recipient (`age-keygen`). Do not run production without it |
 | `BACKUP_RETENTION_DAYS` | `14` | Keep at least N days |
 | `BACKUP_TMP_DIR` | `$BACKUP_DIR/.tmp` | Scratch space |
@@ -36,30 +36,30 @@ Generate an age key once and store the PRIVATE key far away (a separate box or a
 password manager):
 
 ```bash
-age-keygen -o /root/.config/cik-backup.agekey   # on the VPS
-cat /root/.config/cik-backup.agekey | grep 'public key'
+age-keygen -o /root/.config/astra-backup.agekey   # on the VPS
+cat /root/.config/astra-backup.agekey | grep 'public key'
 # put the public key line into BACKUP_AGE_PUBLIC_KEY in .env
 ```
 
 ## Restore drill (do this at least once before opening the beta)
 
-1. **Find the backup** you want to restore (e.g. `cik-20260809T020000Z.dump.age`).
+1. **Find the backup** you want to restore (e.g. `astra-20260809T020000Z.dump.age`).
 2. **Decrypt** locally with the private key:
 
    ```bash
-   age -d -i /root/.config/cik-backup.agekey \
-       cik-20260809T020000Z.dump.age > cik-20260809T020000Z.dump
+   age -d -i /root/.config/astra-backup.agekey \
+       astra-20260809T020000Z.dump.age > astra-20260809T020000Z.dump
    ```
 
 3. **Restore into a scratch database** first (never directly over production):
 
    ```bash
    # SQLite
-   cp cik-20260809T020000Z.dump /tmp/scratch.db
+   cp astra-20260809T020000Z.dump /tmp/scratch.db
 
    # PostgreSQL
    createdb cik_restore_drill
-   pg_restore -Fc -d cik_restore_drill cik-20260809T020000Z.dump
+   pg_restore -Fc -d cik_restore_drill astra-20260809T020000Z.dump
    ```
 
 4. **Verify row counts** match the pre-backup admin dashboard numbers
@@ -79,6 +79,6 @@ existed (during the beta, do it weekly at first).
 
 ## What if a backup is needed in an emergency?
 
-1. Quick path: `docker compose --profile postgres -f docker-compose.yml -f docker-compose.prod.yml exec postgres pg_dump -Fc cik -f /var/lib/postgresql/data/emergency.dump` — keep this inside the compose data volume while you work.
+1. Quick path: `docker compose --profile postgres -f docker-compose.yml -f docker-compose.prod.yml exec postgres pg_dump -Fc astra -f /var/lib/postgresql/data/emergency.dump` — keep this inside the compose data volume while you work.
 2. Then follow the restore drill above.
 3. Never restore directly over the live database before verifying the scratch copy.

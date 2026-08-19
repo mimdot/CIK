@@ -30,3 +30,27 @@ tauri-plugin-dialog = "2.7.2"
 # SIGTERM for the sidecar, so the PyInstaller bootloader can remove its
 # extraction dir. Already in the tree via tauri; declaring it is free.
 libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# Job objects, to kill the sidecar's whole process TREE.
+#
+# A PyInstaller onefile is TWO processes on Windows: the bootloader unpacks
+# itself and then runs the real app as a child. `Child::kill()` is
+# TerminateProcess, which ends only the bootloader — the child goes on serving,
+# holding port 8000, the database and its 389 MB extraction directory, for ever.
+# Putting the sidecar in a job with KILL_ON_JOB_CLOSE makes Windows collect the
+# whole tree, including when Astra itself is killed rather than closed.
+# Already in the tree via tauri; declaring it is free.
+#
+# The feature list is not guesswork: windows-sys gates each item on the
+# features its SIGNATURE needs, so two of these are not optional.
+#   Win32_Security         CreateJobObjectW takes a *const SECURITY_ATTRIBUTES
+#   Win32_System_Threading JOBOBJECT_EXTENDED_LIMIT_INFORMATION embeds IO_COUNTERS
+# Omit either and the import fails with E0432 "unresolved import" even though
+# the item is plainly there in the crate source.
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }

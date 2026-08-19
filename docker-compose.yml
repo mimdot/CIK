@@ -4,16 +4,16 @@ services:
   # or by overriding DATABASE_URL to point at an external PG instance.
   postgres:
     image: postgres:16-alpine
-    container_name: cik-postgres
+    container_name: astra-postgres
     profiles: ["postgres"]
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-cik}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cik}
-      POSTGRES_DB: ${POSTGRES_DB:-cik}
+      POSTGRES_USER: ${POSTGRES_USER:-astra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-astra}
+      POSTGRES_DB: ${POSTGRES_DB:-astra}
     volumes:
-      - cik-pgdata:/var/lib/postgresql/data
+      - astra-pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cik}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-astra}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,12 +22,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: cik-api
+    container_name: astra-api
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/phd_data.db}
-      CIK_SECRET_KEY: ${CIK_SECRET_KEY:?Set CIK_SECRET_KEY in .env}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/astra.db}
+      ASTRA_SECRET_KEY: ${ASTRA_SECRET_KEY:?Set ASTRA_SECRET_KEY in .env}
       LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-}
       LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
       OPENALEX_MAILTO: ${OPENALEX_MAILTO:-}
@@ -35,7 +35,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     volumes:
-      - cik-data:/data
+      - astra-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -45,7 +45,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: cik-redis
+    container_name: astra-redis
     profiles: ["redis"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -57,22 +57,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: cik-worker
+    container_name: astra-worker
     profiles: ["redis"]
     command: ["rq", "worker", "default"]
     environment:
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/phd_data.db}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/astra.db}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OLLAMA_HOST: ${OLLAMA_HOST:-}
       ADS_API_TOKEN: ${ADS_API_TOKEN:-}
       OPENALEX_MAILTO: ${OPENALEX_MAILTO:-}
-      CIK_SECRET_KEY: ${CIK_SECRET_KEY:?Set CIK_SECRET_KEY in .env}
+      ASTRA_SECRET_KEY: ${ASTRA_SECRET_KEY:?Set ASTRA_SECRET_KEY in .env}
     depends_on:
       redis:
         condition: service_healthy
     volumes:
-      - cik-data:/data
+      - astra-data:/data
 
   dashboard:
     build:
@@ -80,7 +80,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-    container_name: cik-dashboard
+    container_name: astra-dashboard
     ports:
       - "3000:3000"
     depends_on:
@@ -90,5 +90,5 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
 
 volumes:
-  cik-data:
-  cik-pgdata:
+  astra-data:
+  astra-pgdata:
