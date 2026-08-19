@@ -4,11 +4,17 @@ All notable changes to Astra. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.1] — 2026-08-19
 
-Windows. 1.0.0 shipped a Windows target that had never actually been built on
-Windows, and the first attempt found three real faults — one of which loses
-people their accounts on upgrade, on every platform.
+**Astra Desktop now actually runs on Windows.** 1.0.0 published Windows
+installers built by CI from source that had never been executed on Windows, and
+the first real build and launch found five faults — one of which costs people
+their accounts on upgrade, on every platform, and one of which left a server
+process running after every single exit.
+
+Nothing here changes what Astra does. If you are on Linux or macOS the only
+change that reaches you is the database one, and it matters: upgrade to this
+before opening an older database.
 
 ### Fixed
 
@@ -48,6 +54,10 @@ people their accounts on upgrade, on every platform.
   raised a `SyntaxError`, for every candidate, so the script reported "no usable
   Python found" with a working 3.14 first on PATH. It now asks `--version`,
   which needs no quoting and has nothing to mis-escape.
+- **The API reported version `0.1.0`** from `/health` and in its OpenAPI docs,
+  in every build ever shipped. The desktop shell has always passed the real
+  version in `ASTRA_VERSION`; `api/app.py` hardcoded a string and ignored it.
+  That is the one number a bug report is built on.
 - **`run.ps1` now checks for the MSVC linker up front**, instead of letting a
   twenty-minute build end in `error: linker 'link.exe' not found`.
 - **Eight tests passed and then errored in teardown on Windows**, with
@@ -62,8 +72,22 @@ people their accounts on upgrade, on every platform.
 
 ### Changed
 
-- `docs/WINDOWS.md` documents the cross-platform `node_modules` trap and how to
-  spot it in one line.
+- The release workflow installs `requirements-desktop.txt`, not
+  `requirements.txt`. The full manifest downloads roughly 400 MB that
+  `astra-api.spec` then excludes from the bundle anyway, and Playwright and
+  psycopg2 are the two likeliest places the Windows job falls over. Verified:
+  the frozen binary starts and `/health` answers with exactly the short list.
+- `.gitattributes` pins `*.sh` to LF, so a contributor whose `core.autocrlf` is
+  off cannot commit a CRLF shebang and leave Linux reporting
+  `/usr/bin/env: 'bash\r': No such file or directory`.
+- `.gitignore` ignores the whole sidecar directory rather than a list of target
+  triples. Each staged binary is 150–350 MB, well over GitHub's 100 MB limit,
+  and a pattern list only has to miss one new triple.
+- Removed the dead `cik-api-wrapper.sh`. `lib.rs` has spawned the sidecar
+  itself since before the rename, and says so in a comment.
+- `docs/WINDOWS.md` documents the cross-platform `node_modules` trap, and the
+  README no longer claims Windows is untested — while being explicit that what
+  was tested is a from-source build, not the published installer.
 
 ## [1.0.0] — 2026-08-17
 
@@ -123,4 +147,5 @@ now starts, renders, and every control in it does what it says.
 - The shared access code is a soft gate, extractable from the binary, and is
   documented as such. It gates nothing; accounts remain the real boundary.
 
+[1.0.1]: https://github.com/mimdot/CIK/releases/tag/v1.0.1
 [1.0.0]: https://github.com/mimdot/CIK/releases/tag/v1.0.0

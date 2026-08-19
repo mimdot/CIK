@@ -104,7 +104,12 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Astra API", version="0.1.0",
+# The desktop shell already passes ASTRA_VERSION (from CARGO_PKG_VERSION), and
+# this ignored it: a shipped 1.0.0 build reported "0.1.0" from /health and in
+# the OpenAPI docs, which is the one number a bug report is built on.
+APP_VERSION = os.environ.get("ASTRA_VERSION", "").strip() or "1.0.1"
+
+app = FastAPI(title="Astra API", version=APP_VERSION,
               lifespan=lifespan,
               description="REST API over the PhD aggregator's profiles, "
                           "opportunities, matches, supervisors and pipeline. "

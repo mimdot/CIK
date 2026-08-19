@@ -160,7 +160,36 @@ def test_health_ok(client):
 
 
 def test_health_has_version(client):
-    assert client.get("/health").json()["version"] == "0.1.0"
+    """/health reports the version the app was actually built as.
+
+    This used to assert the literal "0.1.0", which is exactly the string the
+    bug produced: api/app.py hardcoded it and ignored the ASTRA_VERSION the
+    desktop shell passes, so every shipped build misreported itself and the
+    test pinned that in place. Assert the contract — /health agrees with the
+    app object — rather than a number that has to be edited every release.
+    """
+    from api.app import app as api_app
+
+    version = client.get("/health").json()["version"]
+    assert version == api_app.version
+    assert version and version != "0.1.0"
+
+
+def test_version_comes_from_the_environment(monkeypatch):
+    """ASTRA_VERSION is how the packaged app tells the API what it is."""
+    import importlib
+
+    monkeypatch.setenv("ASTRA_VERSION", "9.9.9-test")
+    import api.app as app_module
+
+    reloaded = importlib.reload(app_module)
+    try:
+        assert reloaded.APP_VERSION == "9.9.9-test"
+        assert reloaded.app.version == "9.9.9-test"
+    finally:
+        # Other tests import this module; put it back as it was found.
+        monkeypatch.delenv("ASTRA_VERSION", raising=False)
+        importlib.reload(app_module)
 
 
 def test_openapi_lists_all_resource_paths(client):
