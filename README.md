@@ -21,6 +21,12 @@ programmes and the people running them — and keeps the search on your own mach
 
 **[⬇ Get the latest release](https://github.com/mimdot/CIK/releases/latest)**
 
+Every published release keeps its files permanently, so an older link never
+stops working: **[v1.0.1](https://github.com/mimdot/CIK/releases/tag/v1.0.1)**
+(current) · [v1.0.0](https://github.com/mimdot/CIK/releases/tag/v1.0.0) ·
+[all releases](https://github.com/mimdot/CIK/releases). What changed in each is
+in the [changelog](CHANGELOG.md).
+
 ### Which surface can I run?
 
 | | Linux | macOS | Windows |
