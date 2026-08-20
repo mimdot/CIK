@@ -290,11 +290,15 @@ subfields:
     label: Bayesian Statistics
     topics: [T10243, T11303]
     keywords:
+    # "prior"/"posterior" alone are matched as SUBSTRINGS by the supervisor and
+    # match filters (field_profile_keywords), where they hit "prior to" and
+    # "posterior" in anatomy. The distribution phrases say the same thing and
+    # cannot misfire.
     - bayesian
     - MCMC
     - variational inference
-    - prior
-    - posterior
+    - prior distribution
+    - posterior distribution
     - gaussian process
   causal:
     label: Causal Inference

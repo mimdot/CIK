@@ -716,27 +716,69 @@ def list_field_profiles() -> list[str]:
     return sorted(n for n in names if n != "template")
 
 
+# Below this length a term is not safe as a SQL LIKE '%term%' fragment: it
+# matches INSIDE unrelated words. The single worst case was "R" (a
+# statistics/data-science context term), whose '%r%' matched essentially every
+# supervisor row and turned the field filter into a no-op.
+_MIN_FILTER_KEYWORD = 3
+
+
 def field_profile_keywords(name: str) -> list[str]:
-    """Search keywords for a field profile name.
+    """QUALIFYING terms for a field profile name — used as a FILTER.
 
     Expands a ``fields/<name>.yaml`` profile into a lowercased, deduplicated
-    list of terms taken from ``core_anchors``, ``context_terms``, and the
-    ``keywords`` of every subfield. Returns ``[]`` when the profile is missing
-    or carries no terms — callers should treat an empty list as "no results",
-    NOT as "match everything"."""
+    list taken from ``core_anchors`` and the ``keywords`` of every subfield.
+    Returns ``[]`` when the profile is missing or carries no terms — callers
+    should treat an empty list as "no results", NOT as "match everything".
+
+    ``context_terms`` are DELIBERATELY EXCLUDED, and that is the whole point of
+    this function. The field schema defines them as boost-only: "context terms
+    BOOST a matching post's score but can NEVER qualify a post on their own".
+    Every caller here uses the result to decide what a field *includes*, which
+    is precisely the qualifying decision context terms must not make. Including
+    them meant a supervisor search for statistics filtered on "machine
+    learning", "simulation", "benchmark", "collaboration", "prior" and "R" —
+    so the query became `topics LIKE '%r%' OR ...` and returned supervisors
+    from every discipline. That is the "results are not filtered" bug.
+
+    Terms shorter than three characters are dropped for the same reason: this
+    list is matched as a substring, with no word boundaries available in SQL
+    LIKE, so a short term matches inside longer unrelated words.
+
+    SHORT ALL-CAPS ACRONYMS ARE DROPPED TOO, and not because they are bad
+    terms — because this function destroys the very rule that makes them safe.
+    The field schema matches an ALL-CAPS term of <= 6 characters as a
+    case-SENSITIVE WHOLE WORD, exactly so that "AGN" cannot fire inside
+    "magnetic". Lowercasing one into a substring pattern throws that away:
+    '%tem%' matches "system", '%sem%' matches "assembly", '%ert%' matches
+    "expert", '%ism%' matches "mechanism". Their full-phrase neighbours in the
+    same profile still match ("brain-computer interface" for a profile whose
+    acronym is EEG), so the recall cost is small and the precision cost of
+    keeping them is not.
+    """
     profile = load_field_profile(name)
     if not profile:
         return []
     keywords: list[str] = []
-    for key in ("core_anchors", "context_terms"):
-        if isinstance(profile.get(key), list):
-            keywords.extend(str(k) for k in profile[key] if isinstance(k, str))
+    if isinstance(profile.get("core_anchors"), list):
+        keywords.extend(str(k) for k in profile["core_anchors"]
+                        if isinstance(k, str))
     subfields = profile.get("subfields")
     if isinstance(subfields, dict):
         for sub in subfields.values():
             if isinstance(sub, dict) and isinstance(sub.get("keywords"), list):
                 keywords.extend(str(k) for k in sub["keywords"] if isinstance(k, str))
-    return list(dict.fromkeys(k.lower() for k in keywords if k.strip()))
+
+    def _safe(term: str) -> bool:
+        t = term.strip()
+        if len(t) < _MIN_FILTER_KEYWORD:
+            return False
+        # The schema's own acronym rule: ALL-CAPS, <= 6 chars, no lowercase.
+        if len(t) <= 6 and t.isupper() and any(c.isalpha() for c in t):
+            return False
+        return True
+
+    return list(dict.fromkeys(k.lower() for k in keywords if _safe(k)))
 
 
 def _oa_field_id(value: object) -> Optional[str]:

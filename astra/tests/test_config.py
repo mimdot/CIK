@@ -287,3 +287,63 @@ def test_config_path_properties():
     assert cfg.geo_filter_active is False
     cfg.countries = ["Germany"]
     assert cfg.geo_filter_active is True
+
+
+# --- field_profile_keywords is a FILTER, not a keyword dump ------------------
+
+def test_field_filter_excludes_context_terms():
+    """context_terms are boost-only and must never qualify a record.
+
+    This is the supervisor "results are not filtered" bug. The filter used to
+    include context_terms, so a statistics search filtered on "machine
+    learning", "collaboration", "benchmark" -- and on "R", a single letter,
+    whose LIKE '%r%' matched essentially every supervisor row in the table.
+    """
+    from core.config import field_profile_keywords
+    kws = field_profile_keywords("statistics_data_science")
+    assert kws, "profile should yield qualifying terms"
+    # Straight from that profile's context_terms: tooling and generic research
+    # vocabulary, none of which establishes that a supervisor is a statistician.
+    # "r" is the one that made the bug total -- LIKE '%r%' matches every row.
+    for boost_only in ("machine learning", "collaboration", "benchmark",
+                       "python", "r", "gpu", "big data", "covariate"):
+        assert boost_only not in kws, (
+            f"{boost_only!r} is a context term and must not qualify a record")
+    # "deep learning" IS present and should be: it arrives from the
+    # statistical_ml SUBFIELD, where it is subject matter rather than context.
+    # Subfield keywords qualify their subfield by design, so the filter keeps
+    # them; the rule being enforced here is about context_terms specifically.
+    assert "deep learning" in kws
+    # ...while the anchors that define the field are still there.
+    assert "bayesian" in kws
+    assert "causal inference" in kws
+
+
+def test_field_filter_drops_terms_that_are_unsafe_as_substrings():
+    """No term may match inside an unrelated word.
+
+    Two classes: anything under three characters, and the schema's ALL-CAPS
+    acronyms -- which are whole-word/case-sensitive by design, a rule this
+    lowercased substring list cannot express. '%tem%' would match "system",
+    '%sem%' "assembly", '%ism%' "mechanism", '%ert%' "expert".
+    """
+    from core.config import field_profile_keywords, list_field_profiles
+    unrelated = ["system", "assembly", "expert", "mechanism", "laboratory",
+                 "strategy", "temperature", "demonstration", "generation"]
+    for field in list_field_profiles():
+        for kw in field_profile_keywords(field):
+            assert len(kw) >= 3, f"{field}: {kw!r} is too short to filter on"
+            for word in unrelated:
+                # `analysis` (mathematics) is a real, deliberate anchor and the
+                # only accepted overlap; everything else must be clean.
+                if kw == "analysis":
+                    continue
+                assert kw not in word, (
+                    f"{field}: {kw!r} matches inside {word!r} as a substring")
+
+
+def test_field_filter_is_empty_for_an_unknown_profile():
+    """An unknown field must yield [] so callers can say 'no results' rather
+    than silently matching everything."""
+    from core.config import field_profile_keywords
+    assert field_profile_keywords("underwater_basket_weaving") == []
