@@ -344,3 +344,12 @@ subfields:
     - kernel method
     - graphical model
     - uncertainty quantification
+
+# The university-department sweep is OFF for this field, deliberately.
+# source_uni_departments falls back to the BUILT-IN ASTRONOMY registry (150
+# sites) for any profile with no `departments:` key at all — so leaving this
+# out would make a run of this field crawl 150 astronomy department pages,
+# slowly, for nothing. An explicit empty list disables the source cleanly
+# instead ("active field profile has no departments — skipping").
+# Replace with a real curated list to turn the source on for this field.
+departments: []

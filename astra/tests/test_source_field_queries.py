@@ -232,3 +232,21 @@ def test_no_field_redefines_ajo_categories_in_its_yaml(field):
     assert list(block.get("categories") or []) == registry_value, (
         f"fields/{field}.yaml redefines academicjobsonline.categories and has "
         f"drifted from the registry — delete the block, do not re-sync it")
+
+
+@pytest.mark.parametrize("field", [f for f in SHIPPED if f != "astronomy"])
+def test_no_field_silently_inherits_astronomys_departments(field):
+    """The department sweep is the fourth board that used to carry astronomy.
+
+    ``source_uni_departments`` falls back to the built-in 150-site astronomy
+    registry for any profile with NO ``departments:`` key, so simply omitting
+    the block makes a chemistry or neuroscience run crawl astronomy department
+    pages — slowly, and for nothing. A profile must either curate its own list
+    or declare an explicit empty one, which disables the source cleanly.
+    """
+    from core.config import apply_field_profile, load_field_profile
+    cfg = _cfg(field)
+    apply_field_profile(cfg, load_field_profile(field))
+    assert cfg.departments_explicit, (
+        f"fields/{field}.yaml has no `departments:` key, so it inherits the "
+        f"astronomy registry — add a curated list or `departments: []`")
