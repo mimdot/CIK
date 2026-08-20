@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import AstraMark from "@/components/AstraMark";
 import { BRAND } from "@/lib/brand";
 import { fetchMe, logout } from "@/lib/api";
-import { Bookmark, KeyRound, LayoutDashboard, LogOut, Settings, Shield, User, Users, Workflow } from "lucide-react";
+import { Bookmark, KeyRound, LayoutDashboard, LogOut, Power, Settings, Shield, User, Users, Workflow } from "lucide-react";
+import { isDesktop, quitApp } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
 
 // `adminOnly` pages are operator tooling, not features an ordinary user needs.
@@ -26,11 +27,19 @@ const NAV_ITEMS = [
 export default function Nav() {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
+  // Resolved after mount, never during render: the server pass has no window,
+  // so calling isDesktop() inline would render one tree on the server and a
+  // different one on the client, which is a hydration mismatch.
+  const [desktop, setDesktop] = useState(false);
 
   useEffect(() => {
     fetchMe()
       .then((me) => setIsAdmin(me.role === "admin"))
       .catch(() => setIsAdmin(false));
+  }, []);
+
+  useEffect(() => {
+    setDesktop(isDesktop());
   }, []);
 
   const items = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
@@ -97,6 +106,22 @@ export default function Nav() {
             <LogOut className="size-4" aria-hidden />
             <span>Sign out</span>
           </button>
+          {/* Quit, desktop only. Signing out is not the same as closing the
+              app, and closing the window is the window manager's business —
+              neither is a deliberate "stop Astra". This one goes through the
+              shell, which stops the backend BEFORE exiting, so no API process
+              is left holding the port for the next launch to trip over. */}
+          {desktop && (
+            <button
+              type="button"
+              onClick={() => void quitApp()}
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-2 py-1.5 text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-destructive"
+              title="Close Astra and stop its backend"
+            >
+              <Power className="size-4" aria-hidden />
+              <span>Quit</span>
+            </button>
+          )}
         </nav>
       </div>
     </header>

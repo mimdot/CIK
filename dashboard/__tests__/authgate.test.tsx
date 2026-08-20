@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AuthGate from "@/components/AuthGate";
 import { ApiError, apiStartupError, fetchMe, login } from "@/lib/api";
+import { isDesktop } from "@/lib/desktop";
 
 jest.mock("@/lib/api", () => ({
   ApiError: class ApiError extends Error {
@@ -24,6 +25,11 @@ jest.mock("@/lib/api", () => ({
   apiStartupError: jest.fn(() => null),
 }));
 
+jest.mock("@/lib/desktop", () => ({
+  isDesktop: jest.fn(() => false),
+}));
+
+const mockIsDesktop = isDesktop as jest.Mock;
 const mockFetchMe = fetchMe as jest.Mock;
 const mockStartupError = apiStartupError as jest.Mock;
 const mockLogin = login as jest.Mock;
@@ -32,6 +38,8 @@ describe("AuthGate", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockStartupError.mockReturnValue(null);
+    mockIsDesktop.mockReturnValue(false);
+    delete (window as { __ASTRA_API_READY__?: boolean }).__ASTRA_API_READY__;
   });
 
   it("shows the app when the API confirms a session", async () => {
@@ -122,5 +130,46 @@ describe("AuthGate", () => {
       screen.queryByText("Cannot reach the API server. Is it running?"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+  it("waits instead of failing when the shell has not published its state yet", async () => {
+    // The cold-start race that produced a sticky "Cannot reach the API server"
+    // on every launch. The shell sets __ASTRA_API_READY__ from on_page_load,
+    // whose eval is asynchronous, so the first fetchMe() can lose that race and
+    // find the flag `undefined` -- neither true nor false. The old guard tested
+    // `=== false`, so undefined fell through to the terminal offline screen,
+    // which never retries; a backend that came up a second later never cleared
+    // it. Inside the desktop shell, unknown means "not yet", not "down".
+    mockIsDesktop.mockReturnValue(true);
+    mockFetchMe.mockRejectedValue(
+      new ApiError("Cannot reach the API server. Is it running?", 0),
+    );
+    render(
+      <AuthGate>
+        <div>secret page</div>
+      </AuthGate>,
+    );
+    expect(await screen.findByTestId("api-starting")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Cannot reach the API server. Is it running?"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still reports an unreachable API immediately on the web build", async () => {
+    // The same unknown state on the web is a real failure: nothing there ever
+    // defines these globals, so treating unknown as "starting" would hang the
+    // page on a spinner forever.
+    mockIsDesktop.mockReturnValue(false);
+    mockFetchMe.mockRejectedValue(
+      new ApiError("Cannot reach the API server. Is it running?", 0),
+    );
+    render(
+      <AuthGate>
+        <div>secret page</div>
+      </AuthGate>,
+    );
+    expect(
+      await screen.findByText("Cannot reach the API server. Is it running?"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("api-starting")).not.toBeInTheDocument();
   });
 });

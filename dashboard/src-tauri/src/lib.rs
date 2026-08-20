@@ -55,6 +55,9 @@ const ACCESS_CODE: &str = "1819";
 static SIDECAR_JOB: Mutex<isize> = Mutex::new(0);
 
 static SIDECAR_CHILD: Mutex<Option<Child>> = Mutex::new(None);
+/// The sidecar pid, readable from a signal handler (which must not take a lock).
+#[cfg(unix)]
+static SIDECAR_PID: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 /// Resolved once the sidecar answers /health. Until then the frontend must not
 /// be told a base URL, because a call to a port nobody is listening on fails as
 /// "Cannot reach the API server" and looks like a broken app.
@@ -445,6 +448,26 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
         cmd.env("ASTRA_PROXY", proxy);
     }
 
+    // Have the KERNEL kill the sidecar when this process dies, whatever the
+    // reason. kill_sidecar() only runs from RunEvent::Exit, which never fires
+    // on SIGKILL, a panic, or the OOM killer — and an orphan there is not a
+    // tidy-up detail: it keeps the port and the SQLite file, so the NEXT launch
+    // picks a different port and two backends share one database. PDEATHSIG is
+    // the Linux counterpart of the KILL_ON_JOB_CLOSE job object Windows uses.
+    //
+    // The signal is delivered when the parent THREAD exits, not the process.
+    // That is fine here: the sidecar is spawned from boot_and_watch's thread,
+    // which parks for the life of a healthy app, and its only early return is
+    // the give-up path — where killing an unreachable backend is what we want.
+    #[cfg(target_os = "linux")]
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        cmd.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+            Ok(())
+        });
+    }
+
     {
         let mut guard = SIDECAR_LOG.lock().unwrap_or_else(|p| p.into_inner());
         *guard = Some(log_path.clone());
@@ -461,6 +484,11 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<u16, String> {
     // about to start a second process, and that one is the real backend.
     #[cfg(windows)]
     confine_to_job(&child);
+    // Record the pid in a plain atomic as well as the Mutex. A signal handler
+    // may not lock a Mutex — that is a deadlock waiting for the wrong moment —
+    // so the handler reads this instead.
+    #[cfg(unix)]
+    SIDECAR_PID.store(child.id() as i32, std::sync::atomic::Ordering::SeqCst);
 
     let mut guard = SIDECAR_CHILD
         .lock()
@@ -684,6 +712,53 @@ fn state_js() -> String {
 /// dialog, and an fs-plugin scope broad enough to cover "wherever they chose"
 /// is no narrower than this — it just spreads the decision across a config
 /// file. Here the grant is visible in one place and the failure is reported.
+/// Kill the sidecar from a signal handler, then die the way we were asked to.
+///
+/// Only async-signal-safe work happens here: an atomic load and kill(2).
+/// kill_sidecar() takes a Mutex and must never be called from this context.
+/// Restoring the default disposition and re-raising keeps the exit status a
+/// shell or init sees honest — the process still dies *of the signal*.
+#[cfg(unix)]
+extern "C" fn on_fatal_signal(sig: libc::c_int) {
+    let pid = SIDECAR_PID.load(std::sync::atomic::Ordering::SeqCst);
+    if pid > 0 {
+        // SAFETY: our own child; a stale pid yields ESRCH, which we ignore.
+        unsafe { libc::kill(pid, libc::SIGTERM) };
+    }
+    unsafe {
+        libc::signal(sig, libc::SIG_DFL);
+        libc::raise(sig);
+    }
+}
+
+/// Catch the terminal-shaped exits RunEvent::Exit never sees.
+///
+/// The app is normally started from a terminal by run.sh, so Ctrl+C (SIGINT),
+/// a closed terminal (SIGHUP) and `kill` (SIGTERM) are ordinary ways to stop
+/// it — and none of them fire Tauri's Exit event. Without this each one leaked
+/// a backend holding port 8000.
+#[cfg(unix)]
+fn install_signal_handlers() {
+    for sig in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+        // SAFETY: installing a handler that is itself async-signal-safe. The
+        // cast goes through a pointer rather than straight to the integer
+        // sighandler_t, which is what `function_casts_as_integer` asks for.
+        unsafe { libc::signal(sig, on_fatal_signal as *const () as libc::sighandler_t) };
+    }
+}
+
+/// Quit Astra completely: stop the backend, then exit.
+///
+/// Exposed to the UI so there is a deliberate way out that does not depend on
+/// the window manager's close button, and that never leaves the backend behind.
+/// Ordering matters — the sidecar is stopped BEFORE app.exit(), because exit
+/// tears down the runtime that would otherwise have run kill_sidecar for us.
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    kill_sidecar();
+    app.exit(0);
+}
+
 #[tauri::command]
 fn write_text_file(path: String, contents: String) -> Result<String, String> {
     let path = PathBuf::from(path);
@@ -772,6 +847,25 @@ pub fn run() {
     std::env::set_var("NO_PROXY", no_proxy);
     std::env::set_var("no_proxy", no_proxy);
 
+    // ...and on Linux those variables do not reach the part that matters.
+    //
+    // WebKitGTK does not read NO_PROXY. It asks GLib's GProxyResolver, which on
+    // a GNOME desktop is backed by GSettings (org.gnome.system.proxy) — so the
+    // bypass above covers the sidecar and every helper we spawn, and misses the
+    // webview itself, the one client that has to reach 127.0.0.1.
+    //
+    // That is not hypothetical. With the desktop set to a manual proxy, GNOME
+    // stores the bypass list as
+    //     ignore-hosts=['localhost,127.0.0.0/8,::1']
+    // a ONE-element list holding a comma-joined string, where GLib wants three
+    // separate entries. It matches no host at all, so the webview's fetch to
+    // its own sidecar is handed to the proxy, the proxy refuses to route
+    // loopback, fetch() throws, and the UI says "Cannot reach the API server"
+    // while curl -- which honours NO_PROXY -- gets 200 from the same URL.
+    // Diagnosed on a machine running a local V2Ray proxy: zero connections to
+    // :8000 before this line, an established connection immediately after.
+    //
+
     let app = tauri::Builder::default()
         // A webview cannot open a system browser or write a file by itself.
         // Without these two plugins every external link and every export in the
@@ -779,7 +873,7 @@ pub fn run() {
         // behaved.
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![write_text_file])
+        .invoke_handler(tauri::generate_handler![write_text_file, quit_app])
         // Every page load gets the current backend state, so a navigation can
         // never leave the frontend guessing at the port.
         .on_page_load(|webview, _payload| {
@@ -799,6 +893,9 @@ pub fn run() {
             // Reclaim anything a previous run could not clean up before we
             // add another 389 MB of our own.
             sweep_stale_extractions();
+            // Ctrl+C / SIGHUP / SIGTERM never reach RunEvent::Exit.
+            #[cfg(unix)]
+            install_signal_handlers();
             // Before anything can open the database: carry over the app data
             // from the pre-Astra bundle identifier.
             migrate_legacy_app_data(app.handle());

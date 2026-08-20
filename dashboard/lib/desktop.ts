@@ -86,6 +86,20 @@ export async function saveTextFile(opts: {
   return { path: suggestedName, revealable: false };
 }
 
+/**
+ * Close the desktop app completely.
+ *
+ * Goes through the shell rather than `window.close()`: the shell stops the
+ * FastAPI sidecar first and only then exits, so nothing is left holding the
+ * port or the SQLite file. A no-op on the web, where "quit the app" has no
+ * meaning and the tab is the user's to close.
+ */
+export async function quitApp(): Promise<void> {
+  if (!isDesktop()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("quit_app");
+}
+
 /** Select the file in the OS file manager. Desktop only. */
 export async function revealInFolder(path: string): Promise<void> {
   if (!isDesktop()) return;

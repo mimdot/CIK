@@ -5,6 +5,7 @@ import LoginForm from "@/components/LoginForm";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiBase, apiStartupError, fetchMe } from "@/lib/api";
+import { isDesktop } from "@/lib/desktop";
 
 /**
  * True while the desktop shell is still bringing the backend up.
@@ -26,7 +27,25 @@ function backendStarting(): boolean {
     __ASTRA_API_READY__?: boolean;
     __ASTRA_API_ERROR__?: string | null;
   };
-  return w.__ASTRA_API_READY__ === false && !w.__ASTRA_API_ERROR__;
+  // The shell has genuinely given up: that is an error, not a wait.
+  if (w.__ASTRA_API_ERROR__) return false;
+  // Explicitly still coming up.
+  if (w.__ASTRA_API_READY__ === false) return true;
+  // NOT YET PUBLISHED is also "still coming up", and used to be read as a
+  // failure. The shell sets these globals from `on_page_load`, whose eval is
+  // asynchronous, so on a cold start this component can mount and fire its
+  // first fetchMe() BEFORE the eval lands. The flag is then `undefined`, the
+  // old `=== false` test was false, and the gate went straight to the terminal
+  // "Cannot reach the API server" screen — which never retries, so a backend
+  // that came up two seconds later never cleared it. That is the sticky error
+  // on every cold launch: the backend was healthy the whole time.
+  //
+  // Gated on isDesktop() so the web build is untouched: there these globals are
+  // never defined and an unreachable API must still report itself immediately.
+  // isDesktop() is safe to consult this early because Tauri v2 defines its own
+  // `window.isTauri` marker before any page script runs, independently of our
+  // injection.
+  return isDesktop() && w.__ASTRA_API_READY__ === undefined;
 }
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
