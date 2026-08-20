@@ -132,9 +132,22 @@ if [ "$FORCE" = 1 ] \
   || stale "$DASH/out/index.html" "${FRONTEND_SRC[@]}"; then
   echo "== building the app (dashboard + desktop shell) =="
   (cd "$DASH" && TAURI=true npx tauri build --no-bundle)
-  install -m 755 "$SIDECAR" "$TAURI/target/release/astra-api"
 else
   echo "== app up to date =="
+fi
+
+# Deploy the sidecar next to the app binary — ALWAYS, not only when the app
+# itself was rebuilt.
+#
+# This copy used to live inside the branch above, so the common case (engine
+# code changed, shell and frontend did not) rebuilt the sidecar and then left
+# the previous one sitting next to the app. The app went on running the OLD
+# backend while run.sh reported success, and a Python fix simply did not reach
+# the desktop app — indistinguishable, from the outside, from a fix that does
+# not work.
+if ! cmp -s "$SIDECAR" "$TAURI/target/release/astra-api" 2>/dev/null; then
+  install -m 755 "$SIDECAR" "$TAURI/target/release/astra-api"
+  echo "== sidecar deployed next to the app =="
 fi
 
 # --- 4. the menu entry (the "one click") --------------------------------------
