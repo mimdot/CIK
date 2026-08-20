@@ -1,0 +1,383 @@
+# fields/neuroscience.yaml — neuroscience (systems, cellular & molecular,
+# cognitive, computational, clinical/translational, neuroengineering ...)
+# =============================================================================
+# Matching rules (see the relevance engine in astra.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("neuroscien" catches neuroscience/neuroscientist);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words.
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#   departments     the uni_departments sweep-list (top neuroscience institutes)
+#
+# OVERLAP NOTE. fields/biology.yaml deliberately keeps neuroscience in its own
+# anchors — a biology searcher wants neuro posts. That overlap is fine: a run
+# loads ONE profile, so the two never compete. What this file must avoid is the
+# reverse leak, machine-learning posts arriving on the word "neural network".
+# See negative_terms.
+# =============================================================================
+name: neuroscience
+description: Neuroscience — systems and circuit neuroscience, cellular and
+  molecular neurobiology, cognitive and behavioural neuroscience, computational
+  neuroscience and neural coding, neuroimaging, developmental neuroscience,
+  neurodegeneration and clinical translation, and neuroengineering
+core_anchors:
+- neuroscience
+- neuroscien
+- neurobiolog
+- neural circuit
+- neural coding
+- neural dynamic
+- neural population
+- neuronal
+- neuron
+- interneuron
+- synapse
+- synaptic
+- synaptic plasticity
+- neuroplasticity
+- neurotransmitter
+- neuromodulat
+- neuropharmacolog
+- neurophysiolog
+- neuroanatom
+- neurochemistr
+- neuroendocrin
+- neuroimmunolog
+- neuroinflammat
+- neurogenetic
+- neurogenomic
+- neurodevelopment
+- neurodegener
+- neuropath
+- neurooncolog
+- neuro-oncolog
+- neuroimaging
+- neuroinformatic
+- neuroprosthe
+- neuroengineering
+- neuroetholog
+- neurorehabilitat
+- brain
+- brainstem
+- cortex
+- cortical
+- neocortex
+- subcortical
+- hippocamp
+- cerebell
+- cerebral
+- amygdala
+- thalam
+- hypothalam
+- striatum
+- basal ganglia
+- prefrontal
+- dendrit
+- axon
+- myelin
+- glia
+- astrocyt
+- microglia
+- oligodendrocyt
+- dopamin
+- serotoner
+- serotonin
+- glutamatergic
+- cholinergic
+- acetylcholin
+- GABA
+- action potential
+- electrophysiolog
+- patch clamp
+- calcium imaging
+- two-photon imaging
+- optogenetic
+- chemogenetic
+- connectom
+- fmri
+- functional mri
+- EEG
+- electroencephalograph
+- MEG
+- magnetoencephalograph
+- brain-computer interface
+- brain machine interface
+- computational neuroscience
+- systems neuroscience
+- cognitive neuroscience
+- behavioural neuroscience
+- behavioral neuroscience
+- molecular neuroscience
+- cellular neuroscience
+- clinical neuroscience
+- affective neuroscience
+- sensory processing
+- visual cortex
+- auditory cortex
+- somatosensory
+- olfactory bulb
+- motor control
+- motor cortex
+- place cell
+- grid cell
+- spatial navigation
+- memory consolidation
+- working memory
+- decision making
+- reward learning
+- neural stem cell
+- neurogenesis
+- axon guidance
+- neurotrophic
+- neurology
+- neurologic
+- neuropsycholog
+- neuropsychiatr
+- alzheimer
+- parkinson
+- huntington
+- amyotrophic lateral
+- multiple sclerosis
+- epilep
+- seizure
+- traumatic brain injury
+- stroke
+- retina
+- nocicept
+- neuropathic pain
+context_terms:
+- in vivo
+- in vitro
+- ex vivo
+- mouse
+- rodent
+- rat
+- primate
+- macaque
+- zebrafish
+- drosophila
+- caenorhabditis
+- organoid
+- slice recording
+- single unit
+- spike train
+- spike sorting
+- silicon probe
+- neuropixels
+- viral tracing
+- immunohistochem
+- confocal
+- light sheet
+- super-resolution
+- single-cell
+- transcriptomic
+- proteomic
+- crispr
+- knockout
+- transgenic
+- behaviour
+- behavior
+- behavioural task
+- psychophysic
+- pupillometry
+- eye tracking
+- reaction time
+- circadian
+- sleep
+- stress
+- anxiety
+- addiction
+- autism
+- schizophren
+- bayesian
+- dynamical system
+- reinforcement learning
+- dimensionality reduction
+- signal processing
+- time series
+- statistics
+- data analysis
+negative_terms:
+# The big one: "neural network" in the ML sense. Ignored whenever a real
+# neuro anchor appears in the TITLE, so "Computational Neuroscience" survives.
+- artificial neural network
+- convolutional neural network
+- deep neural network
+- recurrent neural network
+- neural architecture search
+- deep learning engineer
+- machine learning engineer
+- software engineer
+- web development
+- devops
+- data engineer
+# Neighbouring disciplines that share vocabulary but are not this field.
+- clinical psychology
+- counselling psychology
+- educational psychology
+- organisational psychology
+- social psychology
+- sport psychology
+- nursing
+- physiotherapy
+- speech therapy
+- health economics
+- plant biology
+- crop science
+- agronomy
+- marine biology
+- ecology and evolution
+- phylogenetic
+- astronomy
+- astrophysic
+- cosmolog
+- particle physics
+- condensed matter
+- materials science
+- semiconductor
+- polymer chemistry
+- petroleum
+- civil engineering
+- finance
+- marketing
+search_terms:
+# ORDER MATTERS AND LENGTH DOES NOT: every board slices this list
+# (nature_careers[:6], jobs_ac_uk[:4], LinkedIn[:4], jrecin[:3],
+# academictransfer[:2]). Entries past the sixth are documentation only.
+# Chosen so each term catches posts the previous ones miss, rather than
+# re-finding the same "neuroscience" hits five times.
+- neuroscience
+- neurobiology
+- brain
+- neuroimaging
+- computational neuroscience
+- cognitive neuroscience
+- neural circuits
+- electrophysiology
+- neurodegeneration
+- brain-computer interface
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: q-bio.NC
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 28 (Neuroscience). Topic ids read from
+# api.openalex.org/topics?filter=field.id:fields/28 on 2026-08-20 — real ids,
+# not guessed. supervisor_senior_signal follows the wet-lab convention: the PI
+# is the last author.
+supervisor_field: 28
+supervisor_topics:
+  - T10077   # Neuroscience and Neuropharmacology Research
+  - T10581   # Neural dynamics and brain function
+  - T10241   # Functional Brain Connectivity Studies
+  - T10429   # EEG and Brain-Computer Interfaces
+  - T10427   # Visual perception and processing mechanisms
+  - T10056   # Neurotransmitter Receptor Influence on Behavior
+  - T10423   # Neurobiology and Insect Physiology Research
+  - T10971   # Olfactory and Sensory Function Studies
+  - T10283   # Hearing Loss and Rehabilitation
+  - T10342   # Circadian rhythm and melatonin
+  - T10529   # Stress Responses and Cortisol
+  - T10814   # Neuropeptides and Animal Physiology
+  - T10106   # Autism Spectrum Disorder Research
+  - T13796   # Neurological Disorders and Treatments
+supervisor_senior_signal: last_author
+
+# NOTE ON PER-BOARD TARGETING. Unlike the older field files, this one carries
+# NO source_options block. Every EURAXESS facet and AJO category for the fields
+# added on 2026-08-20 lives in sources/url_registry.yaml and only there —
+# because source_options SILENTLY OVERRIDE the registry, and duplicating the
+# values here is exactly how six existing fields drifted onto AJO's fallback
+# page while the registry sat corrected. One home, no drift.
+
+subfields:
+  systems_circuits:
+    label: Systems & Circuit Neuroscience
+    topics: [T10581, T10241, T10056]
+    keywords:
+    - neural circuit
+    - systems neuroscience
+    - neural coding
+    - optogenetic
+    - electrophysiology
+    - population dynamics
+  cellular_molecular:
+    label: Cellular & Molecular Neurobiology
+    topics: [T10077, T10814]
+    keywords:
+    - synaptic
+    - neurotransmitter
+    - ion channel
+    - neurodevelopment
+    - axon guidance
+    - glia
+  cognitive:
+    label: Cognitive & Behavioural Neuroscience
+    topics: [T10427, T10241, T10106]
+    keywords:
+    - cognitive neuroscience
+    - working memory
+    - decision making
+    - attention
+    - perception
+    - behavioural task
+  computational:
+    label: Computational Neuroscience
+    topics: [T10581, T10429]
+    keywords:
+    - computational neuroscience
+    - neural coding
+    - dynamical system
+    - spiking network
+    - bayesian
+    - normative model
+  neuroimaging:
+    label: Neuroimaging
+    topics: [T10241, T10429]
+    keywords:
+    - neuroimaging
+    - fmri
+    - EEG
+    - MEG
+    - diffusion imaging
+    - connectome
+  sensory:
+    label: Sensory Neuroscience
+    topics: [T10427, T10971, T10283]
+    keywords:
+    - visual cortex
+    - auditory
+    - olfactory
+    - somatosensory
+    - psychophysics
+  neurodegeneration:
+    label: Neurodegeneration & Clinical Neuroscience
+    topics: [T13796, T10077]
+    keywords:
+    - neurodegeneration
+    - alzheimer
+    - parkinson
+    - neuroinflammation
+    - clinical neuroscience
+  neuroengineering:
+    label: Neuroengineering & Neurotechnology
+    topics: [T10429]
+    keywords:
+    - brain-computer interface
+    - neuroprosthetic
+    - neural implant
+    - neuromodulation
+    - neuropixels

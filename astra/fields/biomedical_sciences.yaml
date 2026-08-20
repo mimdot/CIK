@@ -1,0 +1,372 @@
+# fields/biomedical_sciences.yaml — biomedical & health sciences (translational
+# and clinical research, immunology, oncology, infectious disease, epidemiology
+# and public health, pharmacology and drug discovery, medical imaging,
+# regenerative medicine, medical devices and health data ...)
+# =============================================================================
+# Matching rules (see the relevance engine in astra.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("immunolog" catches immunology/immunological);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words.
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#   departments     the uni_departments sweep-list
+#
+# OVERLAP NOTE. This is the LARGEST unclaimed EURAXESS block (313 Medical
+# sciences + 6037 Health sciences — see docs/BOARD_TAXONOMIES.md), which is
+# exactly why it also overlaps fields/biology.yaml (immunology, cancer, stem
+# cells) and fields/neuroscience.yaml (neurology, psychiatry). That overlap is
+# intentional and harmless: one run loads one profile. What negative_terms
+# guards against is the physical sciences and pure-software leakage.
+# =============================================================================
+name: biomedical_sciences
+description: Biomedical & health sciences — translational and clinical research,
+  immunology and infection, oncology, cardiovascular and metabolic disease,
+  epidemiology and public health, pharmacology and drug discovery, medical
+  imaging and diagnostics, regenerative medicine, biomedical engineering and
+  health data science
+core_anchors:
+- biomedical
+- biomedicine
+- biomedical scien
+- translational research
+- translational medicine
+- clinical research
+- clinical trial
+- clinical stud
+- medical research
+- medical scien
+- health scien
+- pathology
+- patholog
+- pathophysiolog
+- histopatholog
+- immunology
+- immunolog
+- immunotherap
+- immune response
+- autoimmun
+- inflammation
+- allerg
+- oncology
+- oncolog
+- cancer
+- tumour
+- tumor
+- carcinogen
+- metastas
+- leukaemia
+- leukemia
+- lymphoma
+- radiotherap
+- chemotherap
+- cardiovascular
+- cardiolog
+- atheroscleros
+- hypertension
+- respiratory medicine
+- pulmonar
+- hepatolog
+- nephrolog
+- gastroenterolog
+- endocrinolog
+- diabetes
+- obesity
+- metabolic disease
+- metabolic syndrome
+- infectious disease
+- epidemiolog
+- public health
+- global health
+- one health
+- virolog
+- bacteriolog
+- antimicrobial
+- antibiotic resistance
+- vaccine
+- vaccinolog
+- microbiome
+- parasitolog
+- drug discovery
+- drug development
+- drug delivery
+- pharmacolog
+- pharmaceutic
+- pharmacokinetic
+- pharmacogenom
+- medicinal chemistr
+- toxicolog
+- therapeutic target
+- precision medicine
+- personalised medicine
+- personalized medicine
+- genomic medicine
+- biomarker
+- diagnostic
+- medical imaging
+- radiolog
+- radiomic
+- ultrasound imaging
+- nuclear medicine
+- regenerative medicine
+- tissue engineering
+- stem cell therap
+- gene therapy
+- cell therapy
+- organoid
+- transplantation
+- medical device
+- biomedical engineering
+- bioengineering
+- health informatic
+- health data
+- digital health
+- biostatistic
+- clinical epidemiolog
+- randomised controlled trial
+- randomized controlled trial
+- cohort stud
+- surgery
+- surgical
+- anaesthe
+- anesthe
+- paediatric
+- pediatric
+- geriatric
+- obstetric
+- gynaecolog
+- psychiatr
+- dermatolog
+- ophthalmolog
+- haematolog
+- hematolog
+- rehabilitation
+- nutrition
+- reproductive health
+- maternal health
+- sepsis
+- veterinary medicine
+context_terms:
+- patient
+- cohort
+- biopsy
+- in vivo
+- in vitro
+- ex vivo
+- preclinical
+- mouse model
+- animal model
+- cell line
+- primary cell
+- flow cytometry
+- single-cell
+- sequencing
+- transcriptomic
+- proteomic
+- metabolomic
+- genomic
+- crispr
+- antibody
+- assay
+- elisa
+- microscopy
+- histolog
+- immunostaining
+- signalling pathway
+- receptor
+- cytokine
+- inflammatory
+- mutation
+- variant
+- gwas
+- registry
+- electronic health record
+- machine learning
+- deep learning
+- image analysis
+- statistics
+- data analysis
+- regulatory
+- gmp
+- good clinical practice
+- ethics approval
+negative_terms:
+# Physical sciences and pure software — the two directions this field leaks.
+- astronomy
+- astrophysic
+- cosmolog
+- particle physics
+- nuclear physics
+- quantum computing
+- condensed matter
+- semiconductor
+- photonic
+- metallurg
+- petroleum
+- civil engineering
+- structural engineering
+- architecture
+- software engineer
+- web development
+- devops
+- frontend
+- backend
+- game development
+- marketing
+- sales
+- finance
+- accounting
+- actuarial
+# Neighbouring life-science fields whose posts belong to another profile.
+- plant breeding
+- agronomy
+- crop science
+- forestry
+- marine biology
+- ecology and evolution
+- phylogenetic
+- palaeontolog
+- geology
+- hydrolog
+search_terms:
+# ORDER MATTERS AND LENGTH DOES NOT: every board slices this list
+# (nature_careers[:6], jobs_ac_uk[:4], LinkedIn[:4], jrecin[:3],
+# academictransfer[:2]). Entries past the sixth are documentation only.
+- biomedical
+- medicine
+- clinical research
+- immunology
+- oncology
+- epidemiology
+- pharmacology
+- translational medicine
+- public health
+- regenerative medicine
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: q-bio.*
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 27 (Medicine). Topic ids read from the live topics API on
+# 2026-08-20 — real ids, not guessed. Field 27 is huge (692 topics), so these
+# are chosen for spread across the subfields below rather than by raw works
+# count, which would return only obstetrics and epidemiology.
+supervisor_field: 27
+supervisor_topics:
+  - T10158   # Cancer Immunotherapy and Biomarkers
+  - T11112   # Viral Infections and Immunology Research
+  - T10031   # T-cell and B-cell Immunology
+  - T10038   # Tuberculosis Research and Epidemiology
+  - T10522   # Medical Imaging Techniques and Applications
+  - T12422   # Radiomics and Machine Learning in Medical Imaging
+  - T12264   # Tissue Engineering and Regenerative Medicine
+  - T11651   # Inhalation and Respiratory Drug Delivery
+  - T10256   # Drug Solubulity and Delivery Systems
+  - T10351   # Liver Disease Diagnosis and Treatment
+  - T11930   # Cardiac, Anesthesia and Surgical Outcomes
+  - T12935   # Healthcare Systems and Public Health
+  - T14495   # Public Health and Nutrition
+  - T10261   # Genetic Associations and Epidemiology
+  - T12552   # Fetal and Pediatric Neurological Disorders
+supervisor_senior_signal: last_author
+
+# NOTE ON PER-BOARD TARGETING. Unlike the older field files, this one carries
+# NO source_options block. Every EURAXESS facet and AJO category for the fields
+# added on 2026-08-20 lives in sources/url_registry.yaml and only there —
+# because source_options SILENTLY OVERRIDE the registry, and duplicating the
+# values here is exactly how six existing fields drifted onto AJO's fallback
+# page while the registry sat corrected. One home, no drift.
+
+subfields:
+  immunology_infection:
+    label: Immunology & Infectious Disease
+    topics: [T10031, T11112, T10038]
+    keywords:
+    - immunology
+    - infectious disease
+    - vaccine
+    - antimicrobial
+    - virology
+    - microbiome
+  oncology:
+    label: Oncology & Cancer Medicine
+    topics: [T10158]
+    keywords:
+    - oncology
+    - cancer
+    - tumour biology
+    - immunotherapy
+    - metastasis
+    - radiotherapy
+  epidemiology_public_health:
+    label: Epidemiology & Public Health
+    topics: [T10038, T12935, T14495, T10261]
+    keywords:
+    - epidemiology
+    - public health
+    - cohort study
+    - biostatistics
+    - global health
+    - health inequalities
+  pharmacology:
+    label: Pharmacology & Drug Discovery
+    topics: [T10256, T11651]
+    keywords:
+    - pharmacology
+    - drug discovery
+    - drug delivery
+    - pharmacokinetics
+    - medicinal chemistry
+    - toxicology
+  medical_imaging:
+    label: Medical Imaging & Diagnostics
+    topics: [T10522, T12422]
+    keywords:
+    - medical imaging
+    - radiology
+    - radiomics
+    - image analysis
+    - diagnostics
+    - machine learning
+  regenerative:
+    label: Regenerative Medicine & Tissue Engineering
+    topics: [T12264]
+    keywords:
+    - regenerative medicine
+    - tissue engineering
+    - stem cell therapy
+    - organoid
+    - biomaterial
+    - gene therapy
+  cardiometabolic:
+    label: Cardiovascular & Metabolic Disease
+    topics: [T11930, T10351]
+    keywords:
+    - cardiovascular
+    - cardiology
+    - diabetes
+    - obesity
+    - metabolic disease
+    - hypertension
+  health_data:
+    label: Health Data Science & Informatics
+    topics: [T12422, T10261]
+    keywords:
+    - health data
+    - health informatics
+    - electronic health record
+    - biostatistics
+    - digital health
+    - machine learning

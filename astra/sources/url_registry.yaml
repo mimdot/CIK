@@ -342,6 +342,52 @@ sources:
         status: ok
         verified: 2026-08-15
 
+      # --- batch 1, added 2026-08-20 -----------------------------------------
+      # Facet IDs harvested from 12 pages of the live search; the full 82-entry
+      # vocabulary and the parent/child map are in docs/BOARD_TAXONOMIES.md.
+      # "unclaimed parent" below means no existing field already covers this
+      # facet, so the field adds reach rather than re-slicing what we had.
+      neuroscience:
+        research_field: [317, 320, 321, 323]   # Neurosciences (unclaimed parent)
+        adjacent: [38]                         # Biological sciences
+        status: ok
+        verified: 2026-08-20
+      biomedical_sciences:
+        research_field: [313, 314, 6037]       # Medical + Health sciences
+        adjacent: [38]                         # mirror of biology's adjacent 313
+        status: ok
+        verified: 2026-08-20
+        note: >
+          The largest block on the portal that no existing field reached.
+          313 is an unclaimed top-level parent, 314 Medicine its child, and
+          6037 Health sciences a separate top-level entry.
+      environmental_science:
+        research_field: [195, 196, 197, 198]   # Environmental science + children
+        adjacent: [38]                         # Biological sciences (ecology PhDs)
+        status: ok
+        verified: 2026-08-20
+        note: >
+          Distinct parent from 219 Geosciences, which geology and
+          geophysics_hydro claim — the two do not compete for listings.
+      materials_science:
+        research_field: [181, 428, 361]        # Materials eng + Nanotech + Solid state
+        status: ok
+        verified: 2026-08-20
+        note: >
+          All three are CHILDREN of parents engineering (164/401) and physics
+          (345) already claim, so this re-slices rather than expands EURAXESS
+          coverage. No `adjacent` on purpose: the obvious candidates ARE those
+          parents, and sweeping them would re-fetch the same listings for the
+          cost of an extra 3-page pass on every run.
+      statistics_data_science:
+        research_field: [311, 251]             # Statistics + Information science
+        adjacent: [298]                        # Mathematics
+        status: ok
+        verified: 2026-08-20
+        note: >
+          Also a re-slice: 311 is a child of 298 (mathematics) and 251 is
+          already claimed by computer_science.
+
   # ---------------------------------------------------------------------------
   academicjobsonline:
     label: AcademicJobsOnline
@@ -360,6 +406,18 @@ sources:
       heading ("Job Listings [ Engineering ]") and checking its fingerprint
       differs from the fallback. --validate-sources now performs that same
       fallback check on every run.
+
+      MIND THE OVERRIDE. A field profile's own
+      `source_options.academicjobsonline.categories` WINS over anything here
+      (registry.values_for checks it first). On 2026-08-20 six field files were
+      found still carrying the pre-fix slugs in that block — economics,
+      engineering, mathematics, geology and geophysics_hydro were every one of
+      them being served this very fallback page, and condensed_matter was
+      silently reusing the whole 36k-char Physics listing instead of the 15k
+      Condensed Matter subcategory — because the registry got corrected in
+      2026-08 and the overrides did not. Those blocks are now removed, and the
+      fields added since carry no source_options at all. Keep it that way:
+      define a category HERE, once.
     fields:
       astronomy:
         category: ["physics/Astronomy", "physics/Astrophysics"]
@@ -410,6 +468,46 @@ sources:
         status: ok
         verified: 2026-08-15
         note: AJO has no geophysics category; ES (Environmental Science) is the nearest.
+
+      # --- batch 1, added 2026-08-20 -----------------------------------------
+      # Every slug below was probed against the fallback fingerprint described
+      # in the note above, on 2026-08-20, and each names its own discipline in
+      # its own heading. The ones that LOOK obvious are the fallback:
+      # "neuroscience", "materials", "mat", "medicine", "bio" all serve the
+      # generic page. Two near-misses worth remembering: "MS" is Media Studies,
+      # not Materials Science, and "neuro" is Neurology, not Neuroscience.
+      # Subcategory paths ("physics/Materials Science") were checked to return
+      # a genuinely smaller page than their parent, i.e. they really filter.
+      neuroscience:
+        category: [neurosci, "biology/Neuroscience"]   # NOT "neuroscience"
+        status: ok
+        verified: 2026-08-20
+      biomedical_sciences:
+        category: [biomed, med]       # NOT "medicine"/"bio" — both are fallback
+        status: ok
+        verified: 2026-08-20
+        note: >
+          "health" is also real but nearly empty (704 chars vs 6054 for the
+          fallback), so it is left off rather than spend a 5s-delayed fetch.
+      environmental_science:
+        category: [ES]
+        status: ok
+        verified: 2026-08-20
+        note: >
+          geology and geophysics_hydro already borrow this slug because AJO has
+          no geoscience category. Here it is the field it was actually named for.
+      materials_science:
+        category: [MatSci, "physics/Materials Science"]
+        status: ok
+        verified: 2026-08-20
+        note: >
+          "materials" and "mat" are the fallback, and "MS" is MEDIA STUDIES —
+          the sharpest illustration on this board of why slugs get probed
+          rather than guessed.
+      statistics_data_science:
+        category: [stat, DS]          # NOT "statistics" — that is the fallback
+        status: ok
+        verified: 2026-08-20
 
   # ---------------------------------------------------------------------------
   jobs_ac_uk:

@@ -1,0 +1,374 @@
+# fields/materials_science.yaml — materials science & engineering (metals and
+# alloys, ceramics, polymers and soft matter, composites, thin films and
+# surfaces, nanomaterials, energy materials, biomaterials, characterisation and
+# computational materials ...)
+# =============================================================================
+# Matching rules (see the relevance engine in astra.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("metallurg" catches metallurgy/metallurgical/metallurgist);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words.
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#   departments     the uni_departments sweep-list
+#
+# THIS FIELD RE-SLICES RATHER THAN EXPANDS on EURAXESS — read before tuning.
+# Its facets (181 Materials engineering, 428 Nanotechnology, 361 Solid state
+# physics) are all CHILDREN of parents that engineering.yaml and physics.yaml
+# already claim, so it surfaces no listing those two could not already reach.
+# What it buys is precision: a materials PhD no longer arrives buried in a
+# generic "Engineering" run. Its genuinely NEW reach comes from the general
+# boards being queried with the search_terms below. See
+# docs/BOARD_TAXONOMIES.md.
+#
+# Neighbours to keep an eye on: condensed_matter.yaml (superconductivity,
+# strongly correlated systems, soft matter theory) and chemistry.yaml
+# (synthesis, catalysis, electrochemistry). Overlap there is real and
+# deliberate — the negative_terms only push back the clearly-not-materials.
+# =============================================================================
+name: materials_science
+description: Materials science & engineering — metals and alloys, ceramics and
+  glasses, polymers and soft matter, composites, thin films, coatings and
+  surface engineering, nanomaterials and 2D materials, energy materials for
+  batteries and photovoltaics, biomaterials, plus characterisation and
+  computational materials design
+core_anchors:
+- materials scien
+- material scien
+- materials engineering
+- materials chemistr
+- materials physic
+- materials design
+- materials discovery
+- materials informatic
+- computational materials
+- functional material
+- advanced material
+- smart material
+- structural material
+- metallurg
+- alloy
+- superalloy
+- high entropy alloy
+- steel
+- titanium alloy
+- aluminium alloy
+- aluminum alloy
+- shape memory alloy
+- ceramic
+- refractory
+- glass ceramic
+- cement
+- concrete material
+- composite material
+- fibre reinforced
+- fiber reinforced
+- polymer
+- polymeric
+- copolymer
+- elastomer
+- thermoplastic
+- thermoset
+- hydrogel
+- colloid
+- soft matter
+- self-assembl
+- thin film
+- multilayer film
+- coating
+- surface engineering
+- surface modification
+- corrosion
+- oxidation resistance
+- tribolog
+- wear resistance
+- fatigue crack
+- fatigue life
+- fracture toughness
+- creep behaviour
+- creep behavior
+- mechanical propert
+- microstructur
+- grain boundar
+- dislocation
+- phase transformation
+- phase diagram
+- crystallograph
+- diffraction
+- XRD
+- electron microscop
+- TEM
+- SEM
+- EBSD
+- atom probe
+- nanomaterial
+- nanostructur
+- nanoparticle
+- nanocomposite
+- nanotechnolog
+- nanofabricat
+- graphene
+- carbon nanotube
+- 2d material
+- quantum dot
+- metamaterial
+- photonic crystal
+- dielectric material
+- ferroelectric
+- piezoelectric
+- magnetic material
+- magnetostrict
+- thermoelectric
+- semiconductor material
+- perovskite
+- photovoltaic
+- solar cell
+- battery material
+- lithium-ion
+- sodium-ion
+- solid electrolyte
+- fuel cell
+- electrocataly
+- hydrogen storage
+- energy material
+- biomaterial
+- biocompatib
+- scaffold material
+- implant material
+- additive manufactur
+- 3d printing
+- powder metallurg
+- sintering
+- casting
+- welding
+- extrusion
+- metal-organic framework
+- MOF
+- zeolite
+- porous material
+- membrane material
+- corrosion inhibitor
+context_terms:
+- synthesis
+- characterisation
+- characterization
+- spectroscopy
+- raman
+- XPS
+- FTIR
+- NMR
+- AFM
+- rheology
+- calorimetry
+- thermal analysis
+- tensile test
+- nanoindentation
+- in situ
+- operando
+- synchrotron
+- neutron scattering
+- density functional theory
+- DFT
+- molecular dynamics
+- phase field
+- finite element
+- machine learning
+- high-throughput
+- combinatorial
+- process optimisation
+- scale-up
+- pilot line
+- clean room
+- deposition
+- sputtering
+- chemical vapour deposition
+- atomic layer deposition
+- annealing
+- doping
+- interface
+- defect
+- porosity
+- durability
+- sustainability
+- recycling
+negative_terms:
+# Neighbouring physical sciences whose posts belong to another profile.
+- astronomy
+- astrophysic
+- cosmolog
+- galaxy
+- particle physics
+- high energy physics
+- nuclear physics
+- plasma physics
+- quantum field theory
+- string theory
+# Life and earth sciences.
+- clinical trial
+- epidemiolog
+- immunolog
+- oncolog
+- neuroscience
+- marine biology
+- ecology and evolution
+- agronomy
+- crop science
+- palaeontolog
+- stratigraph
+- hydrogeolog
+- petroleum
+# Software / business.
+- software engineer
+- web development
+- devops
+- frontend
+- natural language processing
+- marketing
+- sales
+- finance
+- accounting
+- supply chain management
+search_terms:
+# ORDER MATTERS AND LENGTH DOES NOT: every board slices this list
+# (nature_careers[:6], jobs_ac_uk[:4], LinkedIn[:4], jrecin[:3],
+# academictransfer[:2]). Entries past the sixth are documentation only.
+# "materials science" first, then the sub-vocabularies that posts use INSTEAD
+# of it — a battery or thin-film ad often never says "materials science".
+- materials science
+- materials engineering
+- nanomaterials
+- polymer
+- metallurgy
+- energy materials
+- thin films
+- biomaterials
+- composites
+- additive manufacturing
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: cond-mat.mtrl-sci
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 25 (Materials Science). Topic ids read from the live topics
+# API on 2026-08-20 — real ids, not guessed.
+supervisor_field: 25
+supervisor_topics:
+  - T13129   # Material Properties and Applications
+  - T14184   # Metallurgy and Material Science
+  - T10310   # Corrosion Behavior and Inhibition
+  - T10736   # Hydrogen embrittlement and corrosion behaviors in metals
+  - T10132   # Advanced ceramic materials synthesis
+  - T11277   # Thermal properties of materials
+  - T10083   # Graphene research and applications
+  - T11128   # Transition Metal Oxide Nanomaterials
+  - T11341   # Boron and Carbon Nanomaterials Research
+  - T10661   # biodegradable polymer synthesis and properties
+  - T10660   # Conducting polymers and applications
+  - T12084   # Synthesis and properties of polymers
+  - T10389   # Polymer crystallization and properties
+  - T13889   # Advanced Materials and Semiconductor Technologies
+  - T10063   # Nanoparticle-Based Drug Delivery
+  - T11966   # Silk-based biomaterials and applications
+  - T11948   # Machine Learning in Materials Science
+  - T12613   # X-ray Diffraction in Crystallography
+supervisor_senior_signal: last_author
+
+# NOTE ON PER-BOARD TARGETING. Unlike the older field files, this one carries
+# NO source_options block. Every EURAXESS facet and AJO category for the fields
+# added on 2026-08-20 lives in sources/url_registry.yaml and only there —
+# because source_options SILENTLY OVERRIDE the registry, and duplicating the
+# values here is exactly how six existing fields drifted onto AJO's fallback
+# page while the registry sat corrected. One home, no drift.
+
+subfields:
+  metals_alloys:
+    label: Metals & Alloys
+    topics: [T14184, T10736, T10310]
+    keywords:
+    - metallurgy
+    - alloy
+    - steel
+    - microstructure
+    - phase transformation
+    - corrosion
+  ceramics:
+    label: Ceramics & Glasses
+    topics: [T10132, T11277]
+    keywords:
+    - ceramic
+    - sintering
+    - refractory
+    - thermal properties
+    - oxide
+  polymers_soft:
+    label: Polymers & Soft Matter
+    topics: [T12084, T10389, T10661, T10660]
+    keywords:
+    - polymer
+    - soft matter
+    - hydrogel
+    - colloid
+    - self-assembly
+    - rheology
+  nanomaterials:
+    label: Nanomaterials & 2D Materials
+    topics: [T10083, T11128, T11341]
+    keywords:
+    - nanomaterial
+    - nanoparticle
+    - graphene
+    - carbon nanotube
+    - 2d material
+    - nanofabrication
+  thin_films:
+    label: Thin Films, Surfaces & Coatings
+    topics: [T13889]
+    keywords:
+    - thin film
+    - coating
+    - surface engineering
+    - deposition
+    - sputtering
+    - interface
+  energy_materials:
+    label: Energy Materials
+    topics: [T13889, T11128]
+    keywords:
+    - battery material
+    - lithium-ion
+    - solid electrolyte
+    - fuel cell
+    - photovoltaic
+    - perovskite
+  biomaterials:
+    label: Biomaterials
+    topics: [T11966, T10063]
+    keywords:
+    - biomaterial
+    - biocompatibility
+    - scaffold
+    - implant
+    - drug delivery
+    - tissue engineering
+  computational_materials:
+    label: Computational & Data-Driven Materials
+    topics: [T11948, T12613]
+    keywords:
+    - computational materials
+    - density functional theory
+    - molecular dynamics
+    - materials informatics
+    - machine learning
+    - high-throughput screening

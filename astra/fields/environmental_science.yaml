@@ -1,0 +1,365 @@
+# fields/environmental_science.yaml — environmental science (ecology &
+# conservation, climate and global change, atmospheric science and air quality,
+# surface hydrology and water resources, soil and biogeochemistry, pollution
+# and ecotoxicology, sustainability and environmental policy ...)
+# =============================================================================
+# Matching rules (see the relevance engine in astra.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("ecolog" catches ecology/ecological/ecologist);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words.
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#   departments     the uni_departments sweep-list
+#
+# BOUNDARY WITH THE EXISTING GEO FIELDS — read before editing.
+# fields/geology.yaml owns solid earth (stratigraphy, tectonics, palaeontology)
+# and fields/geophysics_hydro.yaml owns the SUBSURFACE (hydrogeology,
+# groundwater, aquifers, seismics). This file takes SURFACE environment:
+# catchments, streamflow, water quality, air, soil, ecosystems, climate.
+# The split is enforced by putting the subsurface vocabulary in negative_terms
+# below, so a groundwater post ranks for geophysics_hydro and not for this
+# field. On EURAXESS the two are genuinely different parents — 195
+# Environmental science here, 219 Geosciences there — so they do not compete
+# for the same listings either. See docs/BOARD_TAXONOMIES.md.
+# =============================================================================
+name: environmental_science
+description: Environmental science — ecology and biodiversity conservation,
+  climate change and global change, atmospheric science and air quality,
+  surface hydrology and water resources, soil science and biogeochemistry,
+  pollution and ecotoxicology, waste and the circular economy, and
+  environmental policy, monitoring and management
+core_anchors:
+- environmental scien
+- environmental research
+- environmental chemistr
+- environmental engineering
+- environmental monitoring
+- environmental management
+- environmental policy
+- environmental impact
+- environmental modelling
+- environmental modeling
+- ecology
+- ecolog
+- ecosystem
+- ecosystem service
+- agroecolog
+- restoration ecology
+- community ecology
+- population ecology
+- landscape ecology
+- urban ecology
+- biodiversity
+- conservation biolog
+- conservation scien
+- nature conservation
+- wildlife
+- habitat
+- species distribution
+- invasive species
+- endangered species
+- food web
+- trophic
+- rewilding
+- climate change
+- climate scien
+- climate model
+- climatolog
+- global change
+- global warming
+- carbon cycle
+- carbon sequestration
+- carbon budget
+- greenhouse gas
+- emission
+- decarbonis
+- decarboniz
+- net zero
+- climate adaptation
+- climate mitigation
+- atmospheric scien
+- atmospheric chemistr
+- aerosol
+- air quality
+- air pollution
+- particulate matter
+- ozone
+- meteorolog
+- surface hydrolog
+- catchment
+- watershed
+- streamflow
+- river basin
+- runoff
+- flood risk
+- drought
+- water quality
+- water resource
+- water treatment
+- wastewater
+- limnolog
+- wetland
+- freshwater ecolog
+- riparian
+- estuar
+- coastal zone
+- coastal ecolog
+- marine conservation
+- soil scien
+- soil carbon
+- soil health
+- soil erosion
+- biogeochemistr
+- nutrient cycling
+- eutrophication
+- nitrogen cycle
+- land use
+- land cover
+- deforestation
+- forestry
+- peatland
+- permafrost
+- pollution
+- pollutant
+- contaminant
+- contaminated land
+- heavy metal
+- microplastic
+- persistent organic pollutant
+- ecotoxicolog
+- environmental toxicolog
+- bioremediation
+- phytoremediation
+- waste management
+- solid waste
+- recycling
+- circular economy
+- life cycle assessment
+- sustainability
+- sustainable development
+- environmental justice
+- natural resource management
+- earth observation
+context_terms:
+- remote sensing
+- satellite
+- GIS
+- geospatial
+- field campaign
+- field work
+- monitoring network
+- sensor
+- time series
+- long-term dataset
+- modelling
+- numerical model
+- process model
+- statistics
+- machine learning
+- data assimilation
+- uncertainty
+- scenario
+- stakeholder
+- policy
+- governance
+- interdisciplinary
+- sampling
+- isotope
+- chromatography
+- mass spectrometry
+- metagenomic
+- edna
+- biomass
+- vegetation
+- microbial community
+- carbon flux
+- eddy covariance
+- hydrological model
+- catchment model
+- land surface model
+- IPCC
+- ecosystem model
+negative_terms:
+# The subsurface belongs to geophysics_hydro.yaml, not here — see the boundary
+# note at the top of this file.
+- hydrogeolog
+- groundwater
+- aquifer
+- vadose
+- borehole
+- well logging
+- seismic reflection
+- seismic refraction
+- magnetotelluric
+- reservoir engineering
+- petroleum
+- oil and gas
+- mining engineering
+# Solid earth belongs to geology.yaml.
+- stratigraph
+- sedimentolog
+- palaeontolog
+- paleontolog
+- tectonic
+- petrolog
+- mineralog
+# Everything else that shares a word or two but is a different discipline.
+- astronomy
+- astrophysic
+- particle physics
+- condensed matter
+- semiconductor
+- clinical trial
+- immunolog
+- oncolog
+- neuroscience
+- software engineer
+- web development
+- marketing
+- corporate sustainability report
+- accounting
+search_terms:
+# ORDER MATTERS AND LENGTH DOES NOT: every board slices this list
+# (nature_careers[:6], jobs_ac_uk[:4], LinkedIn[:4], jrecin[:3],
+# academictransfer[:2]). Entries past the sixth are documentation only.
+# "environmental science" first because it is the phrase the boards' own
+# categories use; "ecology" second because a large share of these posts never
+# say "environmental" at all.
+- environmental science
+- ecology
+- climate change
+- biodiversity
+- water quality
+- atmospheric science
+- sustainability
+- soil science
+- pollution
+- conservation
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: physics.ao-ph,q-bio.PE
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 23 (Environmental Science). Topic ids read from the live
+# topics API on 2026-08-20 — real ids, not guessed.
+supervisor_field: 23
+supervisor_topics:
+  - T10895   # Species Distribution and Climate Change
+  - T10319   # Conservation, Biodiversity, and Resource Management
+  - T13394   # Ecology, Conservation, and Geographical Studies
+  - T11244   # Climate Change and Health Impacts
+  - T10347   # Atmospheric aerosols and clouds
+  - T11588   # Atmospheric and Environmental Gas Dynamics
+  - T10330   # Hydrology and Watershed Management Studies
+  - T11186   # Hydrology and Drought Analysis
+  - T10577   # Hydrology and Sediment Transport Processes
+  - T14249   # Water Quality Monitoring and Analysis
+  - T12773   # Water Quality and Resources Studies
+  - T13909   # Environmental Quality and Pollution
+  - T14468   # Plant Ecology and Soil Science
+  - T11312   # Soil Moisture and Remote Sensing
+  - T10236   # Aquatic Ecosystems and Phytoplankton Dynamics
+  - T12017   # Recycling and Waste Management Techniques
+supervisor_senior_signal: last_author
+
+# NOTE ON PER-BOARD TARGETING. Unlike the older field files, this one carries
+# NO source_options block. Every EURAXESS facet and AJO category for the fields
+# added on 2026-08-20 lives in sources/url_registry.yaml and only there —
+# because source_options SILENTLY OVERRIDE the registry, and duplicating the
+# values here is exactly how six existing fields drifted onto AJO's fallback
+# page while the registry sat corrected. One home, no drift.
+
+subfields:
+  ecology_conservation:
+    label: Ecology & Conservation
+    topics: [T10319, T13394, T10895]
+    keywords:
+    - ecology
+    - biodiversity
+    - conservation
+    - habitat
+    - species distribution
+    - wildlife
+  climate:
+    label: Climate & Global Change
+    topics: [T10895, T11244]
+    keywords:
+    - climate change
+    - global change
+    - carbon cycle
+    - greenhouse gas
+    - climate model
+    - adaptation
+  atmospheric:
+    label: Atmospheric Science & Air Quality
+    topics: [T10347, T11588]
+    keywords:
+    - atmospheric science
+    - aerosol
+    - air quality
+    - air pollution
+    - ozone
+    - meteorology
+  hydrology_water:
+    label: Surface Hydrology & Water Resources
+    topics: [T10330, T11186, T10577, T14249]
+    keywords:
+    - catchment
+    - watershed
+    - streamflow
+    - flood risk
+    - drought
+    - water quality
+  soil_biogeochem:
+    label: Soil Science & Biogeochemistry
+    topics: [T14468, T11312]
+    keywords:
+    - soil science
+    - soil carbon
+    - biogeochemistry
+    - nutrient cycling
+    - land use
+    - isotope
+  pollution_ecotox:
+    label: Pollution & Ecotoxicology
+    topics: [T13909]
+    keywords:
+    - pollution
+    - contaminant
+    - microplastic
+    - ecotoxicology
+    - heavy metal
+    - bioremediation
+  aquatic:
+    label: Freshwater & Coastal Ecosystems
+    topics: [T10236, T12773]
+    keywords:
+    - freshwater ecology
+    - limnology
+    - wetland
+    - estuarine
+    - coastal
+    - phytoplankton
+  sustainability:
+    label: Sustainability & Circular Economy
+    topics: [T12017]
+    keywords:
+    - sustainability
+    - circular economy
+    - life cycle assessment
+    - waste management
+    - recycling
+    - environmental policy

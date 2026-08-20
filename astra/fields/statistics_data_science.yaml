@@ -1,0 +1,346 @@
+# fields/statistics_data_science.yaml — statistics & data science (statistical
+# methodology and inference, Bayesian and causal methods, probability and
+# stochastic processes, biostatistics, statistical machine learning, and the
+# applied data-science posts that sit between them)
+# =============================================================================
+# Matching rules (see the relevance engine in astra.py):
+#   * lowercase terms match case-insensitively as PREFIXES
+#     ("statistic" catches statistics/statistical/statistician);
+#     spaces and hyphens are interchangeable.
+#   * ALL-CAPS terms (<= 6 chars) match as case-SENSITIVE whole words.
+#
+#   core_anchors    a post MUST match >= 1 of these to qualify at all
+#   context_terms   boost the score but can never qualify a post alone
+#   negative_terms  demote a post (ignored when a core anchor is in the title)
+#   search_terms    typed into each job board's own search box (coverage)
+#   weights/threshold  the scoring rule: keep iff >=1 anchor AND score >= threshold
+#   subfields       used by --find-supervisors --field <subfield> --country X
+#
+# WHY require_title_anchor IS ON HERE — do not turn it off casually.
+# "machine learning" and "data analysis" now appear in the description of PhD
+# ads in every discipline on the board: they are literally context_terms in
+# biology.yaml, materials_science.yaml, neuroscience.yaml and environmental_
+# science.yaml. Without the title gate, a single description-only mention
+# scores 2.5 against a 2.0 threshold, so this profile would quietly collect the
+# whole board. computer_science.yaml sets the same flag for the same reason.
+# The cost is real and accepted: a genuinely statistical post whose title never
+# says so will be missed.
+#
+# OVERLAP NOTE. This field RE-SLICES rather than expands — 311 Statistics is a
+# child of 298 Mathematics and 251 Information science is already claimed by
+# computer_science, so on EURAXESS it reaches nothing those two could not.
+# What it buys is a searcher who wants statistics not having to wade through
+# either pure maths or software engineering. Its new reach comes from the
+# general boards and from AJO, where the stat + Data Science cluster is the
+# second densest thing on the board. See docs/BOARD_TAXONOMIES.md.
+# =============================================================================
+name: statistics_data_science
+description: Statistics & data science — statistical methodology and inference,
+  Bayesian and causal methods, probability and stochastic processes, time
+  series and spatial statistics, experimental design, biostatistics, and
+  statistical machine learning
+core_anchors:
+- statistics
+- statistic
+- statistical
+- statistician
+- mathematical statistics
+- applied statistics
+- computational statistics
+- statistical methodolog
+- statistical inference
+- statistical model
+- statistical learning
+- statistical theory
+- statistical genetics
+- biostatistic
+- econometric
+- psychometric
+- chemometric
+- probability theory
+- probabilistic model
+- stochastic process
+- stochastic modelling
+- stochastic modeling
+- markov chain
+- markov chain monte carlo
+- MCMC
+- monte carlo method
+- bayesian
+- bayesian inference
+- bayesian nonparametric
+- variational inference
+- frequentist
+- likelihood
+- maximum likelihood
+- hypothesis testing
+- multiple testing
+- confidence interval
+- causal inference
+- causal discovery
+- counterfactual
+- randomis
+- experimental design
+- design of experiments
+- survey methodolog
+- sampling design
+- survival analysis
+- time-to-event
+- longitudinal data
+- panel data
+- time series
+- forecasting
+- state space model
+- spatial statistics
+- spatio-temporal
+- geostatistic
+- extreme value
+- functional data analysis
+- multivariate analysis
+- high-dimensional
+- dimensionality reduction
+- nonparametric
+- semiparametric
+- mixed effects model
+- hierarchical model
+- generalised linear model
+- generalized linear model
+- regression model
+- resampling
+- bootstrap method
+- uncertainty quantification
+- model selection
+- data science
+- data scien
+# ML terms that are STATISTICAL. Bare "machine learning" / "deep learning" are
+# deliberately NOT anchors here — see the note under context_terms.
+- statistical machine learning
+- probabilistic machine learning
+- graphical model
+- gaussian process
+- kernel method
+- optimal transport
+- information theory
+- operations research
+- decision theory
+context_terms:
+# WHY BARE "machine learning" IS DEMOTED TO A CONTEXT TERM.
+# It was a core anchor in the first draft and the very first live run brought
+# back a Yukawa Institute *theoretical physics* postdoc whose title happened to
+# say "machine learning" — the title gate cannot save you when the leaking term
+# IS the title anchor. computer_science.yaml already claims machine learning,
+# deep learning, data mining and data analytics as ITS anchors under the same
+# title gate, so anchoring on them here mostly re-ran that field's search and
+# imported its false positives with it. Boosting instead of qualifying keeps
+# "Statistical Machine Learning" scoring high while sending a bare "PhD in
+# Machine Learning" to computer_science, where it belongs.
+- machine learning
+- deep learning
+- reinforcement learning
+- representation learning
+- data mining
+- data analytic
+- predictive model
+- anomaly detection
+- random forest
+- neural network
+- R
+- python
+- stan
+- pytorch
+- tensorflow
+- scikit-learn
+- julia
+- reproducib
+- open science
+- simulation study
+- benchmark
+- large-scale data
+- big data
+- cluster computing
+- gpu
+- asymptotic
+- convergence
+- consistency
+- estimator
+- posterior
+- prior
+- covariate
+- confounding
+- missing data
+- measurement error
+- clinical trial
+- genomic
+- epidemiolog
+- imaging data
+- text data
+- network data
+- interdisciplinary
+- collaboration
+negative_terms:
+# Neighbouring fields that would otherwise arrive on "machine learning" alone.
+# These are only reached when no core anchor is in the TITLE, which — with
+# require_title_anchor on — means they are being demoted before being dropped.
+- wet lab
+- cell culture
+- in vivo
+- mouse model
+- synaptic
+- neurobiolog
+- immunolog
+- oncolog
+- crystallograph
+- microstructur
+- thin film
+- semiconductor fabricat
+- astronom
+- astrophysic
+- cosmolog
+- particle physics
+- condensed matter
+- ecology and evolution
+- agronomy
+- palaeontolog
+- hydrogeolog
+# Industry software roles that are not research posts.
+- software engineer
+- devops
+- frontend
+- backend
+- full stack
+- web development
+- business intelligence
+- marketing analytics
+- sales analytics
+- financial analyst
+- risk management
+search_terms:
+# ORDER MATTERS AND LENGTH DOES NOT: every board slices this list
+# (nature_careers[:6], jobs_ac_uk[:4], LinkedIn[:4], jrecin[:3],
+# academictransfer[:2]). Entries past the sixth are documentation only.
+# "statistics" leads because it is the word this field owns; "data science"
+# and "machine learning" follow because a large share of these posts use those
+# instead — but they are deliberately NOT first, since they also return the
+# computer_science board's entire catalogue.
+- statistics
+- biostatistics
+- data science
+- statistical modelling
+- machine learning
+- causal inference
+- bayesian statistics
+- time series
+- probability
+- experimental design
+weights:
+  core_title: 5.0
+  core_desc: 2.5
+  context_title: 1.0
+  context_desc: 0.5
+  negative: -2.0
+threshold: 2.0
+require_title_anchor: true
+supervisor_source: openalex
+supervisor_ads_db: general
+supervisor_arxiv_cat: stat.*,cs.LG,math.ST
+
+# --- supervisor finder: author-direct search (OpenAlex) ----------------------
+# OpenAlex field 26 (Mathematics) — where OpenAlex files statistics. Topic ids
+# read from the live topics API on 2026-08-20 — real ids, not guessed. The
+# machine-learning topics are drawn from field 17 (Computer Science) on
+# purpose: this field straddles the two, and ranking authors on statistics
+# topics alone would miss the statistical-ML side entirely.
+# supervisor_senior_signal is 'none': statistics and ML papers order authors
+# alphabetically often enough that last-author would pick the wrong person.
+supervisor_field: 26
+supervisor_topics:
+  - T10136   # Statistical Methods and Inference
+  - T10243   # Statistical Methods and Bayesian Inference
+  - T11871   # Advanced Statistical Methods and Models
+  - T13500   # Probability and Statistical Research
+  - T10845   # Advanced Causal Inference Techniques
+  - T11303   # Bayesian Modeling and Causal Inference
+  - T12205   # Time Series Analysis and Forecasting
+  - T11270   # Complex Systems and Time Series Analysis
+  - T11714   # Multimodal Machine Learning Applications
+  - T11689   # Adversarial Robustness in Machine Learning
+  - T12254   # Machine Learning in Bioinformatics
+  - T10181   # Natural Language Processing Techniques
+supervisor_senior_signal: none
+
+# NOTE ON PER-BOARD TARGETING. Unlike the older field files, this one carries
+# NO source_options block. Every EURAXESS facet and AJO category for the fields
+# added on 2026-08-20 lives in sources/url_registry.yaml and only there —
+# because source_options SILENTLY OVERRIDE the registry, and duplicating the
+# values here is exactly how six existing fields drifted onto AJO's fallback
+# page while the registry sat corrected. One home, no drift.
+
+subfields:
+  methodology:
+    label: Statistical Methodology & Inference
+    topics: [T10136, T11871]
+    keywords:
+    - statistical inference
+    - nonparametric
+    - high-dimensional
+    - asymptotic
+    - model selection
+    - estimator
+  bayesian:
+    label: Bayesian Statistics
+    topics: [T10243, T11303]
+    keywords:
+    - bayesian
+    - MCMC
+    - variational inference
+    - prior
+    - posterior
+    - gaussian process
+  causal:
+    label: Causal Inference
+    topics: [T10845, T11303]
+    keywords:
+    - causal inference
+    - counterfactual
+    - confounding
+    - randomised trial
+    - causal discovery
+  probability:
+    label: Probability & Stochastic Processes
+    topics: [T13500]
+    keywords:
+    - probability theory
+    - stochastic process
+    - markov chain
+    - random matrix
+    - limit theorem
+  time_series_spatial:
+    label: Time Series & Spatial Statistics
+    topics: [T12205, T11270]
+    keywords:
+    - time series
+    - forecasting
+    - state space model
+    - spatial statistics
+    - spatio-temporal
+    - geostatistics
+  biostatistics:
+    label: Biostatistics
+    topics: [T12254, T10136]
+    keywords:
+    - biostatistics
+    - survival analysis
+    - clinical trial
+    - longitudinal data
+    - epidemiology
+    - statistical genetics
+  statistical_ml:
+    label: Statistical Machine Learning
+    topics: [T11714, T11689, T10181]
+    keywords:
+    - statistical machine learning
+    - deep learning
+    - representation learning
+    - kernel method
+    - graphical model
+    - uncertainty quantification
