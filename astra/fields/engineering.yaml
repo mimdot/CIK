@@ -312,8 +312,10 @@ source_options:
   euraxess:
     research_fields: [164, 401]
     adjacent_research_fields: [345]
-  academicjobsonline:
-    categories: ['engineering']
+  # academicjobsonline: REMOVED 2026-08-20. This block said ['engineering'],
+  # which is AJO's generic fallback page, and because source_options OVERRIDE
+  # the registry it was winning over the corrected ['eng'] in url_registry.yaml.
+  # The registry entry is now the only definition — do not re-add it here.
 
 subfields:
   electrical_computer:

@@ -4,6 +4,38 @@ All notable changes to Astra. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Five new research fields** — neuroscience, biomedical sciences,
+  environmental science, materials science, and statistics & data science,
+  taking the taxonomy from 11 to 16. Each ships curated anchors, context and
+  negative terms, eight subfields with real OpenAlex topic ids for the
+  supervisor finder, and verified per-board targeting. No code changed: the
+  API, the field picker and the desktop bundle all pick them up from the
+  `fields/` glob, on every platform.
+- **`docs/BOARD_TAXONOMIES.md`** — the 82 live EURAXESS `job_research_field`
+  facet ids with their parent/child structure, AcademicJobsOnline's discipline
+  volumes, and every category slug probed against that board's fallback page.
+  Pick new field names from this, not from imagination.
+
+### Fixed
+
+- **Six fields were querying AcademicJobsOnline's fallback page.** A field
+  profile's `source_options` silently overrides `sources/url_registry.yaml`,
+  and while the registry was corrected back in 2026-08, the per-field
+  overrides were not: `economics`, `engineering`, `mathematics`, `geology` and
+  `geophysics_hydro` were every one of them scraping AJO's generic listing
+  rather than their own discipline, and `condensed_matter` was silently
+  reusing the whole 36k-character Physics page instead of the Condensed Matter
+  subcategory. The board answers 200 for any path, so all six looked healthy.
+  The stale blocks are removed and the registry is now the single home.
+- **The test suite asserted two of those wrong slugs**, which is why the bug
+  survived: `test_each_field_queries_its_own_subject` pinned `mathematics` and
+  `economics` as AJO categories. Corrected, and two guards added — no field may
+  resolve to a known fallback slug, and no field YAML may redefine AJO
+  categories at all.
 ## [1.0.1] — 2026-08-19
 
 **Astra Desktop now actually runs on Windows.** 1.0.0 published Windows

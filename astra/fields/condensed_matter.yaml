@@ -187,8 +187,13 @@ source_options:
   euraxess:
     research_fields: [345]
     adjacent_research_fields: [47]
-  academicjobsonline:
-    categories: ['physics']
+  # academicjobsonline: REMOVED 2026-08-20. This block said ['physics'], which
+  # is a REAL page but the wrong one — the whole 36k-character Physics listing
+  # rather than the Condensed Matter Physics subcategory (15k, measured), so
+  # this field was silently reusing all of physics. Because source_options
+  # override the registry it was winning over the corrected
+  # ['physics/Condensed Matter Physics'] in url_registry.yaml. The registry
+  # entry is now the only definition — do not re-add it here.
 
 subfields:
 

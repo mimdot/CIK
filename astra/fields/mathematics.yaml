@@ -280,8 +280,12 @@ source_options:
   euraxess:
     research_fields: [298]
     adjacent_research_fields: [345]
-  academicjobsonline:
-    categories: ['mathematics', 'statistics']
+  # academicjobsonline: REMOVED 2026-08-20. This block said
+  # ['mathematics', 'statistics'] — BOTH of which are AJO's generic fallback
+  # page — and because source_options OVERRIDE the registry it was winning over
+  # the corrected ['math', 'stat'] in url_registry.yaml. These are two of the
+  # exact five slugs the registry's own note records as the original bug; the
+  # registry was fixed, this override was not. Do not re-add it here.
 
 subfields:
   algebra_number_theory:

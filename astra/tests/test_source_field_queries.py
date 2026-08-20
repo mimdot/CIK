@@ -33,7 +33,18 @@ def _cfg(field=None, **overrides):
 
 SHIPPED = ["astronomy", "physics", "chemistry", "biology", "computer_science",
            "mathematics", "engineering", "economics", "geology",
-           "condensed_matter", "geophysics_hydro"]
+           "condensed_matter", "geophysics_hydro",
+           # batch 1, added 2026-08-20
+           "neuroscience", "biomedical_sciences", "environmental_science",
+           "materials_science", "statistics_data_science"]
+
+# Slugs AcademicJobsOnline serves its GENERIC FALLBACK listing for. The board
+# answers 200 for any path, so each of these looks healthy while returning the
+# wrong result set entirely — that is what made the original bug survive months
+# of green tests. Probed against the fallback fingerprint on 2026-08-20.
+AJO_FALLBACK_SLUGS = {"mathematics", "statistics", "economics", "engineering",
+                      "geosciences", "neuroscience", "medicine", "materials",
+                      "mat", "bio"}
 
 
 # --- astronomy is unchanged --------------------------------------------------
@@ -73,8 +84,13 @@ def test_astronomy_linkedin_queries_stay_astronomy():
     ("chemistry", "job_research_field:47", "chemistry", "chemistry/?10M7c0"),
     ("biology", "job_research_field:38", "biology", "biological-sciences/?10M780"),
     ("computer_science", "job_research_field:78", "cs", "computer-science/?10M7g0"),
-    ("mathematics", "job_research_field:298", "mathematics", "mathematics/?10M7O0"),
-    ("economics", "job_research_field:117", "economics", "economics/?10M7k0"),
+    # "mathematics" and "economics" stood here until 2026-08-20 and passed,
+    # because the stale source_options block in each field YAML overrode the
+    # registry — so the test asserted the very fallback slugs url_registry.yaml
+    # documents as the original bug. The overrides are gone; these are the real
+    # slugs. See AJO_FALLBACK_SLUGS below.
+    ("mathematics", "job_research_field:298", "math", "mathematics/?10M7O0"),
+    ("economics", "job_research_field:117", "econ", "economics/?10M7k0"),
 ])
 def test_each_field_queries_its_own_subject(field, facet, category,
                                             discipline):
@@ -97,14 +113,33 @@ def test_no_shipped_field_queries_astronomy_urls(field):
     assert not (set(euraxess_facets_for(cfg)) & astro_facets)
 
 
+# Fields with no FindAPhD discipline token yet. The tokens are opaque strings
+# ("chemistry/?10M7c0") that can only be read off FindAPhD's own rendered
+# discipline links — they are not derivable from the slug, and a guessed one
+# silently returns the site's 404. On 2026-08-20 the site answered 403 to every
+# automated fetch (the Cloudflare block SOURCE_HEALTH.md records), so the batch
+# added that day could not obtain them. The practical cost today is nil:
+# findaphd returns 0 records for EVERY field under that same block. Empty this
+# set once the tokens can be read again.
+FINDAPHD_PENDING = {"neuroscience", "biomedical_sciences",
+                    "environmental_science", "materials_science",
+                    "statistics_data_science"}
+
+
 @pytest.mark.parametrize("field", SHIPPED)
 def test_every_shipped_field_has_real_queries(field):
     """Depth parity: no shipped field may be left with an empty board query."""
     cfg = _cfg(field)
     assert euraxess_facets_for(cfg), f"{field}: no EURAXESS facet"
     assert ajo_categories_for(cfg), f"{field}: no AJO category"
-    assert findaphd_disciplines_for(cfg), f"{field}: no FindAPhD discipline"
+    if field not in FINDAPHD_PENDING:
+        assert findaphd_disciplines_for(cfg), f"{field}: no FindAPhD discipline"
     assert linkedin_keywords_for(cfg), f"{field}: no LinkedIn keywords"
+
+
+def test_findaphd_pending_list_names_only_real_fields():
+    """Guard the guard: a typo here would silently excuse nothing."""
+    assert FINDAPHD_PENDING <= set(SHIPPED)
 
 
 # --- profile overrides + graceful fallbacks ----------------------------------
@@ -159,3 +194,41 @@ def test_ajo_and_findaphd_return_empty_list_not_none():
     cfg.source_options = {}
     assert isinstance(ajo_categories_for(cfg), list)
     assert isinstance(findaphd_disciplines_for(cfg), list)
+
+
+# --- the drift guard ---------------------------------------------------------
+
+@pytest.mark.parametrize("field", SHIPPED)
+def test_no_field_targets_an_ajo_fallback_slug(field):
+    """No shipped field may point AcademicJobsOnline at its fallback page.
+
+    This is the regression that already happened once and survived because the
+    board answers 200 for anything: url_registry.yaml was corrected, the stale
+    per-field ``source_options`` overrides were not, and five fields went on
+    quietly scraping the generic listing. Asserting on the resolved value
+    catches it from either home.
+    """
+    for category in ajo_categories_for(_cfg(field)):
+        assert category.split("/")[0] not in AJO_FALLBACK_SLUGS, (
+            f"{field} targets AJO category {category!r}, which serves the "
+            f"generic fallback listing — see url_registry.yaml's note")
+
+
+@pytest.mark.parametrize("field", SHIPPED)
+def test_no_field_redefines_ajo_categories_in_its_yaml(field):
+    """AJO categories live in url_registry.yaml and nowhere else.
+
+    ``source_options`` silently WINS over the registry, so a duplicate here is
+    not a harmless restatement — it is the drift mechanism itself. Fields added
+    from 2026-08-20 carry no such block; the older ones that still do are
+    pinned to the registry's value by the test above.
+    """
+    from core.config import load_field_profile
+    profile = load_field_profile(field) or {}
+    block = (profile.get("source_options") or {}).get("academicjobsonline")
+    if block is None:
+        return
+    registry_value = ajo_categories_for(_cfg(field))
+    assert list(block.get("categories") or []) == registry_value, (
+        f"fields/{field}.yaml redefines academicjobsonline.categories and has "
+        f"drifted from the registry — delete the block, do not re-sync it")
