@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import AstraMark from "@/components/AstraMark";
 import { BRAND } from "@/lib/brand";
 import { fetchMe, logout } from "@/lib/api";
 import { Bookmark, Heart, KeyRound, LayoutDashboard, LogOut, Power, Settings, Shield, User, Users, Workflow } from "lucide-react";
 import { isDesktop, openExternal, quitApp } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
+
+/** Nothing changes `isDesktop()` after load, so there is nothing to subscribe
+ *  to. Defined at module scope so the reference is stable across renders. */
+const subscribeNever = () => () => {};
 
 /** Where "Support" goes. Funds the servers that will host Astra online, free. */
 const SUPPORT_URL = "https://donofa.ir/mimdot";
@@ -30,19 +34,26 @@ const NAV_ITEMS = [
 export default function Nav() {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
-  // Resolved after mount, never during render: the server pass has no window,
-  // so calling isDesktop() inline would render one tree on the server and a
-  // different one on the client, which is a hydration mismatch.
-  const [desktop, setDesktop] = useState(false);
+  // Whether we are inside the desktop shell, read the way React wants a value
+  // that differs between server and client to be read.
+  //
+  // Calling isDesktop() during render would hydrate one tree on the server and
+  // a different one on the client. Setting it from an effect fixes that but
+  // trades it for a synchronous setState inside an effect — a cascading render,
+  // and what react-hooks/set-state-in-effect exists to catch.
+  // useSyncExternalStore is the construct for exactly this: a server snapshot,
+  // a client snapshot, and no extra render pass. Nothing ever changes it after
+  // load, so the subscribe function has nothing to do.
+  const desktop = useSyncExternalStore(
+    subscribeNever,
+    () => isDesktop(),
+    () => false,
+  );
 
   useEffect(() => {
     fetchMe()
       .then((me) => setIsAdmin(me.role === "admin"))
       .catch(() => setIsAdmin(false));
-  }, []);
-
-  useEffect(() => {
-    setDesktop(isDesktop());
   }, []);
 
   const items = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
