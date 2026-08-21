@@ -120,7 +120,7 @@ who supervises what — so the search becomes a shortlist you can act on.
 
 ---
 
-## Build it yourself
+## Build it yourself (v1.0.1)
 
 ```bash
 git clone https://github.com/mimdot/CIK.git && cd CIK
