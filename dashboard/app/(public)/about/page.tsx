@@ -11,7 +11,7 @@ const FAQ = [
   },
   {
     q: "Which fields does it cover?",
-    a: "It is built and tuned for physics, astronomy, and related quantitative fields, but the profile engine is field-agnostic and can be adapted.",
+    a: "Sixteen fields ship today: astronomy, physics, condensed matter and materials science; biology, neuroscience and biomedical sciences; chemistry, geology, geophysics & hydrology and environmental science; mathematics, statistics & data science, computer science; engineering and economics. Each carries its own curated vocabulary, so matching is tuned per field rather than generic. Adding another is a configuration file, not a code change.",
   },
   {
     q: "Is my CV shared anywhere?",

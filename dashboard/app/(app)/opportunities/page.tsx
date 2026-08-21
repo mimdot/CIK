@@ -196,7 +196,10 @@ export default function OpportunitiesPage() {
               one at a time at a polite 2-second delay — about 150 pages for
               astronomy and 20 for most fields, so it adds{" "}
               <strong>several minutes</strong> to a search. It finds openings
-              the job boards miss.
+              the job boards miss. The newest fields (neuroscience, biomedical
+              sciences, environmental science, materials science, statistics
+              &amp; data science) have no department list yet, so this does
+              nothing for them.
             </span>
           </span>
         </label>

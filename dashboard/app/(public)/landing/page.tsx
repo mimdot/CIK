@@ -25,10 +25,11 @@ export default function LandingPage() {
           Your next research position, matched to you
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-          Astra aggregates open PhD and postdoc positions across
-          physics, astronomy, and related fields — then scores each one against
-          your own research profile, so you see the positions worth applying
-          to.
+          Astra aggregates open PhD and postdoc positions across 16 research
+          fields — from astronomy, physics and materials science to biology,
+          neuroscience, environmental science and statistics — then scores each
+          one against your own research profile, so you see the positions worth
+          applying to.
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <Link href="/" className={cn(buttonVariants({ size: "lg" }))}>
