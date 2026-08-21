@@ -159,7 +159,7 @@ Type=Application
 Version=1.0
 Name=Astra
 Comment=Your academic constellation — positions and supervisors in academia
-Exec="$APP"
+Exec=env GIO_USE_PROXY_RESOLVER=dummy "$APP"
 Icon=$TAURI/icons/128x128.png
 Terminal=false
 Categories=Education;
@@ -176,4 +176,32 @@ echo "== menu entry installed: $APPS/astra.desktop =="
 trap 'pkill -f "$TAURI/target/release/astra-api" 2>/dev/null || true' EXIT INT TERM
 
 echo "== starting Astra =="
-"$APP"
+# Keep the webview's loopback traffic out of a desktop-wide proxy.
+#
+# WebKitGTK does not read NO_PROXY. It asks GLib, and on GNOME that is
+# GProxyResolverGnome, which reads org.gnome.system.proxy. Measured on a
+# machine with a manual proxy configured:
+#
+#   Gio.ProxyResolver.get_default().lookup("http://127.0.0.1:8000/health")
+#     -> ['http://127.0.0.1:10808']        # the proxy, for LOOPBACK
+#
+# because org.gnome.system.proxy ignore-hosts held ONE comma-joined string,
+# "['localhost,127.0.0.0/8,::1']", where GLib wants three separate entries —
+# so the bypass list matched nothing. The webview then sends its request for
+# its OWN sidecar to the proxy, the proxy declines to route loopback, and the
+# UI reports "Cannot reach the API server" while curl gets 200 from that exact
+# URL. Entering the access code is where a user meets it, because that POST is
+# the first request whose failure is actually shown.
+#
+# `dummy` is GLib's no-op resolver — everything goes direct:
+#
+#   GIO_USE_PROXY_RESOLVER=dummy ... lookup(...) -> ['direct://']
+#
+# Safe here because this webview only ever talks to its own sidecar on
+# loopback: fonts are self-hosted and real links are handed to the system
+# browser by tauri_plugin_opener rather than opened in-window.
+#
+# It must be in the environment at EXEC time. Setting it from inside the Rust
+# process does not work: WebKitGTK snapshots the environment before main() and
+# passes that snapshot to WebKitNetworkProcess, which is what resolves proxies.
+GIO_USE_PROXY_RESOLVER=dummy "$APP"

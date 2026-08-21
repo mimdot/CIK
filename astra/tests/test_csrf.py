@@ -163,3 +163,44 @@ def test_webhook_exempt_from_csrf(client):
                        json={"type": "email.bounced", "email": "b@x.com"})
     assert resp.status_code == 200
 
+
+
+# --- the desktop lock-out ----------------------------------------------------
+
+def test_sign_in_is_not_blocked_by_a_stale_session_cookie(client):
+    """A stale cik_token must never block establishing a new session.
+
+    The desktop shell issues a fresh ASTRA_SECRET_KEY on every launch, so the
+    previous run's cik_token cookie is invalid but still sent, while its
+    csrf_token counterpart has expired. CSRF then rejected every sign-in with
+    403 and the user was locked out for good -- unable to clear the cookie from
+    a page they could never load.
+    """
+    resp = client.post("/api/auth/login",
+                       json={"email": "nobody@example.com", "password": "x"},
+                       cookies={"cik_token": "stale-from-a-previous-launch"})
+    # Anything but the CSRF rejection: wrong credentials are fine, being told
+    # "CSRF token missing or invalid" is not.
+    assert resp.status_code != 403, resp.text
+    assert "CSRF" not in resp.text
+
+
+def test_a_csrf_rejection_still_carries_cors_headers(client):
+    """A short-circuited response must not look like an unreachable server.
+
+    CORSMiddleware has to be OUTERMOST. When it sat inside CsrfMiddleware, a
+    403 came back with no Access-Control-Allow-Origin, so the browser blocked
+    the response instead of surfacing the status and fetch() rejected -- which
+    the frontend can only report as "Cannot reach the API server". The real
+    reason was invisible in the UI and in the network panel alike.
+    """
+    origin = "tauri://localhost"
+    resp = client.post("/api/account/delete",
+                       json={},
+                       headers={"Origin": origin},
+                       cookies={"cik_token": "stale"})
+    assert resp.status_code == 403
+    assert "CSRF" in resp.text
+    assert resp.headers.get("access-control-allow-origin") is not None, (
+        "a CSRF 403 with no CORS headers reads as a network failure in the "
+        "browser, not as a 403")

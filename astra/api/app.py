@@ -124,19 +124,25 @@ app = FastAPI(title="Astra API", version=APP_VERSION,
 # --- CORS --------------------------------------------------------------------
 # CORS_ORIGINS is a comma-separated allow-list. When set we enable credentials
 # (the httpOnly auth cookie) for exactly those origins; unset = dev default.
+#
+# The middleware itself is installed at the BOTTOM of this module, deliberately.
+# Starlette's add_middleware PREPENDS, so whatever is added last ends up
+# outermost — and CORS must be outermost or a middleware that short-circuits
+# never reaches it. That is not theoretical: CsrfMiddleware returning 403
+# produced a response with no Access-Control-Allow-Origin, the browser blocked
+# it as a CORS failure rather than surfacing the status, and the frontend's
+# fetch rejected — reporting "Cannot reach the API server" for a server that
+# had answered. Every middleware rejection was invisible in the same way.
 _cors_env = os.environ.get("CORS_ORIGINS", "").strip()
 if _cors_env:
-    _origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_origins,
+    _cors_kwargs = dict(
+        allow_origins=[o.strip() for o in _cors_env.split(",") if o.strip()],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 else:
-    app.add_middleware(
-        CORSMiddleware,
+    _cors_kwargs = dict(
         allow_origins=["*"],          # dev default; tighten via CORS_ORIGINS
         allow_credentials=False,
         allow_methods=["*"],
@@ -222,9 +228,30 @@ class CsrfMiddleware(BaseHTTPMiddleware):
 
     _MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 
+    # Endpoints that ESTABLISH a session rather than act with one.
+    #
+    # CSRF protects an authenticated user from being made to act unknowingly.
+    # Sign-in is the opposite situation: there is no session to protect yet, and
+    # the credentials in the body are the whole point — an attacker who has them
+    # does not need the victim's browser. Guarding these achieved nothing and
+    # cost everything: the desktop shell issues a fresh ASTRA_SECRET_KEY on every
+    # launch, so the cik_token cookie from the previous run is invalid but still
+    # SENT, while its csrf_token counterpart has expired. Every sign-in attempt
+    # then arrived with a session cookie and no CSRF header, and was rejected
+    # 403 — locking the user out permanently, with no way to clear the cookie
+    # from a page they could never load.
+    _SESSION_START_PATHS = frozenset({
+        "/api/auth/access",
+        "/api/auth/login",
+        "/api/auth/register",
+        "/api/auth/logout",
+    })
+
     async def dispatch(self, request: Request, call_next):
         if request.method in self._MUTATING:
             if request.url.path == "/api/email/webhook":
+                pass
+            elif request.url.path in self._SESSION_START_PATHS:
                 pass
             elif request.headers.get("Authorization", "").startswith("Bearer "):
                 pass
@@ -243,7 +270,10 @@ class CsrfMiddleware(BaseHTTPMiddleware):
 app.add_middleware(CsrfMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(MetricsMiddleware)
-app.add_middleware(RequestIdMiddleware)  # outermost: captures the full request
+app.add_middleware(RequestIdMiddleware)  # captures the full request
+# OUTERMOST — see the CORS note above. Added last so that every response,
+# including one a middleware short-circuits, carries its CORS headers.
+app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 # JSON structured logs (Sprint 10, B3) — on in production, off in dev/tests.
 if env_flag("ASTRA_JSON_LOGS", default=False):

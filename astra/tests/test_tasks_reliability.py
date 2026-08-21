@@ -6,6 +6,7 @@ stays offline and deterministic.
 
 from __future__ import annotations
 
+import threading
 import time
 
 import pytest
@@ -98,3 +99,61 @@ def test_worker_heartbeat_in_process(no_redis):
     beat = tasks.worker_heartbeat()
     assert beat["backend"] == "in-process"
     assert beat["workers"] == {}
+
+# --- the stranded supervisor slot --------------------------------------------
+
+def test_a_dead_supervisor_holder_does_not_strand_the_feature():
+    """A slot whose job is gone must be reclaimed, not held for ever.
+
+    Observed live: the backend idle at 0% CPU with no outbound connections,
+    the job id already absent from the registry, and every new supervisor
+    search refused with "A supervisor search is already running". Only
+    restarting the app cleared it, so from the user's side the feature simply
+    stopped returning results.
+    """
+    from core import tasks
+    tasks._supervisor_slots = threading.Semaphore(1)
+    tasks._supervisor_active = {"job_id": None, "started": 0.0}
+
+    assert tasks._claim_supervisor_slot("job-one")
+    # A second claim while job-one is genuinely running must be refused.
+    with tasks._in_memory_jobs_lock:
+        tasks._in_memory_jobs["job-one"] = {"job_id": "job-one",
+                                            "status": "running"}
+    tasks._supervisor_active["started"] = time.time() - 600
+    assert not tasks._claim_supervisor_slot("job-two")
+
+    # Now job-one disappears the way it did in the field — evicted, thread
+    # gone, `finally` never reached. The next search must still be allowed.
+    with tasks._in_memory_jobs_lock:
+        del tasks._in_memory_jobs["job-one"]
+    tasks._supervisor_active["started"] = time.time() - 600
+    assert tasks._claim_supervisor_slot("job-three"), (
+        "slot stayed held by a job that no longer exists")
+
+
+def test_a_finished_supervisor_holder_releases_the_slot():
+    """A completed holder frees the slot even if its release never ran."""
+    from core import tasks
+    tasks._supervisor_slots = threading.Semaphore(1)
+    tasks._supervisor_active = {"job_id": None, "started": 0.0}
+
+    assert tasks._claim_supervisor_slot("done-job")
+    with tasks._in_memory_jobs_lock:
+        tasks._in_memory_jobs["done-job"] = {"job_id": "done-job",
+                                             "status": "completed"}
+    tasks._supervisor_active["started"] = time.time() - 600
+    assert tasks._claim_supervisor_slot("next-job")
+
+
+def test_releasing_a_slot_you_no_longer_own_is_a_no_op():
+    """A late release from a reclaimed job must not free someone else's slot."""
+    from core import tasks
+    tasks._supervisor_slots = threading.Semaphore(1)
+    tasks._supervisor_active = {"job_id": None, "started": 0.0}
+
+    tasks._claim_supervisor_slot("old-job")
+    tasks._supervisor_active.update({"job_id": "new-job",
+                                     "started": time.time()})
+    tasks._release_supervisor_slot("old-job")
+    assert tasks._supervisor_active["job_id"] == "new-job"
