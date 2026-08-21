@@ -82,6 +82,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         setReason(apiStartupError());
         setOffline(true);
       } else {
+        // A real HTTP answer (401, 422, 500...) means the backend is up and
+        // talking, so stop any "still starting" retry loop. Without this the
+        // 1s re-check kept firing forever behind the login form once `starting`
+        // had been set on a cold start — measured at ~50 requests to
+        // /api/auth/me in 20 seconds, every one of them a 401.
+        setStarting(false);
         setAuthed(false);
       }
     }

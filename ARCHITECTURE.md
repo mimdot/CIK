@@ -151,7 +151,7 @@ the supervisor search found 89 German candidates, failed to save all 89 with
 | `api/` | `app.py` + `routes/` (auth, profile, opportunities, matches, supervisors, bookmarks, preferences, pipeline+jobs, invites, admin, email, apikeys, assistant, account, `v1/`) + `deps`, `schemas`, `serializers`, `security`, `scopes`, `metrics`. |
 | `cli/commands.py` | DB-backed CLI ops: `build_profile_cmd`, `seed_db_cmd`, `show_profile_cmd`, `make_admin_cmd`, `sync_supervisors`. |
 | `toolkit/` | CLI extras (`--write-emails`, `--find-professors`, `--scholarships`). Not exposed via the API. |
-| `fields/` | 11 field profiles (`astronomy`, `physics`, `biology`, `chemistry`, `computer_science`, `economics`, `engineering`, `geology`, `geophysics_hydro`, `condensed_matter`, `mathematics`) + `template.yaml`. |
+| `fields/` | 16 field profiles (`astronomy`, `physics`, `condensed_matter`, `materials_science`, `biology`, `neuroscience`, `biomedical_sciences`, `chemistry`, `geology`, `geophysics_hydro`, `environmental_science`, `mathematics`, `statistics_data_science`, `computer_science`, `engineering`, `economics`) + `template.yaml`. Discovered by directory glob — adding one touches no Python. |
 | `selftest.py` | Offline hermetic pipeline self-test (`--self-test`). |
 
 ---

@@ -20,8 +20,49 @@ All notable changes to Astra. Format follows
   volumes, and every category slug probed against that board's fallback page.
   Pick new field names from this, not from imagination.
 
+### Changed
+
+- **Sign out is gone from the desktop app**, and stays on the web. On a
+  single-user local tool there is nobody to sign out from: the access code is
+  a front door rather than a boundary, and the shell mints a new signing key
+  every launch anyway — so the button's only real effect was locking you out
+  of your own machine.
+- **A Support link** sits in its place, for the servers that will host Astra
+  online and free. It opens in the system browser, never in the webview: a
+  payment page inside a frame with no address bar is not something a user can
+  verify, and should not be asked to trust.
+
 ### Fixed
 
+- **Stop did nothing during a supervisor search, on every desktop search
+  there has ever been.** The cancel token was polled only BETWEEN field/country
+  pairs, and the desktop searches exactly one pair — so it was read once at the
+  start and never again. It is now polled per candidate and between result
+  pages, which is where a search spends its minutes.
+- **A supervisor search could freeze for a minute at a time with Stop dead.**
+  urllib3 honours a 429's `Retry-After` by sleeping INSIDE the adapter, out of
+  reach of the read timeout and of every cancel check; OpenAlex throttles hard
+  enough that this was the normal case. Measured at 64s inside one request with
+  the read timeout already down to 8s. Interactive searches now use bounded
+  exponential backoff instead (`Config.respect_retry_after`); crawling keeps
+  the polite default. Retries are deliberately KEPT — dropping them "fixes" the
+  freeze by turning every 429 into an empty result (measured: pool=0 in 0.7s),
+  which is worse, and a test now guards against exactly that.
+- **A rate-limited search reported nothing instead of saying why.** An OpenAlex
+  429 produced zero rows, indistinguishable from "this country has no
+  supervisors in your field". It now says the source is rate-limiting the
+  network and that results are incomplete.
+- **The run dialog could not be told apart from a frozen one.** Progress was
+  emitted once per field/country pair, so a single-country search sat at 0/1
+  for its whole length. It now reports the page being scanned, counts every
+  candidate as it is checked, and lists each supervisor by name and institution
+  the moment they are verified.
+- **A supervisor search could be blocked for the life of the process.** The
+  single slot is released in the run's `finally`, and only on the final
+  attempt, so a thread that died or a run that never returned held it for ever
+  — every later search refused with "a supervisor search is already running"
+  while the backend sat idle at 0% CPU. Observed exactly that. The slot now
+  records its holder and validates the claim against the job registry.
 - **Six fields were querying AcademicJobsOnline's fallback page.** A field
   profile's `source_options` silently overrides `sources/url_registry.yaml`,
   and while the registry was corrected back in 2026-08, the per-field

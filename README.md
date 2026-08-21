@@ -369,9 +369,23 @@ errors out; the dashboard's search dialog says so and links to the token page.
 A field profile (`astra/fields/<name>.yaml`) is the editable knowledge
 for a subject: `core_anchors` / `context_terms` / `negative_terms` /
 `search_terms` / `weights` / `threshold` (+ optional `subfields`, `departments`,
-supervisor settings). 11 profiles ship (astronomy, physics, biology, chemistry,
-computer_science, economics, engineering, geology, geophysics_hydro,
-condensed_matter, mathematics) plus a fully-commented `template.yaml`.
+supervisor settings). **16 profiles ship**, plus a fully-commented
+`template.yaml`:
+
+| | |
+|---|---|
+| **Physical sciences** | `astronomy`, `physics`, `condensed_matter`, `materials_science` |
+| **Life & health sciences** | `biology`, `neuroscience`, `biomedical_sciences` |
+| **Chemistry & earth** | `chemistry`, `geology`, `geophysics_hydro`, `environmental_science` |
+| **Formal & computational** | `mathematics`, `computer_science`, `statistics_data_science` |
+| **Engineering & social** | `engineering`, `economics` |
+
+Adding one is a file, not a code change: drop a YAML in `astra/fields/` and the
+CLI, the API and the desktop field picker all discover it from the directory —
+on every platform, since the installer bundles that directory by glob. Per-board
+targeting for a new field belongs in `astra/sources/url_registry.yaml`, never in
+the profile's own `source_options` (see `docs/BOARD_TAXONOMIES.md` for why, and
+for the facet ids and category slugs to pick from).
 
 - **CLI:** `--field <name>` (or `--new-field <name>` to scaffold one).
 - **Web/desktop:** pick your field at the top of **Opportunities**, then

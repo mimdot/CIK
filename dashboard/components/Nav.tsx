@@ -6,9 +6,12 @@ import { useEffect, useState } from "react";
 import AstraMark from "@/components/AstraMark";
 import { BRAND } from "@/lib/brand";
 import { fetchMe, logout } from "@/lib/api";
-import { Bookmark, KeyRound, LayoutDashboard, LogOut, Power, Settings, Shield, User, Users, Workflow } from "lucide-react";
-import { isDesktop, quitApp } from "@/lib/desktop";
+import { Bookmark, Heart, KeyRound, LayoutDashboard, LogOut, Power, Settings, Shield, User, Users, Workflow } from "lucide-react";
+import { isDesktop, openExternal, quitApp } from "@/lib/desktop";
 import { cn } from "@/lib/utils";
+
+/** Where "Support" goes. Funds the servers that will host Astra online, free. */
+const SUPPORT_URL = "https://donofa.ir/mimdot";
 
 // `adminOnly` pages are operator tooling, not features an ordinary user needs.
 // The backend already answers 403 on those routes; hiding them stops the app
@@ -93,19 +96,35 @@ export default function Nav() {
               </Link>
             );
           })}
-          {/* Sign out lived nowhere before this. The session cookie is
-              httpOnly, so a user who signed in with the wrong email had no way
-              to get back out short of waiting for the token to expire. */}
+          {/* Support the project. Opens in the real browser on desktop — a
+              payment page inside a webview with no address bar is something a
+              user cannot verify, and should not be asked to trust. */}
           <button
             type="button"
-            onClick={() => {
-              void logout().finally(() => window.location.assign("/"));
-            }}
+            onClick={() => void openExternal(SUPPORT_URL)}
             className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-2 py-1.5 text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
+            title="Support Astra — helps fund the servers that will make it free for everyone"
           >
-            <LogOut className="size-4" aria-hidden />
-            <span>Sign out</span>
+            <Heart className="size-4" aria-hidden />
+            <span>Support</span>
           </button>
+          {/* Sign out is WEB ONLY. On the desktop the app is a single-user
+              local tool: there is nobody to sign out from, the access code is
+              a front door rather than a boundary, and the shell mints a new
+              signing key every launch anyway — so the button offered nothing
+              but a way to lock yourself out of your own machine. */}
+          {!desktop && (
+            <button
+              type="button"
+              onClick={() => {
+                void logout().finally(() => window.location.assign("/"));
+              }}
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-2 py-1.5 text-[11px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <LogOut className="size-4" aria-hidden />
+              <span>Sign out</span>
+            </button>
+          )}
           {/* Quit, desktop only. Signing out is not the same as closing the
               app, and closing the window is the window manager's business —
               neither is a deliberate "stop Astra". This one goes through the
