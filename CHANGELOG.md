@@ -4,7 +4,14 @@ All notable changes to Astra. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] — 2026-08-21
+
+**Five new fields, and the desktop app can be signed into again.** 1.0.1 shipped
+a build that a returning user could not get past the access-code screen — a
+stale cookie made every sign-in a 403, and the way that 403 came back made it
+look like the server was down. That is fixed, along with the supervisor search,
+which had never been able to filter by field, report what it was doing, or stop
+when asked.
 
 ### Added
 
@@ -220,5 +227,6 @@ now starts, renders, and every control in it does what it says.
 - The shared access code is a soft gate, extractable from the binary, and is
   documented as such. It gates nothing; accounts remain the real boundary.
 
+[1.1.0]: https://github.com/mimdot/CIK/releases/tag/v1.1.0
 [1.0.1]: https://github.com/mimdot/CIK/releases/tag/v1.0.1
 [1.0.0]: https://github.com/mimdot/CIK/releases/tag/v1.0.0
