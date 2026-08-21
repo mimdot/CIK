@@ -418,7 +418,7 @@ export default function SupervisorsPage() {
             {run.progress && run.progress.total > 0 && (
               <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Fields searched</span>
+                  <span className="text-muted-foreground">Supervisors found</span>
                   <span className="tabular-nums" data-testid="run-progress-count">
                     {run.progress.completed} / {run.progress.total}
                   </span>

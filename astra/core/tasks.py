@@ -52,6 +52,81 @@ _fallback_slots = threading.Semaphore(3)  # mirrors the old concurrency cap
 # Supervisor syncs are heavy and share the same SQLite DB — never run two at
 # once, and don't let them pile up behind pipeline runs.
 _supervisor_slots = threading.Semaphore(1)
+# Which job holds the slot, and since when.
+#
+# The semaphore alone could STRAND the feature. It is released in the run's
+# `finally`, and only when that run is the final attempt — so a worker thread
+# that died, or a run that never returned, kept the slot for the life of the
+# process. Every later search was then refused with "A supervisor search is
+# already running" while the backend sat idle at 0% CPU with no outbound
+# connections, and nothing but restarting the app could clear it. Observed
+# exactly that: slot held, job id already gone from the registry.
+#
+# Recording the holder lets a claim be VALIDATED rather than trusted: a slot
+# whose job is finished, unknown, or impossibly old is reclaimed.
+_supervisor_active: dict[str, object] = {"job_id": None, "started": 0.0}
+# No real search runs for an hour; past that the holder is presumed dead.
+SUPERVISOR_MAX_RUNTIME_S = max(
+    60.0, float(os.environ.get("ASTRA_SUPERVISOR_MAX_RUNTIME", "3600")))
+
+
+# A freshly claimed slot has no registry entry yet: enqueue_supervisor_job
+# claims first and records the job on the next statement. Without this grace
+# window a concurrent caller would read "unknown job" and steal a slot that was
+# microseconds old.
+_SUPERVISOR_CLAIM_GRACE_S = 60.0
+
+
+def _supervisor_slot_is_stale() -> bool:
+    """True when the recorded holder cannot still be running.
+
+    Checked against the job registry, which is the observable truth, plus a
+    wall-clock ceiling for a holder that vanished without a trace.
+
+    A holder we cannot attribute at all is treated as ALIVE, not stale. Every
+    real acquisition goes through _claim_supervisor_slot and records itself, so
+    an unattributed holder means someone took the semaphore directly and knows
+    something we do not — reclaiming it would be guessing, and guessing here
+    means two heavy searches on one SQLite file.
+    """
+    job_id = _supervisor_active.get("job_id")
+    if not job_id:
+        return False                      # unattributable: leave it alone
+    started = float(_supervisor_active.get("started") or 0.0)
+    if started and time.time() - started > SUPERVISOR_MAX_RUNTIME_S:
+        return True
+    if started and time.time() - started < _SUPERVISOR_CLAIM_GRACE_S:
+        return False                      # too young to judge by the registry
+    with _in_memory_jobs_lock:
+        info = _in_memory_jobs.get(str(job_id))
+    if info is None:
+        return True                       # job evicted; nothing is running it
+    return info.get("status") not in ("running", "queued")
+
+
+def _claim_supervisor_slot(job_id: str) -> bool:
+    """Take the single supervisor slot, reclaiming it if the holder is dead."""
+    if _supervisor_slots.acquire(blocking=False):
+        _supervisor_active.update({"job_id": job_id, "started": time.time()})
+        return True
+    if _supervisor_slot_is_stale():
+        log.warning("supervisor slot was held by %r, which is no longer "
+                    "running — reclaiming it",
+                    _supervisor_active.get("job_id"))
+        _supervisor_active.update({"job_id": job_id, "started": time.time()})
+        return True                       # the semaphore stays down; we own it
+    return False
+
+
+def _release_supervisor_slot(job_id: str) -> None:
+    """Release the slot, but only if THIS job still holds it."""
+    if _supervisor_active.get("job_id") != job_id:
+        return                            # a reclaim already moved it on
+    _supervisor_active.update({"job_id": None, "started": 0.0})
+    try:
+        _supervisor_slots.release()
+    except ValueError:                    # already at its maximum
+        pass
 
 # Cross-worker idempotency for the weekly digest batch (one claim per UTC day).
 _digest_run_day: Optional[str] = None
@@ -71,6 +146,23 @@ def _apply_progress(prog: dict, event: dict) -> None:
         # 0/1 for minutes — which is exactly the "is it working or stuck?"
         # the spinner already failed to answer.
         prog["stage"] = event.get("label")
+    elif event.get("event") == "candidate":
+        # One verified supervisor, emitted the moment they pass the checks.
+        # Folded into the SAME shape the source list already uses, so the run
+        # dialog lists them live with no change to how it renders — the
+        # difference between a search you can watch and a spinner you can only
+        # guess at. `total` is the candidate target, not the pair count, so the
+        # counter actually moves during a single-country search.
+        prog["total"] = event.get("total") or prog.get("total") or 0
+        prog["completed"] = event.get("completed", prog.get("completed", 0))
+        name = event.get("name") or "(unnamed)"
+        inst = event.get("institution") or ""
+        sources = prog.setdefault("sources", [])
+        label = f"{name} — {inst}" if inst else name
+        if not any(s.get("source") == label for s in sources):
+            sources.append({"source": label, "status": "done",
+                            "records": event.get("score", 0),
+                            "duration": None})
     elif event.get("event") == "funnel":
         # End-of-run accounting: found -> filtered -> deduped -> stored, with
         # the reason for every drop. Surfaced so the UI headline number and
@@ -516,8 +608,11 @@ def _fallback_supervisor_run(job_id: str, countries: list[str],
                     job_id, attempt, MAX_PIPELINE_RETRIES + 1, exc)
         if attempt <= MAX_PIPELINE_RETRIES:
             time.sleep(RETRY_BACKOFF_S)
+            # `limit` was dropped here, so a retry silently ignored the caller's
+            # cap and ran the full search.
             threading.Thread(target=_fallback_supervisor_run,
-                             args=(job_id, countries, field, quick, attempt + 1),
+                             args=(job_id, countries, field, quick, attempt + 1,
+                                   limit),
                              daemon=True).start()
             is_final = False
         else:
@@ -529,8 +624,12 @@ def _fallback_supervisor_run(job_id: str, countries: list[str],
                                                "attempts": attempt}
             is_final = True
     finally:
-        if is_final:
-            _supervisor_slots.release()
+        # `is_final` is None when the try block raised something that escaped
+        # the handler above (BaseException, or a failure inside the handler) —
+        # the case that stranded the slot for the life of the process. Treat
+        # anything that is not an explicit "a retry now owns this" as final.
+        if is_final is not False:
+            _release_supervisor_slot(job_id)
 
 
 def enqueue_supervisor_job(countries: list[str],
@@ -554,7 +653,7 @@ def enqueue_supervisor_job(countries: list[str],
                         result_ttl=3600, failure_ttl=86400)
         return job.id
     job_id = uuid.uuid4().hex[:12]
-    if not _supervisor_slots.acquire(blocking=False):
+    if not _claim_supervisor_slot(job_id):
         raise RuntimeError("A supervisor search is already running — wait for "
                            "it to finish before starting another.")
     with _in_memory_jobs_lock:
