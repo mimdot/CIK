@@ -334,3 +334,133 @@ def test_a_cancelled_run_keeps_what_it_streamed(slow_sources):
                 for r in (e.get("found") or [])]
     assert streamed, "partial results were streamed before the stop"
     assert len(streamed) == len(calls)
+
+
+# --- supervisor search: cancel inside the loop that actually takes the time --
+
+def _fake_author_record(i: int) -> dict:
+    return {"id": f"https://openalex.org/A{i}",
+            "display_name": f"Author {i}",
+            "summary_stats": {"h_index": 50 - i},
+            "cited_by_count": 1000 - i,
+            "orcid": "",
+            "affiliations": []}
+
+
+def test_supervisor_search_stops_mid_enrichment(monkeypatch):
+    """Stop must take effect within one request, not one field/country pair.
+
+    sync_supervisors polls the token only BETWEEN pairs, and a desktop search
+    is exactly one pair — so Stop did nothing at all and the run continued for
+    its full multi-minute length. The poll now lives in the per-candidate loop,
+    which is where the time goes.
+    """
+    import argparse
+    import core.config as C
+    from supervisors import openalex as oa
+
+    cfg = C.build_config(argparse.Namespace(field="neuroscience"))
+    C.apply_field_profile(cfg, C.load_field_profile("neuroscience"))
+    cfg.field_profile = "neuroscience"
+    cfg.supervisor_author_enrich = 50
+
+    pool = {f"https://openalex.org/A{i}": {"in_country": 5, "matched": 5,
+                                           "latest": 2026} for i in range(50)}
+    records = {f"https://openalex.org/A{i}": _fake_author_record(i)
+               for i in range(50)}
+    monkeypatch.setattr(oa, "_openalex_works_pool", lambda *a, **k: pool)
+    monkeypatch.setattr(oa, "_openalex_author_records", lambda *a, **k: records)
+
+    calls = {"n": 0}
+
+    class CancelAfter:
+        def __init__(self, n): self.n = n
+        def is_cancelled(self): return calls["n"] >= self.n
+
+    def fake_recent(*a, **k):
+        calls["n"] += 1
+        return {"works": [], "in_country": 0, "has_country": 0, "n_field": 0}
+
+    monkeypatch.setattr(oa, "_openalex_author_recent", fake_recent)
+
+    oa.openalex_supervisor_authors(cfg, None, ["T10077"], "Germany", 28,
+                                   cancel=CancelAfter(3))
+    # Without the in-loop poll this would run all 50 candidates.
+    assert calls["n"] <= 5, (
+        f"cancel ignored: enriched {calls['n']} candidates after Stop")
+
+
+def test_supervisor_search_reports_progress_per_candidate(monkeypatch):
+    """The dialog must be able to count, not sit on a spinner.
+
+    Progress used to be emitted once per field/country pair, so a single-country
+    search showed 0/1 for its entire run and looked frozen.
+    """
+    import argparse
+    import core.config as C
+    from supervisors import openalex as oa
+
+    cfg = C.build_config(argparse.Namespace(field="neuroscience"))
+    C.apply_field_profile(cfg, C.load_field_profile("neuroscience"))
+    cfg.field_profile = "neuroscience"
+    cfg.supervisor_author_enrich = 5
+
+    pool = {f"https://openalex.org/A{i}": {"in_country": 5, "matched": 5,
+                                           "latest": 2026} for i in range(5)}
+    records = {f"https://openalex.org/A{i}": _fake_author_record(i)
+               for i in range(5)}
+    monkeypatch.setattr(oa, "_openalex_works_pool", lambda *a, **k: pool)
+    monkeypatch.setattr(oa, "_openalex_author_records", lambda *a, **k: records)
+    monkeypatch.setattr(oa, "_openalex_author_recent", lambda *a, **k: {
+        "works": [], "in_country": 0, "has_country": 0, "n_field": 0})
+
+    events = []
+    oa.openalex_supervisor_authors(cfg, None, ["T10077"], "Germany", 28,
+                                   on_progress=events.append)
+    stages = [e for e in events if e.get("event") == "stage"]
+    assert stages, "no stage events — the dialog has nothing to show"
+    assert any("candidates" in str(e.get("label", "")) for e in stages)
+
+
+def test_interactive_search_bounds_its_request_budget(monkeypatch):
+    """A Stop click must not wait out a server-dictated sleep.
+
+    The trap is respect_retry_after_header. urllib3 honours a 429's Retry-After
+    by SLEEPING inside the adapter, where neither the read timeout nor any
+    cancel check can reach it — measured at 64s inside one request with the
+    read timeout already down to 8s. OpenAlex throttles hard enough that this
+    is the normal case, not the rare one.
+
+    Dropping the retries instead is NOT the fix: the 429 then fails straight
+    through and the search returns nothing at all (measured: pool=0 in 0.7s).
+    So retries stay and only the wait is bounded, to exponential backoff.
+    """
+    import astra as P
+    import cli.commands as commands
+
+    captured = {}
+
+    def fake_openalex(cfg, *a, **k):
+        captured["timeout"] = cfg.timeout
+        captured["retries"] = cfg.max_retries
+        captured["respect"] = getattr(cfg, "respect_retry_after", True)
+        captured["backoff"] = cfg.backoff
+        raise RuntimeError("stop here — we only need the cfg")
+
+    monkeypatch.setattr(P, "openalex_supervisor_authors", fake_openalex)
+    monkeypatch.setattr(P, "_supervisor_chain", lambda *a, **k: ["openalex"])
+    try:
+        commands.sync_supervisors(["Germany"], field="neuroscience",
+                                  db_url="sqlite://", quick=True)
+    except Exception:
+        pass
+
+    assert captured, "the openalex path was never reached"
+    # The invariant that makes Stop reachable.
+    assert captured["respect"] is False, (
+        "Retry-After is honoured, so one 429 can sleep past any Stop click")
+    # Retries must survive, or a throttled search silently returns nothing.
+    assert captured["retries"] >= 2, "retries dropped — 429 becomes empty results"
+    # And the bounded wait must stay small.
+    assert captured["backoff"] <= 0.5
+    assert captured["timeout"] <= 8

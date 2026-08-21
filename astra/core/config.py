@@ -540,6 +540,13 @@ class Config:
     # --- network / proxy auto-detection ---
     auto_detect_proxy: bool = AUTO_DETECT_PROXY
     connect_timeout: int = CONNECT_TIMEOUT
+    # Honour a server's Retry-After on 429? True for crawling (polite, and a
+    # crawl has all night). False for anything a person is waiting on: the
+    # sleep happens inside urllib3, out of reach of the read timeout AND of
+    # every cancel check, so a throttled API can freeze an interactive search
+    # for minutes with a dead Stop button. Retries still happen either way —
+    # only the wait between them changes, to bounded exponential backoff.
+    respect_retry_after: bool = True
     # --- anti-bot / browser (Task: persistent profile + stealth) ---
     browser_profile_dir: str = BROWSER_PROFILE_DIR
     browser_headless: Optional[bool] = None    # None = default headless

@@ -389,13 +389,29 @@ class Http:
         if cfg.proxy:
             self.session.proxies.update({"http": cfg.proxy, "https": cfg.proxy})
 
+        # respect_retry_after_header is a TRAP for anything interactive.
+        #
+        # When a server answers 429 with Retry-After, urllib3 SLEEPS for
+        # whatever it asks — inside the adapter, where neither the read timeout
+        # nor a cancel check can reach it. OpenAlex throttles hard, so a
+        # supervisor search spent minutes asleep: measured at 64s inside a
+        # single request with the read timeout already down to 8s, and Stop
+        # unreachable for all of it.
+        #
+        # Turning retries OFF instead is worse, not better: the 429 then goes
+        # straight through as a failure and the search returns nothing at all
+        # (measured: pool=0 in 0.7s). So the retries stay and only the SLEEP is
+        # bounded — exponential backoff, which backoff_factor caps.
+        # Crawling keeps the polite default; see cfg.respect_retry_after.
         retry = Retry(
             total=cfg.max_retries, connect=cfg.max_retries,
             read=cfg.max_retries, status=cfg.max_retries,
             backoff_factor=cfg.backoff,
             status_forcelist=(429, 500, 502, 503, 504),
             allowed_methods=frozenset(["GET", "HEAD"]),
-            respect_retry_after_header=True, raise_on_status=False,
+            respect_retry_after_header=getattr(
+                cfg, "respect_retry_after", True),
+            raise_on_status=False,
         )
         adapter = HTTPAdapter(max_retries=retry)
         self.session.mount("http://", adapter)

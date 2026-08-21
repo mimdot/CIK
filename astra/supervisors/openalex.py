@@ -181,7 +181,8 @@ def _openalex_author_recent(http, cfg: Config, author_id: str,
 
 def _openalex_works_pool(cfg: Config, http, topics: list[str],
                          field_id: Optional[str], code: str, mailto: str,
-                         year0: int) -> dict[str, dict]:
+                         year0: int, cancel=None,
+                         on_progress=None) -> dict[str, dict]:
     """Country-verified candidate pool for the author-direct supervisor path.
 
     Queries the WORKS index (not the fragile `last_known_institutions` author
@@ -202,7 +203,7 @@ def _openalex_works_pool(cfg: Config, http, topics: list[str],
         batches = [[]]                    # field-only profiles use the field
     else:
         return {}
-    for batch in batches:
+    for bi, batch in enumerate(batches, 1):
         if batch:
             topic_f = f"topics.id:{'|'.join(batch)}"
         else:
@@ -210,15 +211,46 @@ def _openalex_works_pool(cfg: Config, http, topics: list[str],
         filters = [f"authorships.countries:{code}",
                    f"from_publication_date:{year0}-01-01", topic_f]
         for page in range(1, max(1, cfg.supervisor_pool_pages) + 1):
+            if on_progress:
+                try:
+                    on_progress({"event": "stage",
+                                 "label": f"scanning recent papers "
+                                          f"(batch {bi}/{len(batches)}, "
+                                          f"page {page}) — "
+                                          f"{len(stats)} people so far"})
+                except Exception:
+                    pass
+            # Stop between pages: each is a full OpenAlex round trip, so this
+            # bounds a cancelled search to the request already in flight.
+            if cancel is not None and cancel.is_cancelled():
+                log.info("[supervisors] cancelled while building the pool")
+                return {aid: st for aid, st in stats.items()
+                        if st["in_country"] >= cfg.supervisor_min_papers}
             params = {"filter": ",".join(filters), "page": page,
                       "per-page": 100, "sort": "publication_date:desc",
                       "select": "id,publication_year,authorships",
                       "mailto": mailto}
             resp = http.raw_get(OPENALEX_API, params=params)
             if resp is None or resp.status_code >= 400:
+                status = resp.status_code if resp is not None else "no response"
                 log.warning("[supervisors] OpenAlex works-pool query failed "
-                            "(%s)", resp.status_code if resp is not None
-                            else "no response")
+                            "(%s)", status)
+                # SAY WHY. A 429 here is not "there are no supervisors in this
+                # country" — it is OpenAlex refusing to talk to this network,
+                # and it returns an empty search that looks identical to a
+                # genuine no-match. Measured on a throttled exit IP: every
+                # request 429, with and without a mailto, so the user has no
+                # way to tell a rate limit from an empty field.
+                if status == 429 and on_progress:
+                    try:
+                        on_progress({
+                            "event": "stage",
+                            "label": "OpenAlex is rate-limiting this network "
+                                     "(HTTP 429) — results will be incomplete. "
+                                     "Try again later or on another network.",
+                            "rate_limited": True})
+                    except Exception:
+                        pass
                 break
             results = (resp.json().get("results") or [])
             for w in results:
@@ -299,7 +331,8 @@ def _author_current_institution(record: dict, code: str) -> Optional[str]:
 
 def openalex_supervisor_authors(cfg: Config, http,
                                 topics: list[str], country: str,
-                                field_id: Optional[str] = None
+                                field_id: Optional[str] = None,
+                                cancel=None, on_progress=None
                                 ) -> list[dict]:
     """OpenAlex supervisor path for --find-supervisors (any major, no token).
 
@@ -321,7 +354,25 @@ def openalex_supervisor_authors(cfg: Config, http,
     Returns rows in the aggregate_supervisors() output schema (score, papers,
     representative_papers, orcid, author_search...) so the rest of the
     pipeline — ORCID email lookup, CSV/JSON/HTML, printing — is unchanged.
-    Empty list when nothing matched."""
+    Empty list when nothing matched.
+
+    ``cancel`` and ``on_progress`` are polled and emitted INSIDE this function's
+    loops, which is where a supervisor search actually spends its minutes.
+    sync_supervisors only checks them between field/country pairs, and the
+    desktop searches exactly one pair — so a Stop click did nothing at all and
+    the dialog sat at 0/1 for the whole run. Whatever was verified before a
+    stop is returned rather than discarded: a cancelled search is a shortened
+    one."""
+    def _stopped() -> bool:
+        return cancel is not None and cancel.is_cancelled()
+
+    def _emit(**payload) -> None:
+        if on_progress:
+            try:
+                on_progress(payload)
+            except Exception:      # progress must never break a search
+                pass
+
     code = _CANON_TO_ISO2.get(canonical_country(country) or "")
     if not code:
         log.warning("[supervisors] OpenAlex author search: no ISO2 code for "
@@ -331,13 +382,18 @@ def openalex_supervisor_authors(cfg: Config, http,
     mailto = os.environ.get("OPENALEX_MAILTO", "") or OPENALEX_MAILTO
     year0 = date.today().year - cfg.supervisor_years_back
 
+    _emit(event="stage", label=f"{country}: finding who publishes here")
     pool = _openalex_works_pool(cfg, http, topics, field_id, code, mailto,
-                                year0)
+                                year0, cancel=cancel, on_progress=on_progress)
     if not pool:
         log.warning("[supervisors] OpenAlex author search: no authors publish "
                     "from %s in the profile's topics", country)
         return []
+    if _stopped():
+        return []
 
+    _emit(event="stage",
+          label=f"{country}: fetching {len(pool)} candidate profiles")
     records = _openalex_author_records(http, list(pool), mailto)
     if not records:
         log.warning("[supervisors] OpenAlex author search: could not fetch "
@@ -365,10 +421,27 @@ def openalex_supervisor_authors(cfg: Config, http,
     accepted = 0
     attempted = 0
     max_attempts = cfg.supervisor_author_enrich * 3
+    # The loop below is where a supervisor search spends nearly all of its
+    # time: one HTTP round trip per candidate, up to author_enrich*3 of them.
+    # Cancel is polled every iteration and progress is emitted every iteration,
+    # so Stop takes effect within one request and the dialog visibly counts.
+    target = min(cfg.supervisor_author_enrich, len(ordered))
+    _emit(event="stage", label=f"{country}: checking candidates", total=target)
     for rec in ordered:
         if accepted >= cfg.supervisor_author_enrich or attempted >= max_attempts:
             break
+        if _stopped():
+            log.info("[supervisors] cancelled after %d candidates — keeping "
+                     "the %d already verified", attempted, len(rows))
+            break
         attempted += 1
+        # Emitted BEFORE the request, every single candidate. Acceptance is
+        # rare — most candidates are rejected on country or field — so a
+        # counter that only moves on a hit can sit still for a long time and
+        # is indistinguishable from a frozen search. This one always moves.
+        _emit(event="stage",
+              label=f"{country}: checking candidate {attempted}"
+                    f" — {accepted} found so far")
         aid = _aid(rec)
         info = _openalex_author_recent(http, cfg, aid, year0, code, mailto,
                                        field_id)
@@ -449,6 +522,13 @@ def openalex_supervisor_authors(cfg: Config, http,
             "email_source": None,
         })
         accepted += 1
+        # A found supervisor, named, as soon as they are verified — the dialog
+        # can list results while the search is still running instead of showing
+        # nothing until the very end.
+        _emit(event="candidate", completed=accepted, total=target,
+              attempted=attempted,
+              name=rows[-1]["name"], institution=rows[-1]["institution"],
+              score=int(rows[-1].get("score") or 0))
     rows.sort(key=lambda r: (-r["score"], r["name"]))
     log.info("[supervisors] OpenAlex author-direct: %d ranked candidates "
              "(%d in the country+field pool, h-index + recency scoring)",

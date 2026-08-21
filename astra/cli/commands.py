@@ -275,6 +275,35 @@ def sync_supervisors(
                 P.compile_taxonomy(cfg)
                 cfg.countries = [country]
                 cfg.delay = 0.4
+                if quick:
+                    # AN INTERACTIVE SEARCH MUST STAY INTERRUPTIBLE.
+                    #
+                    # Retries live inside the session adapter, so ONE raw_get
+                    # can block for timeout x (retries + 1) plus backoff — with
+                    # the defaults, about 80 seconds of uninterruptible wait,
+                    # and longer through a slow proxy. Cancellation is polled
+                    # between requests, so a Stop click could not be noticed
+                    # for well over a minute: pressing it appeared to do
+                    # nothing at all. Measured here at 56s and still running.
+                    #
+                    # OpenAlex answers in well under a second when it answers
+                    # at all, so a short budget costs nothing on a healthy
+                    # network and fails fast on a sick one — which is also why
+                    # the whole search gets quicker, not just more responsive.
+                    # The CLI path (quick=False) keeps the patient defaults.
+                    cfg.timeout = min(cfg.timeout, 8)
+                    # KEEP the retries — OpenAlex answers 429 often enough that
+                    # dropping them returns an EMPTY search (measured: pool=0
+                    # in 0.7s, "works-pool query failed (429)"). What must go is
+                    # the unbounded sleep those retries used to do: urllib3
+                    # honouring Retry-After inside the adapter is what froze a
+                    # search for 64s at a time with Stop doing nothing.
+                    # Bounded backoff instead: ~0.5s, ~1s, so three attempts
+                    # cost about two seconds and the cancel checks around them
+                    # actually get a turn.
+                    cfg.max_retries = max(2, min(cfg.max_retries, 3))
+                    cfg.respect_retry_after = False
+                    cfg.backoff = min(cfg.backoff, 0.5)
                 cfg.supervisor_pool_pages = pool_pages
                 cfg.supervisor_author_enrich = author_enrich
                 cfg.supervisor_recent_works = recent_works
@@ -303,8 +332,14 @@ def sync_supervisors(
                                 break
                         elif s == "openalex":
                             if focus_topics:
+                                # cancel/on_progress go all the way in: this
+                                # call is the whole runtime of a search, and
+                                # the per-pair checks around this loop never
+                                # fire for the desktop's single pair.
                                 ranked = P.openalex_supervisor_authors(
-                                    cfg, http, focus_topics, country, cfg.supervisor_field)
+                                    cfg, http, focus_topics, country,
+                                    cfg.supervisor_field,
+                                    cancel=cancel, on_progress=on_progress)
                                 if ranked:
                                     src = "OpenAlex"
                                     break
